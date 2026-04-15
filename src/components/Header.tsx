@@ -17,6 +17,7 @@ const pageTitle = [
   { title: "关于", href: "/about" },
   { title: "下载中心", href: "/downloads" },
   { title: "实用工具", href: "/tools" },
+  { title: "实时股票", href: "/stock" },
 ];
 
 export default function Header() {

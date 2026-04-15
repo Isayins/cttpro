@@ -17,11 +17,13 @@
     "@reduxjs/toolkit": "^2.9.0",
     "antd": "^5.27.4",
     "axios": "^1.12.2",
+    "lightweight-charts": "^5.1.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-hook-form": "^7.63.0",
     "react-redux": "^9.2.0",
     "react-router-dom": "^7.9.1",
+    "recharts": "^3.8.0",
     "zod": "^4.1.11"
   },
   "devDependencies": {
