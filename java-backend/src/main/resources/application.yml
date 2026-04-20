@@ -1,0 +1,70 @@
+﻿spring:
+  application:
+    name: java-backend
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/idncar?serverTimezone=GMT%2B8&characterEncoding=utf-8&allowPublicKeyRetrieval=true}
+    username: ${SPRING_DATASOURCE_USERNAME:debian-sys-maint}
+    password: ${SPRING_DATASOURCE_PASSWORD:nF27gknzM2Y51Y5e}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6387}
+      password: ${SPRING_DATA_REDIS_PASSWORD:cttredis!@1129*}
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+  mail:
+    host: ${SPRING_MAIL_HOST:smtp.163.com}
+    port: ${SPRING_MAIL_PORT:25}
+    username: ${SPRING_MAIL_USERNAME:pppopidc@163.com}
+    password: ${SPRING_MAIL_PASSWORD:WJPq7Tj9vTd89Buc}
+    properties:
+      mail:
+        smtp:
+          auth: ${SPRING_MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${SPRING_MAIL_STARTTLS_ENABLE:true}
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.idncar.model.entity
+
+server:
+  port: 9091
+  servlet:
+    context-path: /
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+python:
+  service:
+    url: ${PYTHON_SERVICE_URL:http://localhost:8735}
+
+jwt:
+  secret: ${JWT_SECRET:ZGV2LXRva2VuLXNlY3JldC1wbGVhc2UtcmVwbGFjZS1pbi1wcm9kdWN0aW9uLQ==}
+  expiration: 86400000
+
+app:
+  auth:
+    email-code-expire-minutes: ${APP_AUTH_EMAIL_CODE_EXPIRE_MINUTES:10}
+    email-code-cooldown-seconds: ${APP_AUTH_EMAIL_CODE_COOLDOWN_SECONDS:60}
+  mail:
+    from: ${APP_MAIL_FROM:pppopidc@163.com}
+    mock-enabled: ${APP_MAIL_MOCK_ENABLED:false}
+  upload:
+    base-dir: ${APP_UPLOAD_BASE_DIR:uploads}
+    avatar-subdir: ${APP_UPLOAD_AVATAR_SUBDIR:avatars}
+  schema:
+    auto-init-enabled: ${APP_SCHEMA_AUTO_INIT_ENABLED:true}

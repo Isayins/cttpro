@@ -1,10 +1,13 @@
 import type { PropsWithChildren } from "react";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import MarketPanel from "./MarketPanel";
-import LogsPanel from "./LogsPanel";
-import NotificationsPanel from "./NotificationsPanel";
+
+import { useAuth } from "../context/useAuth";
+import type { MarketSnapshot, StockItem } from "../types/type";
 import ConfigPanel from "./ConfigPanel";
+import LogsPanel from "./LogsPanel";
+import MarketPanel from "./MarketPanel";
+import NotificationsPanel from "./NotificationsPanel";
 
 interface NavItem {
   id: string;
@@ -13,142 +16,166 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { id: "market", label: "行情面板", title: "实时策略与行情" },
+  { id: "market", label: "行情总览", title: "实时策略与行情" },
   { id: "logs", label: "策略日志", title: "策略执行日志" },
   { id: "notifications", label: "邮件通知", title: "邮件通知设置" },
   { id: "config", label: "参数配置", title: "策略参数配置" },
 ];
 
 interface StockLayoutProps extends PropsWithChildren {
-  snapshot?: any;
+  snapshot?: MarketSnapshot | null;
   connected?: boolean;
   error?: string | null;
   busy?: boolean;
   message?: string;
-  onBuy?: () => void;
-  onSell?: () => void;
-  onStart?: () => void;
-  onStop?: () => void;
+  stocks?: StockItem[];
+  stocksLoading?: boolean;
+  stocksError?: string;
+  selectedSymbol?: string;
+  currentStockName?: string;
+  currentStockCode?: string;
+  selectedRange?: string;
+  rangeOptions?: ReadonlyArray<{ key: string; label: string }>;
+  onSelectSymbol?: (symbol: string) => void;
+  onSelectRange?: (range: string) => void;
+  onBuy?: () => Promise<void>;
+  onSell?: () => Promise<void>;
+  onStart?: () => Promise<void>;
+  onStop?: () => Promise<void>;
 }
 
-export default function StockLayout({ 
-  children, 
-  snapshot, 
-  connected = false, 
-  error = null, 
-  busy = false, 
+export default function StockLayout({
+  children,
+  snapshot,
+  connected = false,
+  error = null,
+  busy = false,
   message = "",
+  stocks = [],
+  stocksLoading = false,
+  stocksError = "",
+  selectedSymbol = "",
+  currentStockName = "",
+  currentStockCode = "",
+  selectedRange = "",
+  rangeOptions = [],
+  onSelectSymbol,
+  onSelectRange,
   onBuy,
   onSell,
   onStart,
-  onStop
+  onStop,
 }: StockLayoutProps) {
-  const [activeNav, setActiveNav] = useState<string>("market");
+  const [activeNav, setActiveNav] = useState("market");
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
-  const handleNavClick = (navId: string) => {
-    setActiveNav(navId);
-  };
+  const currentTitle = useMemo(() => {
+    if (activeNav === "market" && currentStockName) {
+      return currentStockName;
+    }
+    return navItems.find((item) => item.id === activeNav)?.title ?? "实时策略与行情";
+  }, [activeNav, currentStockName]);
 
-  const getCurrentTitle = () => {
-    const currentItem = navItems.find(item => item.id === activeNav);
-    return currentItem?.title || "实时策略与行情";
-  };
+  const displayUsername = user?.username || localStorage.getItem("username") || "用户";
 
-  const handleLogout = () => {
-    // 清除登录状态
-    localStorage.removeItem("isLoggedIn");
-    localStorage.removeItem("username");
-    // 重定向到登录页面
+  const handleLogout = async () => {
+    await logout();
     navigate("/login");
   };
 
-  const getUsername = () => {
-    return localStorage.getItem("username") || "用户";
-  };
-
   const renderContent = () => {
-    switch (activeNav) {
-      case "market":
-        return (
-          <MarketPanel 
-            snapshot={snapshot}
-            connected={connected}
-            error={error}
-            busy={busy}
-            message={message}
-            onBuy={onBuy || (() => {})}
-            onSell={onSell || (() => {})}
-            onStart={onStart || (() => {})}
-            onStop={onStop || (() => {})}
-          />
-        );
-      case "logs":
-        return <LogsPanel />;
-      case "notifications":
-        return <NotificationsPanel />;
-      case "config":
-        return <ConfigPanel />;
-      default:
-        return children;
+    if (activeNav === "market") {
+      return (
+        <MarketPanel
+          snapshot={snapshot}
+          connected={connected}
+          error={error}
+          busy={busy}
+          message={message}
+          stocks={stocks}
+          stocksLoading={stocksLoading}
+          stocksError={stocksError}
+          selectedSymbol={selectedSymbol}
+          selectedRange={selectedRange}
+          rangeOptions={rangeOptions}
+          onSelectSymbol={onSelectSymbol || (() => {})}
+          onSelectRange={onSelectRange || (() => {})}
+          onBuy={onBuy || (async () => {})}
+          onSell={onSell || (async () => {})}
+          onStart={onStart || (async () => {})}
+          onStop={onStop || (async () => {})}
+        />
+      );
     }
+
+    if (activeNav === "logs") {
+      return <LogsPanel />;
+    }
+
+    if (activeNav === "notifications") {
+      return <NotificationsPanel />;
+    }
+
+    if (activeNav === "config") {
+      return <ConfigPanel />;
+    }
+
+    return children;
   };
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
+    <div className="app-shell stock-shell">
+      <aside className="sidebar stock-sidebar">
         <div>
           <div className="brand">CTT Pro</div>
-          <div className="brand-sub">量化交易控制台</div>
+          <div className="brand-sub">股票与基金量化监控台</div>
         </div>
 
         <nav className="sidebar-nav">
           {navItems.map((item) => (
-            <div
+            <button
               key={item.id}
+              type="button"
               className={`nav-item ${activeNav === item.id ? "active" : ""}`}
-              onClick={() => handleNavClick(item.id)}
-              style={{ cursor: "pointer" }}
+              onClick={() => setActiveNav(item.id)}
+              aria-pressed={activeNav === item.id}
             >
-              {item.label}
-            </div>
+              <span className="nav-item-label">{item.label}</span>
+              <span className="nav-item-title">{item.title}</span>
+            </button>
           ))}
         </nav>
-        
-        <div style={{ position: "absolute", bottom: "20px", width: "100%", padding: "0 20px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ color: "#666", fontSize: "14px" }}>欢迎, {getUsername()}</span>
-            <button 
-              onClick={handleLogout}
-              style={{ 
-                background: "none", 
-                border: "1px solid #1890ff", 
-                color: "#1890ff", 
-                padding: "4px 12px", 
-                borderRadius: "4px", 
-                fontSize: "12px",
-                cursor: "pointer"
-              }}
-            >
-              登出
-            </button>
+
+        <div className="sidebar-user-card">
+          <div className="sidebar-user-copy">
+            <span className="sidebar-user-label">当前账号</span>
+            <strong className="sidebar-user-name">{displayUsername}</strong>
           </div>
+          <button className="sidebar-logout-button" onClick={() => void handleLogout()}>
+            退出
+          </button>
         </div>
       </aside>
 
-      <div className="main-column">
-        <header className="topbar">
+      <div className="main-column stock-main-column">
+        <header className="topbar stock-topbar">
           <div>
-            <div className="topbar-title">{getCurrentTitle()}</div>
-            <div className="muted">TuShare 数据 + 邮件提醒 + WebSocket 推送</div>
+            <div className="topbar-eyebrow">股票页</div>
+            <div className="topbar-title">{currentTitle || "实时策略与行情"}</div>
+            <div className="muted stock-topbar-copy">
+              {activeNav === "market" && currentStockName
+                ? `当前展示 ${currentStockName}${currentStockCode ? ` · ${currentStockCode}` : ""}`
+                : "Java 行情代理、轮询刷新与策略联动"}
+            </div>
           </div>
-          <div className="topbar-right">
-            <span className="dot" />
-            <span>运行中</span>
+          <div className="topbar-right stock-topbar-right">
+            <span className={`dot ${connected ? "online" : "offline"}`} />
+            <span>{connected ? "数据已连接" : "等待连接"}</span>
           </div>
         </header>
 
-        <main className="content">{renderContent()}</main>
+        <main className="content stock-content">{renderContent()}</main>
       </div>
     </div>
   );

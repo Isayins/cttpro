@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.idncar.mapper.PostMapper">
+
+    <update id="incrementViewCount">
+        UPDATE posts
+        SET view_count = COALESCE(view_count, 0) + 1
+        WHERE id = #{id}
+    </update>
+
+    <update id="incrementLikeCount">
+        UPDATE posts
+        SET like_count = GREATEST(0, COALESCE(like_count, 0) + #{delta})
+        WHERE id = #{id}
+    </update>
+
+    <update id="incrementFavoriteCount">
+        UPDATE posts
+        SET favorite_count = GREATEST(0, COALESCE(favorite_count, 0) + #{delta})
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectByIdsInOrder" resultType="com.idncar.model.entity.Post">
+        SELECT *
+        FROM posts
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        ORDER BY pinned DESC, create_time DESC
+    </select>
+
+</mapper>

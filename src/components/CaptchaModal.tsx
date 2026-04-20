@@ -1,93 +1,89 @@
-// src/components/CaptchaModal.tsx
-import React, { useEffect, useState } from 'react';
-import { Modal, Input, Spin, Button, message } from 'antd';
-import type { DownloadItem } from '../services/downloadService';
-import axios from 'axios';
+import { useEffect, useState } from "react";
+import { Button, Input, Modal, Spin, message } from "antd";
+
+import { buildProtectedDownloadUrl, getCaptcha, verifyCaptcha, type DownloadItem } from "../services/downloadService";
 
 type Props = {
   open: boolean;
   item: DownloadItem | null;
   onClose: () => void;
-  /** 验证通过后什么也不做或你可在这里处理（默认会触发 window.location） */
   onVerified?: (downloadUrl: string) => void;
 };
 
 export default function CaptchaModal({ open, item, onClose, onVerified }: Props) {
-  const [captchaImg, setCaptchaImg] = useState<string>('');
-  const [captchaId, setCaptchaId] = useState<string>('');
-  const [value, setValue] = useState('');
+  const [captchaImg, setCaptchaImg] = useState("");
+  const [captchaId, setCaptchaId] = useState("");
+  const [value, setValue] = useState("");
   const [loading, setLoading] = useState(false);
   const [verifyLoading, setVerifyLoading] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setValue('');
-      setCaptchaImg('');
-      setCaptchaId('');
-      fetchOne();
+      setValue("");
+      setCaptchaImg("");
+      setCaptchaId("");
+      void fetchOne();
     }
   }, [open, item]);
 
-  const fetchOne = async () => {
+  async function fetchOne() {
     setLoading(true);
     try {
-      const response = await axios.get<{ captchaId: string; image: string }>(
-        'https://idncar.com/api/captcha',
-        { headers: { 'Cache-Control': 'no-store' } }
-      );
-      setCaptchaId(response.data.captchaId);
-      setCaptchaImg(response.data.image);
-    } catch (e) {
-      console.error(e);
-      message.error('加载验证码失败');
+      const response = await getCaptcha();
+      setCaptchaId(response.captchaId);
+      setCaptchaImg(response.image);
+    } catch (error) {
+      console.error(error);
+      message.error("加载验证码失败");
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  const handleVerify = async () => {
+  async function handleVerify() {
     if (!item) return;
-    if (!value.trim()) return message.warning('请输入验证码');
+    if (!captchaId) {
+      message.warning("验证码尚未加载完成，请先刷新验证码");
+      await fetchOne();
+      return;
+    }
+    if (!value.trim()) {
+      message.warning("请输入验证码");
+      return;
+    }
+
     setVerifyLoading(true);
     try {
-      const response = await axios.post<{ downloadToken?: string; message?: string }>(
-        'https://idncar.com/api/verify_captcha',
-        {
-          captchaId,
-          answer: value.trim(),
-          resource: item.url,
-        },
-        { headers: { 'Content-Type': 'application/json' } }
-      );
-
-      const res = response.data;
-
+      const res = await verifyCaptcha(captchaId, value.trim(), item.url, item.title);
       if (res?.downloadToken) {
-        const base = 'https://idncar.com';
-        const downloadUrl = `${base}/api/download?token=${encodeURIComponent(res.downloadToken)}`;
-        onVerified ? onVerified(downloadUrl) : window.location.assign(downloadUrl);
+        const downloadUrl = buildProtectedDownloadUrl(res.downloadToken);
+        if (onVerified) {
+          onVerified(downloadUrl);
+        } else {
+          window.location.assign(downloadUrl);
+        }
         onClose();
-        message.success('下载即将开始');
+        message.success("验证通过，开始下载");
       } else {
-        message.error(res?.message || '验证码错误');
-        setValue('');
+        message.error(res?.message || "验证码错误");
+        setValue("");
         await fetchOne();
       }
-    } catch (e) {
-      console.error(e);
-      message.error('校验失败，请稍后重试');
+    } catch (error) {
+      console.error(error);
+      message.error("校验失败，请稍后重试");
       await fetchOne();
     } finally {
       setVerifyLoading(false);
     }
-  };
+  }
 
   return (
     <Modal
       open={open}
-      title="请输入验证码以开始下载"
+      title="请输入验证码以后开始下载"
       onCancel={onClose}
-      onOk={handleVerify}
+      onOk={() => void handleVerify()}
       okText="提交"
       cancelText="取消"
       confirmLoading={verifyLoading}
@@ -95,26 +91,24 @@ export default function CaptchaModal({ open, item, onClose, onVerified }: Props)
     >
       <div className="flex flex-col gap-3">
         {loading ? (
-          <div className="w-full h-24 flex items-center justify-center bg-gray-100 rounded">
+          <div className="flex h-24 w-full items-center justify-center rounded bg-gray-100">
             <Spin />
           </div>
         ) : captchaImg ? (
-          <img src={captchaImg} alt="captcha" className="w-full h-24 object-contain rounded" />
+          <img src={captchaImg} alt="captcha" className="h-24 w-full rounded object-contain" />
         ) : (
-          <div className="w-full h-24 flex items-center justify-center bg-gray-100 rounded">
-            无验证码
-          </div>
+          <div className="flex h-24 w-full items-center justify-center rounded bg-gray-100">暂无验证码</div>
         )}
 
         <div className="flex gap-2">
           <Input
             placeholder="在此输入验证码"
             value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onPressEnter={handleVerify}
+            onChange={(event) => setValue(event.target.value)}
+            onPressEnter={() => void handleVerify()}
             autoFocus
           />
-          <Button type="link" onClick={fetchOne}>
+          <Button type="link" onClick={() => void fetchOne()}>
             刷新
           </Button>
         </div>

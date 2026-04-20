@@ -1,803 +1,867 @@
-import MainLayout from '../layouts/MainLayout';
-import React, { useState, useCallback } from 'react';
-import { Card, CardContent } from '../components/ui';
-import { Row, Col, Button, Input, Alert } from 'antd';
-import { CopyOutlined, DeleteOutlined, CodeOutlined, CheckCircleOutlined, WarningOutlined, ClockCircleOutlined, LinkOutlined, KeyOutlined, QrcodeOutlined, FileTextOutlined, UploadOutlined } from '@ant-design/icons';
+import React, { useMemo, useState, type ComponentType, type CSSProperties } from "react";
+import { Alert, Button, Col, Empty, Input, Row, Slider, Tag, message } from "antd";
+import {
+  CheckCircleOutlined,
+  ClockCircleOutlined,
+  CodeOutlined,
+  CopyOutlined,
+  DeleteOutlined,
+  FileTextOutlined,
+  HistoryOutlined,
+  KeyOutlined,
+  LinkOutlined,
+  QrcodeOutlined,
+  ReloadOutlined,
+  UploadOutlined,
+  WarningOutlined,
+} from "@ant-design/icons";
+
+import { Card, CardContent } from "../components/ui";
+import MainLayout from "../layouts/MainLayout";
+import { toolsApi } from "../services/api";
 
 const { TextArea } = Input;
 
-type ToolType = 'json' | 'timestamp' | 'base64' | 'url' | 'qrcode' | 'javadecompile';
+type ToolType = "json" | "timestamp" | "base64" | "url" | "qrcode" | "javadecompile";
 
-const toolConfig = {
-  json: { name: 'JSON 格式化', icon: CodeOutlined, color: '#1890ff', bgColor: 'bg-blue-100' },
-  timestamp: { name: '时间戳转换', icon: ClockCircleOutlined, color: '#52c41a', bgColor: 'bg-green-100' },
-  base64: { name: 'Base64 编解码', icon: KeyOutlined, color: '#faad14', bgColor: 'bg-yellow-100' },
-  url: { name: 'URL 编解码', icon: LinkOutlined, color: '#f5222d', bgColor: 'bg-red-100' },
-  qrcode: { name: '二维码生成', icon: QrcodeOutlined, color: '#722ed1', bgColor: 'bg-purple-100' },
-  javadecompile: { name: 'Java 反编译', icon: FileTextOutlined, color: '#f78c65', bgColor: 'bg-orange-100' },
+type ToolHistoryItem = {
+  id: string;
+  tool: ToolType;
+  action: string;
+  input: string;
+  output?: string;
+  mode?: "encode" | "decode";
+  size?: number;
+  fileName?: string;
+  createdAt: string;
 };
 
-export default function Tools() {
-  const [activeTool, setActiveTool] = useState<ToolType>('json');
+const TOOL_HISTORY_STORAGE_KEY = "idncar.tools.history";
+const TOOL_HISTORY_LIMIT = 18;
+const TOOL_HISTORY_TEXT_LIMIT = 4000;
 
-  const [inputJson, setInputJson] = useState<string>('');
-  const [outputJson, setOutputJson] = useState<string>('');
-  const [jsonCopied, setJsonCopied] = useState<boolean>(false);
+type ToolIconProps = {
+  style?: CSSProperties;
+  className?: string;
+};
+
+const toolConfig: Record<
+  ToolType,
+  { name: string; icon: ComponentType<ToolIconProps>; color: string; bgColor: string }
+> = {
+  json: { name: "JSON 格式化", icon: CodeOutlined, color: "#2563eb", bgColor: "bg-blue-100" },
+  timestamp: { name: "时间戳转换", icon: ClockCircleOutlined, color: "#2f855a", bgColor: "bg-green-100" },
+  base64: { name: "Base64 编解码", icon: KeyOutlined, color: "#c0841a", bgColor: "bg-amber-100" },
+  url: { name: "URL 编解码", icon: LinkOutlined, color: "#dc2626", bgColor: "bg-rose-100" },
+  qrcode: { name: "二维码生成", icon: QrcodeOutlined, color: "#7c3aed", bgColor: "bg-violet-100" },
+  javadecompile: { name: "Java 反编译", icon: FileTextOutlined, color: "#ea580c", bgColor: "bg-orange-100" },
+};
+
+function encodeBase64(value: string) {
+  return btoa(unescape(encodeURIComponent(value)));
+}
+
+function decodeBase64(value: string) {
+  return decodeURIComponent(escape(atob(value)));
+}
+
+function trimHistoryText(value: string, limit = TOOL_HISTORY_TEXT_LIMIT) {
+  if (value.length <= limit) {
+    return value;
+  }
+  return `${value.slice(0, limit)}\n...`;
+}
+
+function readToolHistory(): ToolHistoryItem[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const raw = window.localStorage.getItem(TOOL_HISTORY_STORAGE_KEY);
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.filter((item): item is ToolHistoryItem => Boolean(item?.id && item?.tool && item?.action && item?.createdAt));
+  } catch {
+    return [];
+  }
+}
+
+function writeToolHistory(history: ToolHistoryItem[]) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.setItem(TOOL_HISTORY_STORAGE_KEY, JSON.stringify(history));
+}
+
+function formatHistoryTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function getHistoryPreview(value?: string) {
+  if (!value) {
+    return "暂无结果预览";
+  }
+  return value.replace(/\s+/g, " ").trim().slice(0, 72) || "暂无结果预览";
+}
+
+export default function Tools() {
+  const [activeTool, setActiveTool] = useState<ToolType>("json");
+  const [history, setHistory] = useState<ToolHistoryItem[]>(() => readToolHistory());
+
+  const [inputJson, setInputJson] = useState("");
+  const [outputJson, setOutputJson] = useState("");
+  const [jsonCopied, setJsonCopied] = useState(false);
   const [jsonError, setJsonError] = useState<string | null>(null);
 
-  const [timestampInput, setTimestampInput] = useState<string>('');
-  const [timestampOutput, setTimestampOutput] = useState<string>('');
-  const [timestampCopied, setTimestampCopied] = useState<boolean>(false);
+  const [timestampInput, setTimestampInput] = useState("");
+  const [timestampOutput, setTimestampOutput] = useState("");
+  const [timestampCopied, setTimestampCopied] = useState(false);
   const [timestampError, setTimestampError] = useState<string | null>(null);
 
-  const [base64Input, setBase64Input] = useState<string>('');
-  const [base64Output, setBase64Output] = useState<string>('');
-  const [base64Copied, setBase64Copied] = useState<boolean>(false);
+  const [base64Input, setBase64Input] = useState("");
+  const [base64Output, setBase64Output] = useState("");
+  const [base64Copied, setBase64Copied] = useState(false);
   const [base64Error, setBase64Error] = useState<string | null>(null);
-  const [base64Mode, setBase64Mode] = useState<'encode' | 'decode'>('encode');
+  const [base64Mode, setBase64Mode] = useState<"encode" | "decode">("encode");
 
-  const [urlInput, setUrlInput] = useState<string>('');
-  const [urlOutput, setUrlOutput] = useState<string>('');
-  const [urlCopied, setUrlCopied] = useState<boolean>(false);
-  const [urlMode, setUrlMode] = useState<'encode' | 'decode'>('encode');
+  const [urlInput, setUrlInput] = useState("");
+  const [urlOutput, setUrlOutput] = useState("");
+  const [urlCopied, setUrlCopied] = useState(false);
+  const [urlMode, setUrlMode] = useState<"encode" | "decode">("encode");
 
-  const [qrcodeInput, setQrcodeInput] = useState<string>('');
-  const [qrcodeSize, setQrcodeSize] = useState<number>(150);
-  const [qrcodeUrl, setQrcodeUrl] = useState<string>('');
+  const [qrcodeInput, setQrcodeInput] = useState("");
+  const [qrcodeSize, setQrcodeSize] = useState(180);
+  const [qrcodeUrl, setQrcodeUrl] = useState("");
 
-  const [javaClassContent, setJavaClassContent] = useState<string>('');
-  const [javaDecompileOutput, setJavaDecompileOutput] = useState<string>('');
-  const [javaDecompileCopied, setJavaDecompileCopied] = useState<boolean>(false);
+  const [javaClassContent, setJavaClassContent] = useState("");
+  const [javaDecompileOutput, setJavaDecompileOutput] = useState("");
+  const [javaDecompileCopied, setJavaDecompileCopied] = useState(false);
   const [javaDecompileError, setJavaDecompileError] = useState<string | null>(null);
-  const [javaFileName, setJavaFileName] = useState<string>('');
+  const [javaFileName, setJavaFileName] = useState("");
+  const [javaDecompiling, setJavaDecompiling] = useState(false);
 
-  const handleJsonFormat = useCallback(() => {
-    setJsonError(null);
+  const currentTool = useMemo(() => toolConfig[activeTool], [activeTool]);
+  const historyItems = useMemo(() => {
+    const current = history.filter((item) => item.tool === activeTool);
+    const others = history.filter((item) => item.tool !== activeTool);
+    return [...current, ...others].slice(0, 8);
+  }, [activeTool, history]);
+
+  const pushHistory = (entry: Omit<ToolHistoryItem, "id" | "createdAt">) => {
+    setHistory((current) => {
+      const nextItem: ToolHistoryItem = {
+        ...entry,
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        input: trimHistoryText(entry.input),
+        output: entry.output ? trimHistoryText(entry.output) : undefined,
+        createdAt: new Date().toISOString(),
+      };
+
+      const deduped = current.filter(
+        (item) => !(item.tool === nextItem.tool && item.action === nextItem.action && item.input === nextItem.input),
+      );
+      const next = [nextItem, ...deduped].slice(0, TOOL_HISTORY_LIMIT);
+      writeToolHistory(next);
+      return next;
+    });
+  };
+
+  const removeHistoryItem = (id: string) => {
+    setHistory((current) => {
+      const next = current.filter((item) => item.id !== id);
+      writeToolHistory(next);
+      return next;
+    });
+  };
+
+  const clearHistory = () => {
+    setHistory([]);
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(TOOL_HISTORY_STORAGE_KEY);
+    }
+    message.success("已清空工具历史记录");
+  };
+
+  const copyText = async (value: string, setCopied: (value: boolean) => void) => {
+    if (!value) {
+      return;
+    }
+
     try {
-      if (!inputJson.trim()) {
-        throw new Error('请输入JSON内容');
-      }
-      const parsed = JSON.parse(inputJson);
-      const formatted = JSON.stringify(parsed, null, 2);
-      setOutputJson(formatted);
-    } catch (e: any) {
-      setJsonError('JSON格式错误: ' + e.message);
-      setOutputJson('');
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      message.error("复制失败，请检查浏览器权限");
     }
-  }, [inputJson]);
+  };
 
-  const handleJsonMinify = useCallback(() => {
-    setJsonError(null);
-    try {
-      if (!inputJson.trim()) {
-        throw new Error('请输入JSON内容');
-      }
-      const parsed = JSON.parse(inputJson);
-      const minified = JSON.stringify(parsed);
-      setOutputJson(minified);
-    } catch (e: any) {
-      setJsonError('JSON格式错误: ' + e.message);
-      setOutputJson('');
-    }
-  }, [inputJson]);
-
-  const handleJsonCopy = useCallback(() => {
-    if (outputJson) {
-      navigator.clipboard.writeText(outputJson);
-      setJsonCopied(true);
-      setTimeout(() => setJsonCopied(false), 2000);
-    }
-  }, [outputJson]);
-
-  const handleJsonClear = useCallback(() => {
-    setInputJson('');
-    setOutputJson('');
+  const resetCopiedStates = () => {
     setJsonCopied(false);
-    setJsonError(null);
-  }, []);
+    setTimestampCopied(false);
+    setBase64Copied(false);
+    setUrlCopied(false);
+    setJavaDecompileCopied(false);
+  };
 
-  const handleTimestampConvert = useCallback(() => {
+  const restoreHistoryItem = (item: ToolHistoryItem) => {
+    resetCopiedStates();
+    setActiveTool(item.tool);
+
+    if (item.tool === "json") {
+      setInputJson(item.input);
+      setOutputJson(item.output ?? "");
+      setJsonError(null);
+    }
+
+    if (item.tool === "timestamp") {
+      setTimestampInput(item.input);
+      setTimestampOutput(item.output ?? "");
+      setTimestampError(null);
+    }
+
+    if (item.tool === "base64") {
+      setBase64Input(item.input);
+      setBase64Output(item.output ?? "");
+      setBase64Mode(item.mode ?? "encode");
+      setBase64Error(null);
+    }
+
+    if (item.tool === "url") {
+      setUrlInput(item.input);
+      setUrlOutput(item.output ?? "");
+      setUrlMode(item.mode ?? "encode");
+    }
+
+    if (item.tool === "qrcode") {
+      setQrcodeInput(item.input);
+      setQrcodeUrl(item.output ?? "");
+      setQrcodeSize(item.size ?? 180);
+    }
+
+    if (item.tool === "javadecompile") {
+      setJavaClassContent(item.input);
+      setJavaDecompileOutput(item.output ?? "");
+      setJavaFileName(item.fileName ?? "");
+      setJavaDecompileError(null);
+    }
+
+    message.success("已恢复到当前工具");
+  };
+
+  const handleJsonFormat = () => {
+    setJsonError(null);
+    try {
+      if (!inputJson.trim()) {
+        throw new Error("请输入 JSON 内容");
+      }
+
+      const output = JSON.stringify(JSON.parse(inputJson), null, 2);
+      setOutputJson(output);
+      pushHistory({
+        tool: "json",
+        action: "JSON 格式化",
+        input: inputJson.trim(),
+        output,
+      });
+    } catch (err) {
+      setJsonError(err instanceof Error ? err.message : "JSON 解析失败");
+      setOutputJson("");
+    }
+  };
+
+  const handleJsonMinify = () => {
+    setJsonError(null);
+    try {
+      if (!inputJson.trim()) {
+        throw new Error("请输入 JSON 内容");
+      }
+
+      const output = JSON.stringify(JSON.parse(inputJson));
+      setOutputJson(output);
+      pushHistory({
+        tool: "json",
+        action: "JSON 压缩",
+        input: inputJson.trim(),
+        output,
+      });
+    } catch (err) {
+      setJsonError(err instanceof Error ? err.message : "JSON 解析失败");
+      setOutputJson("");
+    }
+  };
+
+  const handleTimestampConvert = () => {
     setTimestampError(null);
     try {
       if (!timestampInput.trim()) {
-        throw new Error('请输入时间戳或日期');
+        throw new Error("请输入时间戳或日期");
       }
-      
+
       const input = timestampInput.trim();
-      let result = '';
-      
+      let output = "";
+
       if (/^\d{10,13}$/.test(input)) {
-        const timestamp = parseInt(input);
-        const milliseconds = input.length === 10 ? timestamp * 1000 : timestamp;
-        const date = new Date(milliseconds);
-        result = `${date.toLocaleString('zh-CN')}\n${date.toISOString()}\n${milliseconds} (毫秒)`;
+        const timestamp = Number(input.length === 10 ? `${input}000` : input);
+        const date = new Date(timestamp);
+        if (Number.isNaN(date.getTime())) {
+          throw new Error("时间戳无效");
+        }
+
+        output = [`本地时间：${date.toLocaleString("zh-CN")}`, `ISO：${date.toISOString()}`, `毫秒：${timestamp}`].join("\n");
       } else {
         const date = new Date(input);
-        if (isNaN(date.getTime())) {
-          throw new Error('无效的日期格式');
+        if (Number.isNaN(date.getTime())) {
+          throw new Error("日期格式无效");
         }
-        result = `${date.getTime()} (毫秒)\n${Math.floor(date.getTime() / 1000)} (秒)\n${date.toISOString()}`;
+
+        output = [`毫秒：${date.getTime()}`, `秒：${Math.floor(date.getTime() / 1000)}`, `ISO：${date.toISOString()}`].join("\n");
       }
-      
-      setTimestampOutput(result);
-    } catch (e: any) {
-      setTimestampError(e.message);
-      setTimestampOutput('');
+
+      setTimestampOutput(output);
+      pushHistory({
+        tool: "timestamp",
+        action: "时间戳转换",
+        input,
+        output,
+      });
+    } catch (err) {
+      setTimestampError(err instanceof Error ? err.message : "时间转换失败");
+      setTimestampOutput("");
     }
-  }, [timestampInput]);
+  };
 
-  const handleTimestampCopy = useCallback(() => {
-    if (timestampOutput) {
-      navigator.clipboard.writeText(timestampOutput);
-      setTimestampCopied(true);
-      setTimeout(() => setTimestampCopied(false), 2000);
-    }
-  }, [timestampOutput]);
-
-  const handleTimestampClear = useCallback(() => {
-    setTimestampInput('');
-    setTimestampOutput('');
-    setTimestampCopied(false);
-    setTimestampError(null);
-  }, []);
-
-  const handleBase64Convert = useCallback(() => {
+  const handleBase64Convert = () => {
     setBase64Error(null);
     try {
       if (!base64Input.trim()) {
-        throw new Error('请输入内容');
+        throw new Error("请输入待处理内容");
       }
-      
-      let result = '';
-      if (base64Mode === 'encode') {
-        result = btoa(unescape(encodeURIComponent(base64Input)));
-      } else {
-        result = decodeURIComponent(escape(atob(base64Input)));
-      }
-      
-      setBase64Output(result);
-    } catch (e: any) {
-      setBase64Error('操作失败: ' + e.message);
-      setBase64Output('');
+
+      const output = base64Mode === "encode" ? encodeBase64(base64Input) : decodeBase64(base64Input);
+      setBase64Output(output);
+      pushHistory({
+        tool: "base64",
+        action: base64Mode === "encode" ? "Base64 编码" : "Base64 解码",
+        input: base64Input,
+        output,
+        mode: base64Mode,
+      });
+    } catch (err) {
+      setBase64Error(err instanceof Error ? err.message : "Base64 转换失败");
+      setBase64Output("");
     }
-  }, [base64Input, base64Mode]);
+  };
 
-  const handleBase64Copy = useCallback(() => {
-    if (base64Output) {
-      navigator.clipboard.writeText(base64Output);
-      setBase64Copied(true);
-      setTimeout(() => setBase64Copied(false), 2000);
+  const handleUrlConvert = () => {
+    if (!urlInput.trim()) {
+      setUrlOutput("");
+      return;
     }
-  }, [base64Output]);
 
-  const handleBase64Clear = useCallback(() => {
-    setBase64Input('');
-    setBase64Output('');
-    setBase64Copied(false);
-    setBase64Error(null);
-  }, []);
-
-  const handleUrlConvert = useCallback(() => {
     try {
-      if (!urlInput.trim()) {
-        setUrlOutput('');
-        return;
-      }
-      
-      let result = '';
-      if (urlMode === 'encode') {
-        result = encodeURIComponent(urlInput);
-      } else {
-        result = decodeURIComponent(urlInput);
-      }
-      
-      setUrlOutput(result);
-    } catch (e: any) {
-      setUrlOutput('');
+      const output = urlMode === "encode" ? encodeURIComponent(urlInput) : decodeURIComponent(urlInput);
+      setUrlOutput(output);
+      pushHistory({
+        tool: "url",
+        action: urlMode === "encode" ? "URL 编码" : "URL 解码",
+        input: urlInput,
+        output,
+        mode: urlMode,
+      });
+    } catch {
+      setUrlOutput("");
+      message.error("URL 转换失败");
     }
-  }, [urlInput, urlMode]);
+  };
 
-  const handleUrlCopy = useCallback(() => {
-    if (urlOutput) {
-      navigator.clipboard.writeText(urlOutput);
-      setUrlCopied(true);
-      setTimeout(() => setUrlCopied(false), 2000);
+  const handleGenerateQrCode = () => {
+    if (!qrcodeInput.trim()) {
+      message.warning("请输入二维码内容");
+      return;
     }
-  }, [urlOutput]);
 
-  const handleUrlClear = useCallback(() => {
-    setUrlInput('');
-    setUrlOutput('');
-    setUrlCopied(false);
-  }, []);
+    const encoded = encodeURIComponent(qrcodeInput.trim());
+    const output = `https://api.qrserver.com/v1/create-qr-code/?size=${qrcodeSize}x${qrcodeSize}&data=${encoded}`;
+    setQrcodeUrl(output);
+    pushHistory({
+      tool: "qrcode",
+      action: "二维码生成",
+      input: qrcodeInput.trim(),
+      output,
+      size: qrcodeSize,
+    });
+  };
 
-  const handleQrcodeGenerate = useCallback(() => {
-    if (!qrcodeInput.trim()) return;
-    const encodedText = encodeURIComponent(qrcodeInput);
-    const url = `https://api.qrserver.com/v1/create-qr-code/?size=${qrcodeSize}x${qrcodeSize}&data=${encodedText}`;
-    setQrcodeUrl(url);
-  }, [qrcodeInput, qrcodeSize]);
-
-  const handleQrcodeClear = useCallback(() => {
-    setQrcodeInput('');
-    setQrcodeUrl('');
-  }, []);
-
-  const parseClassFile = useCallback((fileContent: string) => {
-    setJavaDecompileError(null);
-    try {
-      if (!fileContent.trim()) {
-        throw new Error('请上传 Class 文件或输入字节码内容');
-      }
-
-      const isBase64 = fileContent.startsWith('JVAV') || /^[A-Za-z0-9+/=]+$/.test(fileContent.trim().substring(0, 100));
-      
-      if (!isBase64) {
-        throw new Error('请上传有效的 Class 文件');
-      }
-
-      const sampleOutput = `// 反编译结果 - ${javaFileName || 'Unknown.class'}
-
-package com.example;
-
-public class ${javaFileName ? javaFileName.replace('.class', '') : 'Example'} {
-    
-    // 字段
-    private String name;
-    private int value;
-    
-    // 构造函数
-    public ${javaFileName ? javaFileName.replace('.class', '') : 'Example'}() {
-        this.name = "default";
-        this.value = 0;
+  const handleJavaFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
     }
-    
-    // 方法
-    public String getName() {
-        return this.name;
-    }
-    
-    public void setName(String name) {
-        this.name = name;
-    }
-    
-    public int getValue() {
-        return this.value;
-    }
-    
-    public void setValue(int value) {
-        this.value = value;
-    }
-    
-    public void printInfo() {
-        System.out.println("Name: " + this.name + ", Value: " + this.value);
-    }
-}
 
-// 注意：这是模拟的反编译结果
-// 完整的 Java 反编译需要后端支持`;
-
-      setJavaDecompileOutput(sampleOutput);
-      
-    } catch (e: any) {
-      setJavaDecompileError('解析错误: ' + e.message);
-      setJavaDecompileOutput('');
-    }
-  }, [javaFileName]);
-
-  const handleJavaFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    if (!file.name.endsWith('.class')) {
-      setJavaDecompileError('请上传 .class 文件');
+    if (!file.name.endsWith(".class")) {
+      setJavaDecompileError("请上传 .class 文件");
       return;
     }
 
     setJavaFileName(file.name);
-    
+    setJavaDecompileError(null);
+
     const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
-      if (result.startsWith('data:')) {
-        const base64Content = result.split(',')[1];
-        setJavaClassContent(base64Content);
-        parseClassFile(base64Content);
-      }
+    reader.onload = (loadEvent) => {
+      const result = String(loadEvent.target?.result ?? "");
+      const base64Content = result.includes(",") ? result.split(",")[1] : result;
+      setJavaClassContent(base64Content);
     };
     reader.readAsDataURL(file);
-  }, [parseClassFile]);
+  };
 
-  const handleJavaDecompileCopy = useCallback(() => {
-    if (javaDecompileOutput) {
-      navigator.clipboard.writeText(javaDecompileOutput);
-      setJavaDecompileCopied(true);
-      setTimeout(() => setJavaDecompileCopied(false), 2000);
-    }
-  }, [javaDecompileOutput]);
-
-  const handleJavaDecompileClear = useCallback(() => {
-    setJavaClassContent('');
-    setJavaDecompileOutput('');
-    setJavaDecompileCopied(false);
+  const handleJavaDecompile = async () => {
     setJavaDecompileError(null);
-    setJavaFileName('');
-  }, []);
+    setJavaDecompileCopied(false);
+
+    if (!javaClassContent.trim()) {
+      setJavaDecompileError("请上传 Class 文件或输入 Base64 字节码");
+      return;
+    }
+
+    try {
+      setJavaDecompiling(true);
+      const result = await toolsApi.javaDecompile({
+        fileName: javaFileName || "Uploaded.class",
+        base64Content: javaClassContent.trim(),
+      });
+
+      setJavaFileName(result.fileName);
+      setJavaDecompileOutput(result.output);
+      pushHistory({
+        tool: "javadecompile",
+        action: "Java 反编译",
+        input: javaClassContent.trim(),
+        output: result.output,
+        fileName: result.fileName,
+      });
+      message.success(`反编译完成，使用引擎：${result.engine}`);
+    } catch (err) {
+      setJavaDecompileOutput("");
+      setJavaDecompileError(err instanceof Error ? err.message : "反编译失败");
+    } finally {
+      setJavaDecompiling(false);
+    }
+  };
+
+  const renderCopyButton = (value: string, copied: boolean, setCopied: (value: boolean) => void) => (
+    <Button
+      type="text"
+      disabled={!value}
+      icon={copied ? <CheckCircleOutlined /> : <CopyOutlined />}
+      onClick={() => {
+        void copyText(value, setCopied);
+      }}
+      style={{ color: copied ? "#52c41a" : undefined }}
+    >
+      {copied ? "已复制" : "复制"}
+    </Button>
+  );
 
   const renderToolContent = () => {
-    const ToolIcon = toolConfig[activeTool].icon;
-    
+    if (activeTool === "json") {
+      return (
+        <div className="space-y-6">
+          {jsonError && <Alert type="error" showIcon icon={<WarningOutlined />} message="格式化失败" description={jsonError} />}
+          <Row gutter={[16, 16]}>
+            <Col xs={24} lg={12}>
+              <label className="mb-2 block text-sm font-medium text-gray-700">输入</label>
+              <TextArea rows={10} value={inputJson} onChange={(e) => setInputJson(e.target.value)} placeholder='{"name":"test"}' />
+              <div className="mt-4 flex gap-2">
+                <Button type="primary" onClick={handleJsonFormat} style={{ flex: 1 }}>
+                  格式化
+                </Button>
+                <Button onClick={handleJsonMinify} style={{ flex: 1 }}>
+                  压缩
+                </Button>
+                <Button
+                  icon={<DeleteOutlined />}
+                  onClick={() => {
+                    setInputJson("");
+                    setOutputJson("");
+                    setJsonError(null);
+                    setJsonCopied(false);
+                  }}
+                />
+              </div>
+            </Col>
+            <Col xs={24} lg={12}>
+              <div className="mb-2 flex items-center justify-between">
+                <label className="block text-sm font-medium text-gray-700">输出</label>
+                {renderCopyButton(outputJson, jsonCopied, setJsonCopied)}
+              </div>
+              <TextArea rows={10} readOnly value={outputJson} placeholder="结果会显示在这里" className="bg-gray-50 font-mono" />
+            </Col>
+          </Row>
+        </div>
+      );
+    }
+
+    if (activeTool === "timestamp") {
+      return (
+        <div className="space-y-6">
+          {timestampError && <Alert type="error" showIcon icon={<WarningOutlined />} message="转换失败" description={timestampError} />}
+          <Row gutter={[16, 16]}>
+            <Col xs={24} lg={12}>
+              <label className="mb-2 block text-sm font-medium text-gray-700">输入时间戳或日期</label>
+              <Input value={timestampInput} onChange={(e) => setTimestampInput(e.target.value)} placeholder="例如 1713268800000 或 2026-04-16 15:00:00" />
+              <div className="mt-4 flex gap-2">
+                <Button type="primary" onClick={handleTimestampConvert} style={{ flex: 1 }}>
+                  转换
+                </Button>
+                <Button
+                  icon={<DeleteOutlined />}
+                  onClick={() => {
+                    setTimestampInput("");
+                    setTimestampOutput("");
+                    setTimestampError(null);
+                    setTimestampCopied(false);
+                  }}
+                />
+              </div>
+            </Col>
+            <Col xs={24} lg={12}>
+              <div className="mb-2 flex items-center justify-between">
+                <label className="block text-sm font-medium text-gray-700">输出</label>
+                {renderCopyButton(timestampOutput, timestampCopied, setTimestampCopied)}
+              </div>
+              <TextArea rows={6} readOnly value={timestampOutput} placeholder="结果会显示在这里" className="bg-gray-50 font-mono" />
+            </Col>
+          </Row>
+        </div>
+      );
+    }
+
+    if (activeTool === "base64") {
+      return (
+        <div className="space-y-6">
+          {base64Error && <Alert type="error" showIcon icon={<WarningOutlined />} message="转换失败" description={base64Error} />}
+          <Row gutter={[16, 16]}>
+            <Col xs={24} lg={12}>
+              <div className="mb-3 flex gap-2">
+                <Button type={base64Mode === "encode" ? "primary" : "default"} onClick={() => setBase64Mode("encode")}>
+                  编码
+                </Button>
+                <Button type={base64Mode === "decode" ? "primary" : "default"} onClick={() => setBase64Mode("decode")}>
+                  解码
+                </Button>
+              </div>
+              <TextArea rows={8} value={base64Input} onChange={(e) => setBase64Input(e.target.value)} placeholder="输入原文或 Base64 内容" />
+              <div className="mt-4 flex gap-2">
+                <Button type="primary" onClick={handleBase64Convert} style={{ flex: 1 }}>
+                  执行
+                </Button>
+                <Button
+                  icon={<DeleteOutlined />}
+                  onClick={() => {
+                    setBase64Input("");
+                    setBase64Output("");
+                    setBase64Error(null);
+                    setBase64Copied(false);
+                  }}
+                />
+              </div>
+            </Col>
+            <Col xs={24} lg={12}>
+              <div className="mb-2 flex items-center justify-between">
+                <label className="block text-sm font-medium text-gray-700">输出</label>
+                {renderCopyButton(base64Output, base64Copied, setBase64Copied)}
+              </div>
+              <TextArea rows={8} readOnly value={base64Output} placeholder="结果会显示在这里" className="bg-gray-50 font-mono" />
+            </Col>
+          </Row>
+        </div>
+      );
+    }
+
+    if (activeTool === "url") {
+      return (
+        <Row gutter={[16, 16]}>
+          <Col xs={24} lg={12}>
+            <div className="mb-3 flex gap-2">
+              <Button type={urlMode === "encode" ? "primary" : "default"} onClick={() => setUrlMode("encode")}>
+                编码
+              </Button>
+              <Button type={urlMode === "decode" ? "primary" : "default"} onClick={() => setUrlMode("decode")}>
+                解码
+              </Button>
+            </div>
+            <TextArea rows={5} value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="输入 URL 或待编码内容" />
+            <div className="mt-4 flex gap-2">
+              <Button type="primary" onClick={handleUrlConvert} style={{ flex: 1 }}>
+                执行
+              </Button>
+              <Button
+                icon={<DeleteOutlined />}
+                onClick={() => {
+                  setUrlInput("");
+                  setUrlOutput("");
+                  setUrlCopied(false);
+                }}
+              />
+            </div>
+          </Col>
+          <Col xs={24} lg={12}>
+            <div className="mb-2 flex items-center justify-between">
+              <label className="block text-sm font-medium text-gray-700">输出</label>
+              {renderCopyButton(urlOutput, urlCopied, setUrlCopied)}
+            </div>
+            <TextArea rows={5} readOnly value={urlOutput} placeholder="结果会显示在这里" className="bg-gray-50 font-mono" />
+          </Col>
+        </Row>
+      );
+    }
+
+    if (activeTool === "qrcode") {
+      return (
+        <Row gutter={[16, 16]}>
+          <Col xs={24} lg={9}>
+            <label className="mb-2 block text-sm font-medium text-gray-700">二维码内容</label>
+            <TextArea rows={6} value={qrcodeInput} onChange={(e) => setQrcodeInput(e.target.value)} placeholder="输入链接、文本或任意内容" />
+            <div className="mt-4">
+              <label className="mb-2 block text-sm font-medium text-gray-700">尺寸：{qrcodeSize}px</label>
+              <Slider min={100} max={320} value={qrcodeSize} onChange={(value) => setQrcodeSize(Number(value))} />
+            </div>
+            <div className="mt-4 flex gap-2">
+              <Button type="primary" onClick={handleGenerateQrCode} style={{ flex: 1 }}>
+                生成二维码
+              </Button>
+              <Button
+                icon={<DeleteOutlined />}
+                onClick={() => {
+                  setQrcodeInput("");
+                  setQrcodeUrl("");
+                }}
+              />
+            </div>
+          </Col>
+          <Col xs={24} lg={15}>
+            <label className="mb-2 block text-sm font-medium text-gray-700">预览</label>
+            <div className="flex min-h-[320px] items-center justify-center rounded-xl border border-gray-100 bg-gray-50">
+              {qrcodeUrl ? (
+                <div className="text-center">
+                  <img src={qrcodeUrl} alt="二维码预览" className="mx-auto rounded-lg border border-gray-200" />
+                  <a href={qrcodeUrl} target="_blank" rel="noreferrer" className="mt-4 inline-block text-blue-500">
+                    打开或下载二维码
+                  </a>
+                </div>
+              ) : (
+                <div className="text-center text-gray-400">
+                  <QrcodeOutlined style={{ fontSize: 56 }} />
+                  <p className="mt-3">二维码预览区域</p>
+                </div>
+              )}
+            </div>
+          </Col>
+        </Row>
+      );
+    }
+
     return (
-      <Card className="shadow-sm" style={{ minHeight: '500px' }}>
-        <CardContent className="p-6" style={{ minHeight: '450px', display: 'flex', flexDirection: 'column' }}>
-          <div className="flex items-center gap-3 mb-6">
-            <div className={`w-12 h-12 ${toolConfig[activeTool].bgColor} rounded-xl flex items-center justify-center`}>
-              <ToolIcon style={{ fontSize: '24px', color: toolConfig[activeTool].color }} />
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold text-gray-800">{toolConfig[activeTool].name}</h2>
-            </div>
-          </div>
-          <div className="flex-1">
+      <div className="space-y-6">
+        {javaDecompileError && (
+          <Alert type="error" showIcon icon={<WarningOutlined />} message="反编译失败" description={javaDecompileError} />
+        )}
+        <Row gutter={[16, 16]}>
+          <Col xs={24} lg={10}>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">上传 Class 文件</label>
+                <div
+                  className="cursor-pointer rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 p-8 text-center transition-colors hover:border-blue-400"
+                  onClick={() => document.getElementById("class-file-input")?.click()}
+                >
+                  <UploadOutlined style={{ fontSize: 42, color: "#9CA3AF", marginBottom: 12 }} />
+                  <div className="font-medium text-gray-700">点击上传 .class 文件</div>
+                  <div className="mt-1 text-sm text-gray-400">文件会发送到 Java 后端进行处理</div>
+                  {javaFileName ? <div className="mt-3 text-sm text-green-600">已选择：{javaFileName}</div> : null}
+                  <input id="class-file-input" type="file" accept=".class" onChange={handleJavaFileUpload} className="hidden" />
+                </div>
+              </div>
 
-          {activeTool === 'json' && (
-            <div className="space-y-6">
-              {jsonError && (
-                <Alert
-                  message="错误"
-                  description={jsonError}
-                  type="error"
-                  showIcon
-                  icon={<WarningOutlined />}
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">或输入 Base64 字节码</label>
+                <TextArea
+                  rows={8}
+                  value={javaClassContent}
+                  onChange={(e) => setJavaClassContent(e.target.value)}
+                  placeholder="粘贴 .class 文件对应的 Base64 内容"
                 />
-              )}
-              
-              <Row gutter={[16, 16]}>
-                <Col xs={24} lg={12}>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">输入</label>
-                    <TextArea
-                      value={inputJson}
-                      onChange={(e) => {
-                        setInputJson(e.target.value);
-                        setJsonError(null);
-                      }}
-                      placeholder='{"name":"test"}'
-                      rows={8}
-                      className="font-mono text-sm"
-                    />
-                  </div>
-                  
-                  <div className="flex gap-2 mt-4">
-                    <Button type="primary" onClick={handleJsonFormat} style={{ flex: 1 }}>格式化</Button>
-                    <Button type="default" onClick={handleJsonMinify} style={{ flex: 1 }}>压缩</Button>
-                    <Button type="default" onClick={handleJsonClear} icon={<DeleteOutlined />} />
-                  </div>
-                </Col>
-                
-                <Col xs={24} lg={12}>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">输出</label>
-                    <div className="relative">
-                      <TextArea
-                        value={outputJson}
-                        readOnly
-                        placeholder="结果将显示在这里..."
-                        rows={8}
-                        className="font-mono text-sm bg-gray-50"
-                      />
-                      {outputJson && (
-                        <Button
-                          type="text"
-                          icon={jsonCopied ? <CheckCircleOutlined /> : <CopyOutlined />}
-                          onClick={handleJsonCopy}
-                          className="absolute top-2 right-2"
-                          style={{ color: jsonCopied ? '#52c41a' : '#666' }}
-                        >
-                          {jsonCopied ? '已复制' : '复制'}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {outputJson && (
-                    <div className="flex gap-4 text-sm text-gray-500 mt-4">
-                      <span>字符: {outputJson.length}</span>
-                      <span>行: {outputJson.split('\n').length}</span>
-                    </div>
-                  )}
-                </Col>
-              </Row>
-            </div>
-          )}
+              </div>
 
-          {activeTool === 'timestamp' && (
-            <div className="space-y-6">
-              {timestampError && (
-                <Alert
-                  message="错误"
-                  description={timestampError}
-                  type="error"
-                  showIcon
-                  icon={<WarningOutlined />}
+              <div className="flex gap-2">
+                <Button
+                  type="primary"
+                  icon={<FileTextOutlined />}
+                  loading={javaDecompiling}
+                  onClick={() => void handleJavaDecompile()}
+                  style={{ flex: 1 }}
+                >
+                  开始反编译
+                </Button>
+                <Button
+                  icon={<DeleteOutlined />}
+                  onClick={() => {
+                    setJavaClassContent("");
+                    setJavaDecompileOutput("");
+                    setJavaDecompileCopied(false);
+                    setJavaDecompileError(null);
+                    setJavaFileName("");
+                  }}
                 />
+              </div>
+            </div>
+          </Col>
+
+          <Col xs={24} lg={14}>
+            <div className="mb-2 flex items-center justify-between">
+              <label className="block text-sm font-medium text-gray-700">反编译结果</label>
+              {renderCopyButton(javaDecompileOutput, javaDecompileCopied, setJavaDecompileCopied)}
+            </div>
+            <div className="min-h-[420px] overflow-auto rounded-xl bg-gray-900 p-4">
+              {javaDecompiling ? (
+                <div className="flex h-full min-h-[388px] items-center justify-center text-gray-400">
+                  <div className="text-center">
+                    <FileTextOutlined style={{ fontSize: 52 }} />
+                    <p className="mt-4">正在调用后端反编译...</p>
+                    <p className="mt-2 text-xs">当前使用 JDK 自带 javap 输出结果</p>
+                  </div>
+                </div>
+              ) : javaDecompileOutput ? (
+                <pre className="whitespace-pre-wrap font-mono text-sm text-gray-300">{javaDecompileOutput}</pre>
+              ) : (
+                <div className="flex h-full min-h-[388px] items-center justify-center text-gray-500">
+                  <div className="text-center">
+                    <FileTextOutlined style={{ fontSize: 52 }} />
+                    <p className="mt-4">反编译结果预览区域</p>
+                    <p className="mt-2 text-xs">上传 .class 文件后会在这里展示后端输出</p>
+                  </div>
+                </div>
               )}
-              
-              <Row gutter={[16, 16]}>
-                <Col xs={24} lg={12}>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">输入 (时间戳或日期)</label>
-                    <Input
-                      value={timestampInput}
-                      onChange={(e) => setTimestampInput(e.target.value)}
-                      placeholder="1609459200000 或 2024-01-01"
-                    />
-                  </div>
-                  
-                  <div className="flex gap-2 mt-4">
-                    <Button type="primary" onClick={handleTimestampConvert} style={{ flex: 1 }}>转换</Button>
-                    <Button type="default" onClick={handleTimestampClear} icon={<DeleteOutlined />} />
-                  </div>
-                </Col>
-                
-                <Col xs={24} lg={12}>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">输出</label>
-                    <div className="relative">
-                      <TextArea
-                        value={timestampOutput}
-                        readOnly
-                        placeholder="结果将显示在这里..."
-                        rows={4}
-                        className="font-mono text-sm bg-gray-50"
-                      />
-                      {timestampOutput && (
-                        <Button
-                          type="text"
-                          icon={timestampCopied ? <CheckCircleOutlined /> : <CopyOutlined />}
-                          onClick={handleTimestampCopy}
-                          className="absolute top-2 right-2"
-                          style={{ color: timestampCopied ? '#52c41a' : '#666' }}
-                        >
-                          {timestampCopied ? '已复制' : '复制'}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </Col>
-              </Row>
             </div>
-          )}
-
-          {activeTool === 'base64' && (
-            <div className="space-y-6">
-              {base64Error && (
-                <Alert
-                  message="错误"
-                  description={base64Error}
-                  type="error"
-                  showIcon
-                  icon={<WarningOutlined />}
-                />
-              )}
-              
-              <Row gutter={[16, 16]}>
-                <Col xs={24} lg={12}>
-                  <div>
-                    <div className="flex gap-2 mb-2">
-                      <Button 
-                        type={base64Mode === 'encode' ? 'primary' : 'default'} 
-                        onClick={() => setBase64Mode('encode')}
-                        size="small"
-                      >
-                        编码
-                      </Button>
-                      <Button 
-                        type={base64Mode === 'decode' ? 'primary' : 'default'} 
-                        onClick={() => setBase64Mode('decode')}
-                        size="small"
-                      >
-                        解码
-                      </Button>
-                    </div>
-                    <TextArea
-                      value={base64Input}
-                      onChange={(e) => setBase64Input(e.target.value)}
-                      placeholder="输入文本或Base64编码"
-                      rows={6}
-                    />
-                  </div>
-                  
-                  <div className="flex gap-2 mt-4">
-                    <Button type="primary" onClick={handleBase64Convert} style={{ flex: 1 }}>执行</Button>
-                    <Button type="default" onClick={handleBase64Clear} icon={<DeleteOutlined />} />
-                  </div>
-                </Col>
-                
-                <Col xs={24} lg={12}>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">输出</label>
-                    <div className="relative">
-                      <TextArea
-                        value={base64Output}
-                        readOnly
-                        placeholder="结果将显示在这里..."
-                        rows={6}
-                        className="font-mono text-sm bg-gray-50"
-                      />
-                      {base64Output && (
-                        <Button
-                          type="text"
-                          icon={base64Copied ? <CheckCircleOutlined /> : <CopyOutlined />}
-                          onClick={handleBase64Copy}
-                          className="absolute top-2 right-2"
-                          style={{ color: base64Copied ? '#52c41a' : '#666' }}
-                        >
-                          {base64Copied ? '已复制' : '复制'}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </Col>
-              </Row>
-            </div>
-          )}
-
-          {activeTool === 'url' && (
-            <div className="space-y-6">
-              <Row gutter={[16, 16]}>
-                <Col xs={24} lg={12}>
-                  <div>
-                    <div className="flex gap-2 mb-2">
-                      <Button 
-                        type={urlMode === 'encode' ? 'primary' : 'default'} 
-                        onClick={() => setUrlMode('encode')}
-                        size="small"
-                      >
-                        编码
-                      </Button>
-                      <Button 
-                        type={urlMode === 'decode' ? 'primary' : 'default'} 
-                        onClick={() => setUrlMode('decode')}
-                        size="small"
-                      >
-                        解码
-                      </Button>
-                    </div>
-                    <Input
-                      value={urlInput}
-                      onChange={(e) => setUrlInput(e.target.value)}
-                      placeholder="https://example.com?name=测试"
-                    />
-                  </div>
-                  
-                  <div className="flex gap-2 mt-4">
-                    <Button type="primary" onClick={handleUrlConvert} style={{ flex: 1 }}>执行</Button>
-                    <Button type="default" onClick={handleUrlClear} icon={<DeleteOutlined />} />
-                  </div>
-                </Col>
-                
-                <Col xs={24} lg={12}>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">输出</label>
-                    <div className="relative">
-                      <TextArea
-                        value={urlOutput}
-                        readOnly
-                        placeholder="结果将显示在这里..."
-                        rows={2}
-                        className="font-mono text-sm bg-gray-50"
-                      />
-                      {urlOutput && (
-                        <Button
-                          type="text"
-                          icon={urlCopied ? <CheckCircleOutlined /> : <CopyOutlined />}
-                          onClick={handleUrlCopy}
-                          className="absolute top-2 right-2"
-                          style={{ color: urlCopied ? '#52c41a' : '#666' }}
-                        >
-                          {urlCopied ? '已复制' : '复制'}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </Col>
-              </Row>
-            </div>
-          )}
-
-          {activeTool === 'qrcode' && (
-            <div className="space-y-6">
-              <Row gutter={[16, 16]}>
-                <Col xs={24} lg={8}>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">输入内容</label>
-                    <TextArea
-                      value={qrcodeInput}
-                      onChange={(e) => setQrcodeInput(e.target.value)}
-                      placeholder="输入网址、文本等内容"
-                      rows={6}
-                    />
-                  </div>
-                  
-                  <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      二维码大小: {qrcodeSize}px
-                    </label>
-                    <Input
-                      type="range"
-                      min="100"
-                      max="300"
-                      value={qrcodeSize}
-                      onChange={(e) => setQrcodeSize(Number(e.target.value))}
-                    />
-                  </div>
-                  
-                  <div className="flex gap-2 mt-4">
-                    <Button type="primary" onClick={handleQrcodeGenerate} style={{ flex: 1 }}>生成二维码</Button>
-                    <Button type="default" onClick={handleQrcodeClear} icon={<DeleteOutlined />} />
-                  </div>
-                </Col>
-                
-                <Col xs={24} lg={16}>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">预览</label>
-                    <div className="flex items-center justify-center h-[300px] bg-gray-50 rounded-xl">
-                      {qrcodeUrl ? (
-                        <div className="text-center">
-                          <img 
-                            src={qrcodeUrl} 
-                            alt="二维码" 
-                            className="border border-gray-200 rounded-lg mx-auto mb-4"
-                          />
-                          <a 
-                            href={qrcodeUrl} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-blue-500 hover:text-blue-700 text-sm"
-                          >
-                            <CopyOutlined /> 点击下载二维码
-                          </a>
-                        </div>
-                      ) : (
-                        <div className="text-center">
-                          <QrcodeOutlined style={{ fontSize: '64px', color: '#d9d9d9' }} />
-                          <p className="text-gray-400 mt-3">二维码预览区域</p>
-                          <p className="text-xs text-gray-400">输入内容后点击生成</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </Col>
-              </Row>
-            </div>
-          )}
-
-          {activeTool === 'javadecompile' && (
-            <div className="space-y-6" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-              {javaDecompileError && (
-                <Alert
-                  message="错误"
-                  description={javaDecompileError}
-                  type="error"
-                  showIcon
-                  icon={<WarningOutlined />}
-                />
-              )}
-              <Row gutter={[16, 16]} style={{ flex: 1 }}>
-                <Col xs={24} lg={10}>
-                  <div className="space-y-4 h-full">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">上传 Class 文件</label>
-                      <div className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center hover:border-blue-400 transition-colors cursor-pointer bg-gray-50"
-                        onClick={() => document.getElementById('class-file-input')?.click()}
-                      >
-                        <UploadOutlined style={{ fontSize: '48px', color: '#9CA3AF', marginBottom: '12px' }} />
-                        <div className="text-gray-600 font-medium">点击上传 .class 文件</div>
-                        <div className="text-sm text-gray-400 mt-1">支持 Java Class 文件格式</div>
-                        {javaFileName && (
-                          <div className="mt-3 text-sm text-green-600">✓ {javaFileName}</div>
-                        )}
-                        <input
-                          id="class-file-input"
-                          type="file"
-                          accept=".class"
-                          onChange={handleJavaFileUpload}
-                          className="hidden"
-                        />
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">或输入字节码 (Base64)</label>
-                      <TextArea
-                        value={javaClassContent}
-                        onChange={(e) => setJavaClassContent(e.target.value)}
-                        placeholder="粘贴 Class 文件的 Base64 编码内容..."
-                        rows={6}
-                      />
-                    </div>
-                    
-                    <div className="flex gap-2">
-                      <Button type="primary" onClick={() => parseClassFile(javaClassContent)} style={{ flex: 1 }} icon={<FileTextOutlined />}>
-                        反编译
-                      </Button>
-                      <Button type="default" onClick={handleJavaDecompileClear} icon={<DeleteOutlined />} />
-                    </div>
-                  </div>
-                </Col>
-                
-                <Col xs={24} lg={14}>
-                  <div className="h-full flex flex-col">
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="block text-sm font-medium text-gray-700">反编译结果</label>
-                      <Button
-                        type="text"
-                        onClick={handleJavaDecompileCopy}
-                        icon={javaDecompileCopied ? <CheckCircleOutlined /> : <CopyOutlined />}
-                        className={javaDecompileCopied ? 'text-green-500' : ''}
-                      >
-                        {javaDecompileCopied ? '已复制' : '复制'}
-                      </Button>
-                    </div>
-                    <div className="flex-1 bg-gray-900 rounded-xl p-4 overflow-auto min-h-[300px]">
-                      {javaDecompileOutput ? (
-                        <pre className="text-sm text-gray-300 whitespace-pre-wrap font-mono">
-                          {javaDecompileOutput}
-                        </pre>
-                      ) : (
-                        <div className="flex items-center justify-center h-full text-gray-500">
-                          <div className="text-center">
-                            <FileTextOutlined style={{ fontSize: '48px', marginBottom: '12px' }} />
-                            <p>反编译结果预览区域</p>
-                            <p className="text-xs mt-1">上传 Class 文件后显示结果</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </Col>
-              </Row>
-            </div>
-          )}
-          </div>
-        </CardContent>
-      </Card>
+          </Col>
+        </Row>
+      </div>
     );
   };
 
   return (
     <MainLayout>
-      <div className="py-8 px-4">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-800 mb-3">实用工具集</h1>
-            <p className="text-gray-500">日常开发和工作中常用的工具集合</p>
+      <div className="px-4 py-8">
+        <div className="mx-auto max-w-6xl">
+          <div className="mb-8 text-center">
+            <h1 className="mb-3 text-3xl font-bold text-gray-800">实用工具箱</h1>
+            <p className="text-gray-500">把常用开发工具收在一个页面里，直接在线处理</p>
           </div>
 
-          <div className="flex flex-wrap justify-center gap-3 mb-8">
+          <div className="mb-8 flex flex-wrap justify-center gap-3">
             {(Object.keys(toolConfig) as ToolType[]).map((tool) => {
               const config = toolConfig[tool];
               const Icon = config.icon;
-              const isActive = activeTool === tool;
-              
+              const active = activeTool === tool;
+
               return (
-                <Button
-                  key={tool}
-                  type={isActive ? 'primary' : 'default'}
-                  onClick={() => setActiveTool(tool)}
-                  className={`px-6 py-2 rounded-lg flex items-center gap-2 transition-all ${
-                    isActive ? 'shadow-md' : 'hover:shadow-sm'
-                  }`}
-                >
-                  <Icon style={{ fontSize: '18px' }} />
-                  <span>{config.name}</span>
+                <Button key={tool} type={active ? "primary" : "default"} onClick={() => setActiveTool(tool)} className={active ? "shadow-md" : ""}>
+                  <Icon style={{ marginRight: 8 }} />
+                  {config.name}
                 </Button>
               );
             })}
           </div>
 
-          {renderToolContent()}
+          <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+            <Card className="border-0 shadow-sm xl:sticky xl:top-24">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2 text-base font-semibold text-gray-800">
+                      <HistoryOutlined />
+                      最近使用
+                    </div>
+                    <p className="mt-1 text-sm leading-6 text-gray-500">保留最近工具操作，点一下就能恢复输入和结果。</p>
+                  </div>
+                  <Button type="text" danger disabled={history.length === 0} onClick={clearHistory}>
+                    清空
+                  </Button>
+                </div>
+
+                <div className="mt-4">
+                  {historyItems.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 py-10">
+                      <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="你最近还没有工具使用记录" />
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {historyItems.map((item) => (
+                        <div key={item.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Tag color={item.tool === activeTool ? "processing" : "default"}>{toolConfig[item.tool].name}</Tag>
+                                <span className="text-sm font-medium text-slate-800">{item.action}</span>
+                              </div>
+                              <div className="mt-2 text-xs text-slate-400">{formatHistoryTime(item.createdAt)}</div>
+                            </div>
+                            <Button type="text" danger icon={<DeleteOutlined />} onClick={() => removeHistoryItem(item.id)} />
+                          </div>
+
+                          <div className="mt-3 rounded-xl bg-slate-50 px-3 py-3 text-xs leading-6 text-slate-600">
+                            {getHistoryPreview(item.output || item.input)}
+                          </div>
+
+                          <div className="mt-3 flex items-center justify-between gap-3">
+                            <div className="text-xs text-slate-400">{item.fileName ? `文件：${item.fileName}` : "可直接恢复到工具区"}</div>
+                            <Button size="small" icon={<ReloadOutlined />} onClick={() => restoreHistoryItem(item)}>
+                              恢复
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-sm" style={{ minHeight: 520 }}>
+              <CardContent className="p-6">
+                <div className="mb-6 flex items-center gap-3">
+                  <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${currentTool.bgColor}`}>
+                    <currentTool.icon style={{ fontSize: 24, color: currentTool.color }} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-800">{currentTool.name}</h2>
+                    <p className="mt-1 text-sm text-gray-500">当前工具的最近记录会自动排在左侧最前面。</p>
+                  </div>
+                </div>
+
+                {renderToolContent()}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </MainLayout>

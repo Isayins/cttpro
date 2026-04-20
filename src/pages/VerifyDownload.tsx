@@ -1,39 +1,59 @@
-// src/pages/VerifyDownload.tsx
-import { useSearchParams } from 'react-router-dom';
-import { useEffect, useState } from 'react';
-import { getCaptcha, verifyCaptcha } from '../services/downloadService';
-import { Input, Button, Image, message, Spin } from 'antd';
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { Button, Image, Input, Space, Spin, message } from "antd";
+
+import { buildProtectedDownloadUrl, getCaptcha, verifyCaptcha } from "../services/downloadService";
 
 export default function VerifyDownload() {
   const [params] = useSearchParams();
-  const resource = params.get('resource') || '';
-  const [captchaImg, setCaptchaImg] = useState('');
-  const [captchaId, setCaptchaId] = useState('');
-  const [input, setInput] = useState('');
+  const resource = params.get("resource") || "";
+  const fileName = params.get("fileName") || "";
+  const [captchaImg, setCaptchaImg] = useState("");
+  const [captchaId, setCaptchaId] = useState("");
+  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(true);
 
   const refreshCaptcha = async () => {
+    setLoading(true);
     try {
-      const j = await getCaptcha();
-      setCaptchaId(j.captchaId);
-      setCaptchaImg(j.image);
+      const response = await getCaptcha();
+      setCaptchaId(response.captchaId);
+      setCaptchaImg(response.image);
+    } catch {
+      setCaptchaId("");
+      setCaptchaImg("");
+      message.error("加载验证码失败，请稍后重试");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    refreshCaptcha();
+    void refreshCaptcha();
   }, []);
 
   const handleSubmit = async () => {
+    if (!captchaId) {
+      message.warning("验证码尚未加载完成，请先刷新");
+      void refreshCaptcha();
+      return;
+    }
+
+    if (!input.trim()) {
+      message.warning("请输入验证码");
+      return;
+    }
+
     try {
-      const d = await verifyCaptcha(captchaId, input, resource);
-      window.location.href = `https://idncar.com/api/download?token=${encodeURIComponent(d.downloadToken!)}`;
-    } catch (e) {
-      message.error('验证码错误，请重试');
-      setInput('');
-      refreshCaptcha();
+      const response = await verifyCaptcha(captchaId, input.trim(), resource, fileName);
+      if (!response.downloadToken) {
+        throw new Error(response.message || "验证码校验失败");
+      }
+      window.location.href = buildProtectedDownloadUrl(response.downloadToken);
+    } catch {
+      message.error("验证码错误，请重试");
+      setInput("");
+      void refreshCaptcha();
     }
   };
 
@@ -42,7 +62,7 @@ export default function VerifyDownload() {
   }
 
   return (
-    <div style={{ maxWidth: 400, margin: '40px auto', textAlign: 'center' }}>
+    <div style={{ maxWidth: 400, margin: "40px auto", textAlign: "center" }}>
       <h3>下载前请输入验证码</h3>
       {loading ? (
         <Spin />
@@ -53,18 +73,24 @@ export default function VerifyDownload() {
               src={captchaImg}
               alt="验证码"
               preview={false}
-              style={{ width: '100%', height: 80, objectFit: 'contain', borderRadius: 8, marginTop: 10 }}
+              style={{ width: "100%", height: 80, objectFit: "contain", borderRadius: 8, marginTop: 10 }}
             />
           )}
           <Input
             placeholder="输入验证码"
             value={input}
-            onChange={e => setInput(e.target.value)}
-            style={{ width: '100%', marginTop: 10 }}
+            onChange={(e) => setInput(e.target.value)}
+            onPressEnter={() => void handleSubmit()}
+            style={{ width: "100%", marginTop: 10 }}
           />
-          <Button onClick={handleSubmit} type="primary" style={{ width: '100%', marginTop: 10 }}>
-            确认下载
-          </Button>
+          <Space direction="vertical" style={{ width: "100%", marginTop: 10 }}>
+            <Button onClick={() => void handleSubmit()} type="primary" style={{ width: "100%" }}>
+              确认下载
+            </Button>
+            <Button onClick={() => void refreshCaptcha()} style={{ width: "100%" }}>
+              刷新验证码
+            </Button>
+          </Space>
         </>
       )}
     </div>

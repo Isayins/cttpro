@@ -1,24 +1,38 @@
-import type { MarketSnapshot } from "../types/type";
+import type { MarketSnapshot, StockItem } from "../types/type";
+import { API_BASE_URL } from "./api";
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? API_BASE_URL;
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8735";
+type ErrorResponse = {
+  detail?: string;
+  message?: string;
+  raw?: string;
+};
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = localStorage.getItem("token");
+  const headers = new Headers(init?.headers ?? {});
+
+  if (!(init?.body instanceof FormData) && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
     ...init,
+    headers,
   });
 
   const text = await res.text();
   const data = text ? safeJsonParse(text) : {};
 
   if (!res.ok) {
+    const payload = data && typeof data === "object" ? (data as ErrorResponse) : null;
     const message =
-      (data && typeof data === "object" && ("detail" in data || "message" in data)
-        ? String((data as any).detail ?? (data as any).message)
+      (payload && (payload.detail || payload.message)
+        ? String(payload.detail ?? payload.message)
         : text) || `HTTP ${res.status}`;
     throw new Error(message);
   }
@@ -34,35 +48,42 @@ function safeJsonParse(text: string) {
   }
 }
 
-export function fetchState() {
-  return request<MarketSnapshot>("/api/state");
+export function fetchState(symbol?: string, limit?: number) {
+  const params = new URLSearchParams();
+  if (symbol) {
+    params.set("symbol", symbol);
+  }
+  if (limit) {
+    params.set("limit", String(limit));
+  }
+  const query = params.toString();
+  return request<MarketSnapshot>(`/api/quant/state${query ? `?${query}` : ""}`);
+}
+
+export function fetchStocks() {
+  return request<StockItem[]>("/api/quant/stocks");
 }
 
 export function manualBuy() {
-  return request<{ ok: boolean; message: string }>("/api/action/buy", {
+  return request<{ ok: boolean; message: string }>("/api/quant/action/buy", {
     method: "POST",
   });
 }
 
 export function manualSell() {
-  return request<{ ok: boolean; message: string }>("/api/action/sell", {
+  return request<{ ok: boolean; message: string }>("/api/quant/action/sell", {
     method: "POST",
   });
 }
 
 export function startAutomation() {
-  return request<{ ok: boolean; message: string }>("/api/automation/start", {
+  return request<{ ok: boolean; message: string }>("/api/quant/automation/start", {
     method: "POST",
   });
 }
 
 export function stopAutomation() {
-  return request<{ ok: boolean; message: string }>("/api/automation/stop", {
+  return request<{ ok: boolean; message: string }>("/api/quant/automation/stop", {
     method: "POST",
   });
-}
-
-export function getWsUrl() {
-  const base = API_BASE.replace(/^http/, "ws");
-  return `${base}/ws`;
 }

@@ -1,9 +1,10 @@
-import React from "react";
 export default function Footer() {
-    return (
-      <footer className="bg-gray-100 p-4 mt-auto">
-        <p className="text-sm text-gray-500">CopyRight © 2025-2099 All Right Reserved Ctt 版权所有 | 浙ICP备2025194794号-1</p>
-      </footer>
-    );
-  }
-  
+  return (
+    <footer className="border-t border-white/50 bg-white/45 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-6 text-center text-sm text-slate-500 md:px-6">
+        <p>Copyright © 2025 IDNCAR. All Rights Reserved.</p>
+        <p>浙ICP备2025194794号-1</p>
+      </div>
+    </footer>
+  );
+}

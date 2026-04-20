@@ -1,18 +1,32 @@
-import React from "react";
-import { Navigate, Outlet, useLocation } from "react-router-dom";
+import type { ReactNode } from "react";
+import { Navigate, useLocation } from "react-router-dom";
+import { Spin } from "antd";
+import { useAuth } from "../context/useAuth";
 
-// 检查用户是否已登录
-const isLoggedIn = () => {
-  return localStorage.getItem("isLoggedIn") === "true";
-};
+interface ProtectedRouteProps {
+  children: ReactNode;
+  adminOnly?: boolean;
+}
 
-export default function ProtectedRoute() {
+export default function ProtectedRoute({ children, adminOnly = false }: ProtectedRouteProps) {
   const location = useLocation();
-  
-  if (!isLoggedIn()) {
-    // 重定向到登录页面，并在登录后返回当前页面
-    return <Navigate to="/login" state={{ from: location }} replace />;
+  const { initializing, isAuthenticated, isAdmin } = useAuth();
+
+  if (initializing) {
+    return (
+      <div className="min-h-[50vh] flex items-center justify-center">
+        <Spin size="large" />
+      </div>
+    );
   }
-  
-  return <Outlet />;
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+  }
+
+  if (adminOnly && !isAdmin) {
+    return <Navigate to="/403" state={{ from: location.pathname }} replace />;
+  }
+
+  return <>{children}</>;
 }

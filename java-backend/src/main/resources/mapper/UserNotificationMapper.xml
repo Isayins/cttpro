@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.idncar.mapper.UserNotificationMapper">
+
+    <update id="markAllAsReadByUserId">
+        UPDATE user_notifications
+        SET read_status = 1,
+            read_time = #{readTime}
+        WHERE user_id = #{userId}
+          AND read_status = 0
+    </update>
+
+    <insert id="insertBatch">
+        INSERT INTO user_notifications (user_id, type, title, content, related_path, read_status, read_time, create_time)
+        VALUES
+        <foreach collection="notifications" item="item" separator=",">
+            (#{item.userId}, #{item.type}, #{item.title}, #{item.content}, #{item.relatedPath}, #{item.readStatus}, #{item.readTime}, #{item.createTime})
+        </foreach>
+    </insert>
+
+</mapper>

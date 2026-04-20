@@ -1,0 +1,139 @@
+package com.idncar.api.admin;
+
+import com.idncar.model.dto.AdminOperationLogDto;
+import com.idncar.model.dto.AdminPostReportDto;
+import com.idncar.model.dto.AdminUpdateUserRequest;
+import com.idncar.model.dto.CreateDownloadResourceRequest;
+import com.idncar.model.dto.CreateInviteCodeRequest;
+import com.idncar.model.dto.DownloadResourceDto;
+import com.idncar.model.dto.InviteCodeDto;
+import com.idncar.model.dto.ReviewPostReportRequest;
+import com.idncar.model.dto.SaveSiteNoticeRequest;
+import com.idncar.model.dto.SiteNoticeDto;
+import com.idncar.model.dto.UploadedDownloadFileDto;
+import com.idncar.model.dto.UserDto;
+import com.idncar.service.AdminService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/admin")
+public class AdminController {
+
+    @Autowired
+    private AdminService adminService;
+
+    @GetMapping("/users")
+    public ResponseEntity<List<UserDto>> getUsers(@RequestAttribute("userId") Long userId) {
+        return ResponseEntity.ok(adminService.getUsers(userId));
+    }
+
+    @PutMapping("/users/{id}")
+    public ResponseEntity<UserDto> updateUser(@RequestAttribute("userId") Long userId,
+                                              @PathVariable Long id,
+                                              @RequestBody AdminUpdateUserRequest request) {
+        return ResponseEntity.ok(adminService.updateUser(userId, id, request));
+    }
+
+    @DeleteMapping("/users/{id}")
+    public ResponseEntity<Void> deleteUser(@RequestAttribute("userId") Long userId,
+                                           @PathVariable Long id) {
+        adminService.deleteUser(userId, id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/invite-codes")
+    public ResponseEntity<List<InviteCodeDto>> getInviteCodes(@RequestAttribute("userId") Long userId) {
+        return ResponseEntity.ok(adminService.getInviteCodes(userId));
+    }
+
+    @PostMapping("/invite-codes")
+    public ResponseEntity<List<InviteCodeDto>> createInviteCodes(@RequestAttribute("userId") Long userId,
+                                                                 @RequestBody(required = false) CreateInviteCodeRequest request) {
+        return ResponseEntity.ok(adminService.createInviteCodes(userId, request));
+    }
+
+    @DeleteMapping("/invite-codes/{id}")
+    public ResponseEntity<Void> deleteInviteCode(@RequestAttribute("userId") Long userId,
+                                                 @PathVariable Long id) {
+        adminService.deleteInviteCode(userId, id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/downloads")
+    public ResponseEntity<DownloadResourceDto> createDownload(@RequestAttribute("userId") Long userId,
+                                                               @RequestBody CreateDownloadResourceRequest request) {
+        return ResponseEntity.ok(adminService.createDownloadResource(userId, request));
+    }
+
+    @PostMapping(value = "/downloads/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<UploadedDownloadFileDto> uploadDownloadFile(@RequestAttribute("userId") Long userId,
+                                                                      @RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(adminService.uploadDownloadFile(userId, file));
+    }
+
+    @DeleteMapping("/downloads/{id}")
+    public ResponseEntity<Void> deleteDownload(@RequestAttribute("userId") Long userId,
+                                               @PathVariable Long id) {
+        adminService.deleteDownloadResource(userId, id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/site-notices")
+    public ResponseEntity<List<SiteNoticeDto>> getSiteNotices(@RequestAttribute("userId") Long userId) {
+        return ResponseEntity.ok(adminService.getSiteNotices(userId));
+    }
+
+    @PostMapping("/site-notices")
+    public ResponseEntity<SiteNoticeDto> createSiteNotice(@RequestAttribute("userId") Long userId,
+                                                          @RequestBody SaveSiteNoticeRequest request) {
+        return ResponseEntity.ok(adminService.createSiteNotice(userId, request));
+    }
+
+    @PutMapping("/site-notices/{id}")
+    public ResponseEntity<SiteNoticeDto> updateSiteNotice(@RequestAttribute("userId") Long userId,
+                                                          @PathVariable Long id,
+                                                          @RequestBody SaveSiteNoticeRequest request) {
+        return ResponseEntity.ok(adminService.updateSiteNotice(userId, id, request));
+    }
+
+    @DeleteMapping("/site-notices/{id}")
+    public ResponseEntity<Void> deleteSiteNotice(@RequestAttribute("userId") Long userId,
+                                                 @PathVariable Long id) {
+        adminService.deleteSiteNotice(userId, id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/post-reports")
+    public ResponseEntity<List<AdminPostReportDto>> getPostReports(@RequestAttribute("userId") Long userId,
+                                                                   @RequestParam(required = false) String status) {
+        return ResponseEntity.ok(adminService.getPostReports(userId, status));
+    }
+
+    @PutMapping("/post-reports/{id}")
+    public ResponseEntity<AdminPostReportDto> reviewPostReport(@RequestAttribute("userId") Long userId,
+                                                               @PathVariable Long id,
+                                                               @RequestBody ReviewPostReportRequest request) {
+        return ResponseEntity.ok(adminService.reviewPostReport(userId, id, request));
+    }
+
+    @GetMapping("/operation-logs")
+    public ResponseEntity<List<AdminOperationLogDto>> getOperationLogs(@RequestAttribute("userId") Long userId,
+                                                                       @RequestParam(required = false) Integer limit) {
+        return ResponseEntity.ok(adminService.getOperationLogs(userId, limit));
+    }
+}

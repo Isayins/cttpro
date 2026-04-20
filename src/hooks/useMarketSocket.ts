@@ -1,58 +1,79 @@
-import { useEffect, useState } from "react";
-import { fetchState, getWsUrl } from "../services/stockService";
+import { useEffect, useRef, useState } from "react";
+import { fetchState } from "../services/stockService";
 import type { MarketSnapshot } from "../types/type";
 
-export function useMarketSocket() {
+const POLL_INTERVAL_MS = 10000;
+
+export function useMarketSocket(symbol?: string, limit?: number) {
   const [snapshot, setSnapshot] = useState<MarketSnapshot | null>(null);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string>("");
+  const requestIdRef = useRef(0);
+
+  const loadSnapshot = async (currentSymbol?: string, currentLimit?: number) => {
+    const requestId = ++requestIdRef.current;
+
+    try {
+      const data = await fetchState(currentSymbol, currentLimit);
+      if (requestId !== requestIdRef.current) {
+        return null;
+      }
+
+      setSnapshot(data);
+      setConnected(true);
+      setError("");
+      return data;
+    } catch (errorValue) {
+      if (requestId !== requestIdRef.current) {
+        return null;
+      }
+
+      setConnected(false);
+      setError(errorValue instanceof Error ? errorValue.message : "Failed to load market data");
+      return null;
+    }
+  };
 
   const reload = async () => {
-    const data = await fetchState();
-    setSnapshot(data);
+    await loadSnapshot(symbol, limit);
   };
 
   useEffect(() => {
     let alive = true;
 
-    fetchState()
-      .then((data) => {
-        if (alive) setSnapshot(data);
-      })
-      .catch((err: unknown) => {
-        if (alive) setError(err instanceof Error ? err.message : "加载失败");
-      });
+    const loadLatestSnapshot = async () => {
+      const requestId = ++requestIdRef.current;
 
-    const ws = new WebSocket(getWsUrl());
-
-    ws.onopen = () => setConnected(true);
-    ws.onclose = () => setConnected(false);
-    ws.onerror = () => setError("WebSocket 连接失败");
-
-    ws.onmessage = (evt) => {
       try {
-        const data = JSON.parse(evt.data);
-        
-        // ✨ 核心修复：如果是心跳包，直接跳过，不要更新到 snapshot 里
-        if (data.type === "ping" || data.type === "pong") {
-          console.log("收到心跳包");
-          return; 
+        const data = await fetchState(symbol, limit);
+        if (!alive || requestId !== requestIdRef.current) {
+          return;
         }
-    
-        // 只有当数据包含关键字段（比如 symbol）时才更新状态
-        if (data.symbol || data.signal) {
-          setSnapshot(data as MarketSnapshot);
+
+        setSnapshot(data);
+        setConnected(true);
+        setError("");
+      } catch (errorValue) {
+        if (!alive || requestId !== requestIdRef.current) {
+          return;
         }
-      } catch (err) {
-        console.error("解析消息失败:", err);
+
+        setConnected(false);
+        setError(errorValue instanceof Error ? errorValue.message : "Failed to load market data");
       }
     };
 
+    void loadLatestSnapshot();
+    const timer = window.setInterval(() => {
+      void loadLatestSnapshot();
+    }, POLL_INTERVAL_MS);
+
     return () => {
       alive = false;
-      ws.close();
+      requestIdRef.current += 1;
+      window.clearInterval(timer);
     };
-  }, []);
+  }, [symbol, limit]);
 
   return {
     snapshot,

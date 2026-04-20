@@ -1,66 +1,20 @@
-// src/components/DownloadCard.tsx
-import React, { useMemo } from 'react';
-import { Card, Row, Col, Avatar, Tag, Popover, Typography, Space, Button, Tooltip } from 'antd';
-import { DownloadOutlined, LockOutlined, LinkOutlined, InfoCircleOutlined } from '@ant-design/icons';
-import { QRCode } from 'antd';
-import type { DownloadItem } from '../services/downloadService';
+import { Avatar, Button, Card, Col, QRCode, Row, Space, Tag, Tooltip, Typography } from "antd";
+import { DownloadOutlined, InfoCircleOutlined, LinkOutlined, LockOutlined } from "@ant-design/icons";
+import { useMemo } from "react";
 
-export type { DownloadItem } from '../services/downloadService';
+import { buildVerifyPageUrl, resolveDownloadUrl, type DownloadItem } from "../services/downloadService";
+
+export type { DownloadItem } from "../services/downloadService";
 
 const { Paragraph, Text } = Typography;
 
-// Constants for styling
-const STYLES = {
-  card: {
-    borderRadius: 14,
-    overflow: 'visible' as const,
-    boxShadow: '0 6px 20px rgba(16,24,40,0.04)',
-  },
-  body: { padding: 16 },
-  avatar: {
-    borderRadius: 12,
-    boxShadow: '0 6px 18px rgba(0,0,0,0.04)',
-  },
-  qrContainer: {
-    display: 'inline-block',
-    background: '#fff',
-    padding: 6,
-    borderRadius: 10,
-    boxShadow: '0 8px 24px rgba(2,6,23,0.06)',
-  },
-  qrPopoverContent: {
-    padding: 8,
-    background: '#fff',
-    borderRadius: 12,
-  },
-  changelogBox: {
-    margin: 0,
-    background: '#FAFBFC',
-    padding: 10,
-    borderRadius: 8,
-  },
-  actionSection: {
-    display: 'flex',
-    gap: 12,
-    flexWrap: 'wrap' as const,
-  },
-};
-
-const QR_SIZES = {
-  small: 100,
-  large: 220,
-};
-
 type Props = DownloadItem & {
   onLockedClick?: () => void;
+  onDirectDownload?: () => void;
+  onOpenLink?: () => void;
   badgeText?: string;
 };
 
-/**
- * Ant Design Style Download Card
- * - Left info column, right QR code (fixed width), bottom action buttons
- * - Uses Popover for enlarged QR code (hover/click)
- */
 export default function DownloadCard({
   title,
   version,
@@ -68,142 +22,128 @@ export default function DownloadCard({
   url,
   icon,
   locked,
-  size,
+  category,
+  fileSize,
+  checksumSha256,
+  downloadCount,
+  updateTime,
   onLockedClick,
+  onDirectDownload,
+  onOpenLink,
   badgeText,
 }: Props) {
-  const safeUrl = url ?? '';
-  
-  const verifyUrl = useMemo(() => {
-    return `https://idncar.com/#/verify?resource=${encodeURIComponent(safeUrl)}`;
-  }, [safeUrl]);
-
-  const handleDownload = (e: React.MouseEvent) => {
-    if (locked) {
-      e.preventDefault();
-      onLockedClick?.();
-    }
-  };
+  const safeUrl = url ?? "";
+  const directUrl = useMemo(() => resolveDownloadUrl(safeUrl), [safeUrl]);
+  const verifyUrl = useMemo(() => buildVerifyPageUrl(safeUrl, title), [safeUrl, title]);
 
   return (
     <Card
       hoverable
-      style={STYLES.card}
-      bodyStyle={STYLES.body}
+      bodyStyle={{ padding: 22 }}
+      className="overflow-visible rounded-[28px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,249,252,0.98))] shadow-[0_18px_40px_rgba(15,23,42,0.06)] transition duration-300 hover:border-[#d7e3f1] hover:shadow-[0_26px_52px_rgba(15,23,42,0.08)]"
     >
       <Row gutter={[16, 12]} align="middle">
-        {/* Left Info Column */}
         <Col xs={24} sm={18} style={{ minWidth: 0 }}>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+          <div className="flex items-start gap-3">
             <Avatar
-              src={icon || '/images/idncar.jpg'}
+              src={icon || "/images/idncar.jpg"}
               shape="square"
-              size={56}
-              style={STYLES.avatar}
+              size={60}
+              className="rounded-2xl border border-white bg-slate-50 shadow-sm"
             />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Text 
-                  strong 
-                  style={{ fontSize: 16 }} 
-                  ellipsis={{ tooltip: title }}
-                  title={title}
-                >
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <Text strong style={{ fontSize: 18 }} ellipsis={{ tooltip: title }} title={title}>
                   {title}
                 </Text>
-                <Tooltip title="More Information">
-                  <InfoCircleOutlined style={{ color: '#9CA3AF' }} />
+                <Tooltip title="资源信息">
+                  <InfoCircleOutlined className="text-slate-400" />
                 </Tooltip>
-                {badgeText && <Tag color="magenta" style={{ marginLeft: 8 }}>{badgeText}</Tag>}
+                {badgeText ? <Tag color="gold">{badgeText}</Tag> : null}
               </div>
 
-              <div style={{ marginTop: 6, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                <Text type="secondary" style={{ fontSize: 12 }}>Version: {version ?? 'Unknown'}</Text>
-                {size && <Text type="secondary" style={{ fontSize: 12 }}>· Size: {size}</Text>}
-                {locked ? (
-                  <Tag icon={<LockOutlined />} color="warning" style={{ marginLeft: 4 }}>Verification Required</Tag>
-                ) : (
-                  <Tag color="processing" style={{ marginLeft: 4 }}>Direct Download</Tag>
-                )}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Tag color="blue">{category || "未分类"}</Tag>
+                <Tag>{version || "未标注版本"}</Tag>
+                <Tag>{fileSize || "大小未知"}</Tag>
+                <Tag color={locked ? "orange" : "green"}>{locked ? "验证后下载" : "直接下载"}</Tag>
               </div>
 
-              <div style={{ marginTop: 10 }}>
+              <div className="mt-4 grid gap-2 rounded-[22px] bg-[#f7f9fc] p-4 text-xs text-slate-500 sm:grid-cols-2">
+                <div>
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Updated</div>
+                  <div className="mt-1 text-sm text-slate-700">{updateTime || "未知"}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Downloads</div>
+                  <div className="mt-1 text-sm text-slate-700">{downloadCount ?? 0}</div>
+                </div>
+                <div className="sm:col-span-2">
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">SHA256</div>
+                  <div className="mt-1 break-all text-sm text-slate-700">{checksumSha256 || "暂未提供"}</div>
+                </div>
+              </div>
+
+              <div className="mt-4">
                 {changelog ? (
                   <Paragraph
-                    ellipsis={{ rows: 2, expandable: true, symbol: 'More' }}
-                    style={STYLES.changelogBox}
+                    ellipsis={{ rows: 2, expandable: true, symbol: "展开" }}
+                    className="!mb-0 rounded-[22px] border border-slate-100 bg-white px-4 py-3 text-slate-600"
                   >
                     {changelog}
                   </Paragraph>
                 ) : (
-                  <div style={{ color: '#9CA3AF', fontSize: 13 }}>No changelog available</div>
+                  <div className="rounded-[22px] border border-dashed border-slate-200 bg-white px-4 py-3 text-sm text-slate-400">
+                    暂无更新说明
+                  </div>
                 )}
               </div>
             </div>
           </div>
         </Col>
 
-        {/* Right QR Code Column */}
-        <Col xs={24} sm={6} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-          <div style={{ textAlign: 'center' }}>
-            <Popover
-              content={<div style={STYLES.qrPopoverContent}><QRCode value={verifyUrl} size={QR_SIZES.large} /></div>}
-              trigger={['hover', 'click']}
-              overlayStyle={{ padding: 0 }}
-              mouseEnterDelay={0.12}
-              mouseLeaveDelay={0.12}
-            >
-              <div style={STYLES.qrContainer}>
-                <QRCode value={verifyUrl} size={QR_SIZES.small} />
-              </div>
-            </Popover>
-            <div style={{ marginTop: 6, fontSize: 12, color: '#9CA3AF' }}>扫码下载</div>
+        <Col xs={24} sm={6} className="flex justify-center">
+          <div className="rounded-[24px] border border-slate-100 bg-white/90 p-3 shadow-sm">
+            <QRCode value={verifyUrl} size={96} />
+            <div className="mt-3 text-center text-xs tracking-[0.12em] text-slate-400">扫码访问</div>
           </div>
         </Col>
 
-        {/* Bottom Action Buttons */}
         <Col span={24}>
-          <div style={STYLES.actionSection}>
-            <Space style={{ flex: 1 }}>
-              {locked ? (
-                <Button 
-                  type="primary" 
-                  icon={<LockOutlined />} 
-                  onClick={onLockedClick} 
-                  style={{ minWidth: 160 }}
-                  aria-label="Enter verification code to download"
-                >
-                  输入验证码下载
-                </Button>
-              ) : (
-                <Button 
-                  type="primary" 
-                  icon={<DownloadOutlined />} 
-                  href={safeUrl} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  style={{ minWidth: 160 }}
-                  aria-label="Direct download"
-                >
-                  直接下载
-                </Button>
-              )}
-
-              <Button 
-                icon={<LinkOutlined />} 
-                href={safeUrl} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                aria-label="Copy direct link"
+          <Space wrap size={10}>
+            {locked ? (
+              <Button
+                type="primary"
+                className="rounded-full border-none bg-[#2a6df4] shadow-[0_10px_24px_rgba(42,109,244,0.18)]"
+                icon={<LockOutlined />}
+                onClick={onLockedClick}
               >
-                直链
+                输入验证码下载
               </Button>
-            </Space>
-
-            <div style={{ marginLeft: 'auto' }}>
-              {/* Reserved for secondary actions */}
-            </div>
-          </div>
+            ) : (
+              <Button
+                type="primary"
+                className="rounded-full border-none bg-[#2a6df4] shadow-[0_10px_24px_rgba(42,109,244,0.18)]"
+                icon={<DownloadOutlined />}
+                href={directUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={onDirectDownload}
+              >
+                直接下载
+              </Button>
+            )}
+            <Button
+              className="rounded-full border-slate-200 bg-white"
+              icon={<LinkOutlined />}
+              href={directUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={onOpenLink}
+            >
+              打开直链
+            </Button>
+          </Space>
         </Col>
       </Row>
     </Card>

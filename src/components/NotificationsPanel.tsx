@@ -3,7 +3,7 @@ import { Card, CardContent } from "./ui";
 import { Switch, Input, Button } from "antd";
 
 export default function NotificationsPanel() {
-  const [email, setEmail] = useState("user@example.com");
+  const [email, setEmail] = useState("");
   const [notifications, setNotifications] = useState({
     tradeAlerts: true,
     dailySummary: true,
