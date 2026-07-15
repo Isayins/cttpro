@@ -483,6 +483,7 @@ export default function Admin({ preview = false }: AdminProps) {
   const [logsLoading, setLogsLoading] = useState(false);
   const [mailLogsLoading, setMailLogsLoading] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [systemHealthLoading, setSystemHealthLoading] = useState(false);
   const [vmqLoading, setVmqLoading] = useState(false);
   const [couponLoading, setCouponLoading] = useState(false);
   const [deliveryCodeLoading, setDeliveryCodeLoading] = useState(false);
@@ -1081,6 +1082,29 @@ export default function Admin({ preview = false }: AdminProps) {
     },
     [preview, vmqForm],
   );
+
+  const loadSystemHealth = useCallback(async () => {
+    if (preview) {
+      return;
+    }
+
+    setSystemHealthLoading(true);
+    try {
+      const health = await adminApi.getSystemHealth();
+      setSystemHealth(health);
+      setSectionErrors((current) => {
+        const next = { ...current };
+        delete next.systemHealth;
+        return next;
+      });
+    } catch (error) {
+      const errorText = textError(error, "刷新系统状态失败");
+      setSectionErrors((current) => ({ ...current, systemHealth: errorText }));
+      message.error(errorText);
+    } finally {
+      setSystemHealthLoading(false);
+    }
+  }, [preview]);
 
   const loadInviteCodes = useCallback(
     async (
@@ -7206,8 +7230,8 @@ export default function Admin({ preview = false }: AdminProps) {
                         </Tag>
                         <Button
                           icon={<HeartOutlined />}
-                          loading={loading}
-                          onClick={() => void loadAll(reportStatus)}
+                          loading={systemHealthLoading}
+                          onClick={() => void loadSystemHealth()}
                         >
                           重新检查
                         </Button>
