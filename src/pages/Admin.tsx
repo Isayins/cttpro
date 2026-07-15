@@ -3898,6 +3898,7 @@ export default function Admin({ preview = false }: AdminProps) {
       coupons: `${couponSummary.total}`,
       "delivery-codes": `${deliveryCodeSummary.total}`,
       payments: `${paymentSummary.total}`,
+      "mail-logs": mailLogTotal > 0 ? `${mailLogTotal}` : "邮件",
       "vmq-payment": vmqSettings?.enabled ? "启用" : "配置",
       downloads: `${downloadSummary.total}`,
       notices: `${noticeSummary.total}`,
@@ -3910,6 +3911,7 @@ export default function Admin({ preview = false }: AdminProps) {
       downloadSummary.total,
       inviteSummary.total,
       logTotal,
+      mailLogTotal,
       noticeSummary.total,
       paymentSummary.total,
       productSummary.total,
@@ -4909,6 +4911,22 @@ export default function Admin({ preview = false }: AdminProps) {
                 type="warning"
                 message="部分后台模块暂时没有加载成功"
                 description={sectionErrorItems.join("；")}
+              />
+            </div>
+          ) : null}
+
+          {lowDeliveryCodeProducts.length > 0 ? (
+            <div className="border-b border-amber-100 bg-amber-50/70 px-5 py-4">
+              <Alert
+                showIcon
+                type="warning"
+                message={`有 ${lowDeliveryCodeProducts.length} 个CDK商品库存偏低`}
+                description={lowDeliveryCodeMessage || "请及时导入新的CDK库存。"}
+                action={
+                  <Button size="small" onClick={() => switchSection("delivery-codes")}>
+                    去补货
+                  </Button>
+                }
               />
             </div>
           ) : null}
