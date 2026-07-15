@@ -38,13 +38,13 @@ https://idncar.com
 
 也可以粘贴后台显示的 `https://idncar.com/appPush`，App 会自动裁剪为根地址。
 
-如果域名走 Cloudflare 后一直超时，可以临时填源站 API 前缀：
+如果域名反代或 Nginx 配置异常导致一直超时，可以临时填服务器 API 前缀：
 
 ```text
 https://124.223.19.117/api/payments/vmq
 ```
 
-这个直连 IP 模式只建议临时排障使用。正式使用建议修好 Cloudflare 或 Nginx，让 `https://idncar.com/getState`、`https://idncar.com/appHeart`、`https://idncar.com/appPush` 正常返回后端 JSON。
+这个直连 IP 模式只建议临时排障使用。正式使用建议修好服务器 Nginx 反代，让 `https://idncar.com/getState`、`https://idncar.com/appHeart`、`https://idncar.com/appPush` 正常返回后端 JSON。
 
 3. 填写后台“V免签配置”里的通讯密钥。
 4. 勾选要监听的渠道：支付宝、微信。
