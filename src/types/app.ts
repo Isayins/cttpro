@@ -598,6 +598,21 @@ export interface AdminOperationLog {
   createTime?: string | null;
 }
 
+export interface MailSendLog {
+  id: number;
+  mailType: string;
+  triggerType: string;
+  orderNo?: string | null;
+  productId?: number | null;
+  productTitle?: string | null;
+  deliveryCodeId?: number | null;
+  recipientEmail: string;
+  subject?: string | null;
+  status: "SUCCESS" | "FAILED" | string;
+  errorMessage?: string | null;
+  createTime?: string | null;
+}
+
 export interface PageResult<T> {
   records: T[];
   total: number;

@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.idncar.exception.ApiException;
 import com.idncar.mapper.AdminOperationLogMapper;
+import com.idncar.mapper.MailSendLogMapper;
 import com.idncar.mapper.PaymentOrderMapper;
 import com.idncar.mapper.ProductDeliveryCodeMapper;
 import com.idncar.mapper.ProductMapper;
@@ -15,6 +16,7 @@ import com.idncar.model.dto.PageResultDto;
 import com.idncar.model.dto.ProductDeliveryCodeDto;
 import com.idncar.model.dto.ProductDeliveryCodeStatsDto;
 import com.idncar.model.entity.AdminOperationLog;
+import com.idncar.model.entity.MailSendLog;
 import com.idncar.model.entity.PaymentOrder;
 import com.idncar.model.entity.Product;
 import com.idncar.model.entity.ProductDeliveryCode;
@@ -54,6 +56,8 @@ public class ProductDeliveryCodeServiceImpl implements ProductDeliveryCodeServic
     private static final String STATUS_LOCKED = "LOCKED";
     private static final String STATUS_SENT = "SENT";
     private static final String STATUS_DISABLED = "DISABLED";
+    private static final String MAIL_STATUS_SUCCESS = "SUCCESS";
+    private static final String MAIL_STATUS_FAILED = "FAILED";
     private static final List<String> STATUSES = List.of(STATUS_AVAILABLE, STATUS_LOCKED, STATUS_SENT, STATUS_DISABLED);
     private static final int MAX_IMPORT_COUNT = 1000;
     private static final DateTimeFormatter BATCH_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
@@ -72,6 +76,9 @@ public class ProductDeliveryCodeServiceImpl implements ProductDeliveryCodeServic
 
     @Autowired
     private AdminOperationLogMapper adminOperationLogMapper;
+
+    @Autowired
+    private MailSendLogMapper mailSendLogMapper;
 
     @Autowired
     private UserAccessService userAccessService;
@@ -462,22 +469,29 @@ public class ProductDeliveryCodeServiceImpl implements ProductDeliveryCodeServic
 
     private String sendDeliveryEmail(Product product, String orderNo, ProductDeliveryCode deliveryCode, String buyerEmail) {
         boolean cdkDelivery = deliveryCode != null;
+        String subject = buildDeliveryEmailSubject(product);
         JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
         if (mailSender == null) {
-            return cdkDelivery
+            String error = cdkDelivery
                     ? "邮件服务未配置完成，CDK已锁定待后台发送"
                     : "邮件服务未配置完成，商品发货邮件待后台发送";
+            recordMailSendLog(product, orderNo, deliveryCode, buyerEmail, subject, MAIL_STATUS_FAILED, error);
+            return error;
         }
         if (mailMockEnabled) {
-            return cdkDelivery
+            String error = cdkDelivery
                     ? "当前环境仍处于mock发信模式，CDK已锁定待后台发送"
                     : "当前环境仍处于mock发信模式，商品发货邮件待后台发送";
+            recordMailSendLog(product, orderNo, deliveryCode, buyerEmail, subject, MAIL_STATUS_FAILED, error);
+            return error;
         }
         String senderAddress = resolveMailFromAddress();
         if (senderAddress == null) {
-            return cdkDelivery
+            String error = cdkDelivery
                     ? "发件邮箱未配置，CDK已锁定待后台发送"
                     : "发件邮箱未配置，商品发货邮件待后台发送";
+            recordMailSendLog(product, orderNo, deliveryCode, buyerEmail, subject, MAIL_STATUS_FAILED, error);
+            return error;
         }
 
         try {
@@ -485,17 +499,43 @@ public class ProductDeliveryCodeServiceImpl implements ProductDeliveryCodeServic
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(senderAddress, "IDNCAR");
             helper.setTo(buyerEmail);
-            helper.setSubject(buildDeliveryEmailSubject(product));
+            helper.setSubject(subject);
             helper.setText(buildDeliveryEmailHtml(product, orderNo, deliveryCode), true);
             mailBrandTemplateHelper.addInlineLogoIfNeeded(helper);
             mailSender.send(message);
+            recordMailSendLog(product, orderNo, deliveryCode, buyerEmail, subject, MAIL_STATUS_SUCCESS, null);
             return null;
         } catch (Exception exception) {
             log.warn("Delivery email failed: orderNo={}, codeId={}, email={}, error={}",
                     orderNo, deliveryCode == null ? null : deliveryCode.getId(), buyerEmail, exception.getMessage());
-            return cdkDelivery
+            String error = cdkDelivery
                     ? "CDK邮件发送失败，CDK已锁定待后台重试"
                     : "商品发货邮件发送失败，待后台重试";
+            recordMailSendLog(product, orderNo, deliveryCode, buyerEmail, subject, MAIL_STATUS_FAILED,
+                    error + "：" + exception.getMessage());
+            return error;
+        }
+    }
+
+    private void recordMailSendLog(Product product, String orderNo, ProductDeliveryCode deliveryCode,
+                                   String buyerEmail, String subject, String status, String errorMessage) {
+        try {
+            MailSendLog mailLog = new MailSendLog();
+            mailLog.setMailType(deliveryCode == null ? "PRODUCT_DELIVERY" : "CDK_DELIVERY");
+            mailLog.setTriggerType("DELIVERY");
+            mailLog.setOrderNo(limitText(normalizeNullableText(orderNo), 64));
+            mailLog.setProductId(product == null ? null : product.getId());
+            mailLog.setProductTitle(limitText(product == null ? null : product.getTitle(), 160));
+            mailLog.setDeliveryCodeId(deliveryCode == null ? null : deliveryCode.getId());
+            mailLog.setRecipientEmail(limitText(normalizeNullableText(buyerEmail), 120));
+            mailLog.setSubject(limitText(normalizeNullableText(subject), 200));
+            mailLog.setStatus(status);
+            mailLog.setErrorMessage(limitText(normalizeNullableText(errorMessage), 600));
+            mailLog.setCreateTime(new Date());
+            mailSendLogMapper.insert(mailLog);
+        } catch (Exception exception) {
+            log.warn("Failed to record delivery email log: orderNo={}, email={}, error={}",
+                    orderNo, buyerEmail, exception.getMessage());
         }
     }
 

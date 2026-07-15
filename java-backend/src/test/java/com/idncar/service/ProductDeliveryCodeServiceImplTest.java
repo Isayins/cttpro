@@ -1,8 +1,10 @@
 package com.idncar.service;
 
 import com.idncar.mapper.ProductDeliveryCodeMapper;
+import com.idncar.mapper.MailSendLogMapper;
 import com.idncar.mapper.ProductMapper;
 import com.idncar.mapper.UserMapper;
+import com.idncar.model.entity.MailSendLog;
 import com.idncar.model.entity.PaymentOrder;
 import com.idncar.model.entity.Product;
 import com.idncar.model.entity.ProductDeliveryCode;
@@ -13,6 +15,7 @@ import jakarta.mail.Part;
 import jakarta.mail.Session;
 import jakarta.mail.internet.MimeMessage;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.mail.javamail.JavaMailSender;
 
@@ -47,6 +50,7 @@ class ProductDeliveryCodeServiceImplTest {
         when(productMapper.selectById(1L)).thenReturn(product);
         UserMapper userMapper = mock(UserMapper.class);
         ProductDeliveryCodeMapper deliveryCodeMapper = mock(ProductDeliveryCodeMapper.class);
+        MailSendLogMapper mailSendLogMapper = mock(MailSendLogMapper.class);
 
         JavaMailSender mailSender = mock(JavaMailSender.class);
         MimeMessage mimeMessage = new MimeMessage(Session.getInstance(new Properties()));
@@ -61,6 +65,7 @@ class ProductDeliveryCodeServiceImplTest {
         setField(service, "productMapper", productMapper);
         setField(service, "userMapper", userMapper);
         setField(service, "productDeliveryCodeMapper", deliveryCodeMapper);
+        setField(service, "mailSendLogMapper", mailSendLogMapper);
         setField(service, "mailSenderProvider", mailSenderProvider);
         setField(service, "mailBrandTemplateHelper", templateHelper);
         setField(service, "mailFrom", "sender@example.com");
@@ -70,6 +75,10 @@ class ProductDeliveryCodeServiceImplTest {
         assertThat(service.fulfillPaidOrder(order)).isNull();
         verify(mailSender).send(mimeMessage);
         verify(deliveryCodeMapper, never()).selectOne(any());
+        ArgumentCaptor<MailSendLog> logCaptor = ArgumentCaptor.forClass(MailSendLog.class);
+        verify(mailSendLogMapper).insert(logCaptor.capture());
+        assertThat(logCaptor.getValue().getStatus()).isEqualTo("SUCCESS");
+        assertThat(logCaptor.getValue().getRecipientEmail()).isEqualTo("buyer@example.com");
 
         assertThat(mimeMessage.getAllRecipients()[0].toString()).isEqualTo("buyer@example.com");
         assertThat(mimeMessage.getSubject()).contains("学习资料");
@@ -92,6 +101,7 @@ class ProductDeliveryCodeServiceImplTest {
 
         ProductMapper productMapper = mock(ProductMapper.class);
         when(productMapper.selectById(1L)).thenReturn(product);
+        MailSendLogMapper mailSendLogMapper = mock(MailSendLogMapper.class);
         @SuppressWarnings("unchecked")
         ObjectProvider<JavaMailSender> mailSenderProvider = mock(ObjectProvider.class);
         when(mailSenderProvider.getIfAvailable()).thenReturn(null);
@@ -99,10 +109,15 @@ class ProductDeliveryCodeServiceImplTest {
         ProductDeliveryCodeServiceImpl service = new ProductDeliveryCodeServiceImpl();
         setField(service, "productMapper", productMapper);
         setField(service, "userMapper", mock(UserMapper.class));
+        setField(service, "mailSendLogMapper", mailSendLogMapper);
         setField(service, "mailSenderProvider", mailSenderProvider);
 
         assertThat(service.fulfillPaidOrder(order))
                 .isEqualTo("邮件服务未配置完成，商品发货邮件待后台发送");
+        ArgumentCaptor<MailSendLog> logCaptor = ArgumentCaptor.forClass(MailSendLog.class);
+        verify(mailSendLogMapper).insert(logCaptor.capture());
+        assertThat(logCaptor.getValue().getStatus()).isEqualTo("FAILED");
+        assertThat(logCaptor.getValue().getErrorMessage()).contains("邮件服务未配置完成");
     }
 
     @Test
@@ -129,6 +144,7 @@ class ProductDeliveryCodeServiceImplTest {
         ProductMapper productMapper = mock(ProductMapper.class);
         when(productMapper.selectById(1L)).thenReturn(product);
         ProductDeliveryCodeMapper deliveryCodeMapper = mock(ProductDeliveryCodeMapper.class);
+        MailSendLogMapper mailSendLogMapper = mock(MailSendLogMapper.class);
         when(deliveryCodeMapper.selectOne(any())).thenReturn(deliveryCode);
         when(deliveryCodeMapper.update(any(), any())).thenReturn(1);
 
@@ -143,6 +159,7 @@ class ProductDeliveryCodeServiceImplTest {
         setField(service, "productMapper", productMapper);
         setField(service, "userMapper", mock(UserMapper.class));
         setField(service, "productDeliveryCodeMapper", deliveryCodeMapper);
+        setField(service, "mailSendLogMapper", mailSendLogMapper);
         setField(service, "mailSenderProvider", mailSenderProvider);
         setField(service, "mailBrandTemplateHelper",
                 new MailBrandTemplateHelper("https://idncar.com", "https://idncar.com/logo.png"));

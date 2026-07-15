@@ -58,6 +58,8 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
         ensureProductCouponCodeColumns();
         ensurePaymentOrdersTable();
         ensurePaymentOrderColumns();
+        ensureMailSendLogsTable();
+        ensureMailSendLogColumns();
         ensurePaymentVmqSettingsTable();
         ensurePaymentVmqSettingColumns();
         ensurePaymentVmqEventsTable();
@@ -643,6 +645,43 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
         ensureIndex("payment_orders", "idx_payment_orders_status", "CREATE INDEX idx_payment_orders_status ON payment_orders(status)");
         ensureIndex("payment_orders", "idx_payment_orders_create_time", "CREATE INDEX idx_payment_orders_create_time ON payment_orders(create_time)");
         ensureIndex("payment_orders", "idx_payment_orders_coupon_code_id", "CREATE INDEX idx_payment_orders_coupon_code_id ON payment_orders(coupon_code_id)");
+    }
+
+    private void ensureMailSendLogsTable() {
+        jdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS mail_send_logs (
+                    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                    mail_type VARCHAR(40) NOT NULL DEFAULT 'DELIVERY',
+                    trigger_type VARCHAR(40) NOT NULL DEFAULT 'AUTO',
+                    order_no VARCHAR(64) NULL,
+                    product_id BIGINT NULL,
+                    product_title VARCHAR(160) NULL,
+                    delivery_code_id BIGINT NULL,
+                    recipient_email VARCHAR(120) NOT NULL,
+                    subject VARCHAR(200) NULL,
+                    status VARCHAR(20) NOT NULL DEFAULT 'SUCCESS',
+                    error_message VARCHAR(600) NULL,
+                    create_time DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+                """);
+    }
+
+    private void ensureMailSendLogColumns() {
+        ensureColumn("mail_send_logs", "mail_type", "mail_type VARCHAR(40) NOT NULL DEFAULT 'DELIVERY'");
+        ensureColumn("mail_send_logs", "trigger_type", "trigger_type VARCHAR(40) NOT NULL DEFAULT 'AUTO'");
+        ensureColumn("mail_send_logs", "order_no", "order_no VARCHAR(64) NULL");
+        ensureColumn("mail_send_logs", "product_id", "product_id BIGINT NULL");
+        ensureColumn("mail_send_logs", "product_title", "product_title VARCHAR(160) NULL");
+        ensureColumn("mail_send_logs", "delivery_code_id", "delivery_code_id BIGINT NULL");
+        ensureColumn("mail_send_logs", "recipient_email", "recipient_email VARCHAR(120) NOT NULL DEFAULT ''");
+        ensureColumn("mail_send_logs", "subject", "subject VARCHAR(200) NULL");
+        ensureColumn("mail_send_logs", "status", "status VARCHAR(20) NOT NULL DEFAULT 'SUCCESS'");
+        ensureColumn("mail_send_logs", "error_message", "error_message VARCHAR(600) NULL");
+        ensureColumn("mail_send_logs", "create_time", "create_time DATETIME DEFAULT CURRENT_TIMESTAMP");
+        ensureIndex("mail_send_logs", "idx_mail_send_logs_create_time", "CREATE INDEX idx_mail_send_logs_create_time ON mail_send_logs(create_time)");
+        ensureIndex("mail_send_logs", "idx_mail_send_logs_order_no", "CREATE INDEX idx_mail_send_logs_order_no ON mail_send_logs(order_no)");
+        ensureIndex("mail_send_logs", "idx_mail_send_logs_status", "CREATE INDEX idx_mail_send_logs_status ON mail_send_logs(status)");
+        ensureIndex("mail_send_logs", "idx_mail_send_logs_recipient_email", "CREATE INDEX idx_mail_send_logs_recipient_email ON mail_send_logs(recipient_email)");
     }
 
     private void ensurePaymentVmqSettingsTable() {

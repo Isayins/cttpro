@@ -328,6 +328,25 @@ CREATE TABLE IF NOT EXISTS payment_orders (
     KEY idx_payment_orders_coupon_code_id (coupon_code_id)
 );
 
+CREATE TABLE IF NOT EXISTS mail_send_logs (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    mail_type VARCHAR(40) NOT NULL DEFAULT 'DELIVERY',
+    trigger_type VARCHAR(40) NOT NULL DEFAULT 'AUTO',
+    order_no VARCHAR(64) NULL,
+    product_id BIGINT NULL,
+    product_title VARCHAR(160) NULL,
+    delivery_code_id BIGINT NULL,
+    recipient_email VARCHAR(120) NOT NULL,
+    subject VARCHAR(200) NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'SUCCESS',
+    error_message VARCHAR(600) NULL,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_mail_send_logs_create_time (create_time),
+    KEY idx_mail_send_logs_order_no (order_no),
+    KEY idx_mail_send_logs_status (status),
+    KEY idx_mail_send_logs_recipient_email (recipient_email)
+);
+
 CREATE TABLE IF NOT EXISTS payment_vmq_settings (
     id BIGINT PRIMARY KEY,
     enabled TINYINT(1) NOT NULL DEFAULT 0,

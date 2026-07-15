@@ -18,6 +18,7 @@ import type {
   ImportProductDeliveryCodesResponse,
   DownloadResource,
   InviteCode,
+  MailSendLog,
   PageResult,
   Product,
   ProductCouponCode,
@@ -499,6 +500,20 @@ export const adminApi = {
       query.set("keyword", params.keyword.trim());
     }
     return apiRequest<PageResult<AdminOperationLog>>(`/api/admin/operation-logs/page?${query.toString()}`, {
+      authMode: "required",
+    });
+  },
+  getMailSendLogs: (params: { page?: number; size?: number; keyword?: string; status?: string } = {}) => {
+    const query = new URLSearchParams();
+    query.set("page", String(params.page ?? 1));
+    query.set("size", String(params.size ?? 8));
+    if (params.keyword?.trim()) {
+      query.set("keyword", params.keyword.trim());
+    }
+    if (params.status && params.status !== "ALL") {
+      query.set("status", params.status);
+    }
+    return apiRequest<PageResult<MailSendLog>>(`/api/admin/mail-send-logs?${query.toString()}`, {
       authMode: "required",
     });
   },

@@ -31,6 +31,7 @@ import {
   DownloadOutlined,
   GiftOutlined,
   KeyOutlined,
+  MailOutlined,
   NotificationOutlined,
   QrcodeOutlined,
   SafetyOutlined,
@@ -87,6 +88,7 @@ import type {
   ImportProductDeliveryCodesPayload,
   DownloadResource,
   InviteCode,
+  MailSendLog,
   PageResult,
   Product,
   ProductCouponCode,
@@ -130,6 +132,12 @@ const inviteLabel = (status?: string) => {
   if (status === "EXPIRED") return "已过期";
   return "可用";
 };
+
+const mailSendStatusLabel = (status?: string) =>
+  status === "SUCCESS" ? "发送成功" : "发送失败";
+
+const mailSendStatusColor = (status?: string) =>
+  status === "SUCCESS" ? "green" : "red";
 
 const actionLabel = (value?: string) =>
   ({
@@ -344,6 +352,7 @@ const sectionItems = [
   { id: "coupons", label: "优惠码", icon: <GiftOutlined /> },
   { id: "delivery-codes", label: "CDK发货", icon: <KeyOutlined /> },
   { id: "payments", label: "支付订单", icon: <CreditCardOutlined /> },
+  { id: "mail-logs", label: "邮件记录", icon: <MailOutlined /> },
   { id: "vmq-payment", label: "V免签配置", icon: <QrcodeOutlined /> },
   { id: "downloads", label: "下载管理", icon: <DownloadOutlined /> },
   { id: "notices", label: "公告管理", icon: <NotificationOutlined /> },
@@ -457,6 +466,7 @@ export default function Admin({ preview = false }: AdminProps) {
   const [reportLoading, setReportLoading] = useState(false);
   const [noticeLoading, setNoticeLoading] = useState(false);
   const [logsLoading, setLogsLoading] = useState(false);
+  const [mailLogsLoading, setMailLogsLoading] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [vmqLoading, setVmqLoading] = useState(false);
   const [couponLoading, setCouponLoading] = useState(false);
@@ -553,6 +563,7 @@ export default function Admin({ preview = false }: AdminProps) {
     rejected: 0,
   });
   const [operationLogs, setOperationLogs] = useState<AdminOperationLog[]>([]);
+  const [mailSendLogs, setMailSendLogs] = useState<MailSendLog[]>([]);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editingDownload, setEditingDownload] =
     useState<DownloadResource | null>(null);
@@ -646,6 +657,11 @@ export default function Admin({ preview = false }: AdminProps) {
   const [logPage, setLogPage] = useState(1);
   const [logPageSize, setLogPageSize] = useState(DEFAULT_LOG_PAGE_SIZE);
   const [logTotal, setLogTotal] = useState(0);
+  const [mailLogKeyword, setMailLogKeyword] = useState("");
+  const [mailLogStatusFilter, setMailLogStatusFilter] = useState("ALL");
+  const [mailLogPage, setMailLogPage] = useState(1);
+  const [mailLogPageSize, setMailLogPageSize] = useState(DEFAULT_LOG_PAGE_SIZE);
+  const [mailLogTotal, setMailLogTotal] = useState(0);
   const [userForm] = Form.useForm<AdminUpdateUserPayload>();
   const [inviteForm] = Form.useForm<{ count: number; expiresInDays: number }>();
   const [downloadForm] = Form.useForm<CreateDownloadResourcePayload>();
@@ -699,6 +715,8 @@ export default function Admin({ preview = false }: AdminProps) {
   const paymentQueryMountedRef = useRef(false);
   const logPageSizeRef = useRef(DEFAULT_LOG_PAGE_SIZE);
   const logQueryMountedRef = useRef(false);
+  const mailLogPageSizeRef = useRef(DEFAULT_LOG_PAGE_SIZE);
+  const mailLogQueryMountedRef = useRef(false);
   const inviteRequestRef = useRef(0);
   const downloadRequestRef = useRef(0);
   const productRequestRef = useRef(0);
@@ -708,6 +726,7 @@ export default function Admin({ preview = false }: AdminProps) {
   const couponRequestRef = useRef(0);
   const deliveryCodeRequestRef = useRef(0);
   const logRequestRef = useRef(0);
+  const mailLogRequestRef = useRef(0);
   const reportRequestRef = useRef(0);
   const loadAllRequestRef = useRef(0);
 
@@ -986,6 +1005,23 @@ export default function Admin({ preview = false }: AdminProps) {
             setLogPageSize(result.size);
             logPageSizeRef.current = result.size;
             setLogTotal(result.total);
+          },
+        },
+        {
+          key: "mailLogs",
+          label: "邮件记录",
+          run: () =>
+            adminApi.getMailSendLogs({
+              page: 1,
+              size: DEFAULT_LOG_PAGE_SIZE,
+            }),
+          apply: (value) => {
+            const result = value as PageResult<MailSendLog>;
+            setMailSendLogs(result.records);
+            setMailLogPage(result.page);
+            setMailLogPageSize(result.size);
+            mailLogPageSizeRef.current = result.size;
+            setMailLogTotal(result.total);
           },
         },
       ];
@@ -1846,6 +1882,95 @@ export default function Admin({ preview = false }: AdminProps) {
     }
 
     await loadOperationLogs(logPage, logPageSizeRef.current, logKeyword);
+  }
+
+  const loadMailSendLogs = useCallback(
+    async (
+      page = 1,
+      size = DEFAULT_LOG_PAGE_SIZE,
+      keyword = "",
+      status = "ALL",
+    ) => {
+      const isLatestRequest = beginAdminRequest(mailLogRequestRef);
+      setMailLogsLoading(true);
+      try {
+        const result = await adminApi.getMailSendLogs({
+          page,
+          size,
+          keyword,
+          status,
+        });
+        if (!isLatestRequest()) {
+          return;
+        }
+        setMailSendLogs(result.records);
+        setMailLogPage(result.page);
+        setMailLogPageSize(result.size);
+        mailLogPageSizeRef.current = result.size;
+        setMailLogTotal(result.total);
+        setSectionErrors((current) => {
+          const next = { ...current };
+          delete next.mailLogs;
+          return next;
+        });
+      } catch (error) {
+        if (!isLatestRequest()) {
+          return;
+        }
+        const errorText = textError(error, "刷新邮件记录失败");
+        setSectionErrors((current) => ({ ...current, mailLogs: errorText }));
+        message.error(errorText);
+      } finally {
+        if (isLatestRequest()) {
+          setMailLogsLoading(false);
+        }
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (preview) {
+      return undefined;
+    }
+
+    if (!mailLogQueryMountedRef.current) {
+      mailLogQueryMountedRef.current = true;
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      void loadMailSendLogs(
+        1,
+        mailLogPageSizeRef.current,
+        mailLogKeyword,
+        mailLogStatusFilter,
+      );
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [loadMailSendLogs, mailLogKeyword, mailLogStatusFilter, preview]);
+
+  async function refreshMailLogs() {
+    if (preview) {
+      return;
+    }
+
+    await loadMailSendLogs(
+      mailLogPage,
+      mailLogPageSizeRef.current,
+      mailLogKeyword,
+      mailLogStatusFilter,
+    );
+  }
+
+  async function resetMailLogFilters() {
+    setMailLogKeyword("");
+    setMailLogStatusFilter("ALL");
+    if (preview) {
+      return;
+    }
+
+    await loadMailSendLogs(1, mailLogPageSizeRef.current, "", "ALL");
   }
 
   const loadPostReports = useCallback(
@@ -3709,6 +3834,8 @@ export default function Admin({ preview = false }: AdminProps) {
     noticeKeyword.trim() !== "" || noticeStatusFilter !== "ALL";
   const hasReportFilters = reportStatus !== "ALL";
   const hasLogFilters = logKeyword.trim() !== "";
+  const hasMailLogFilters =
+    mailLogKeyword.trim() !== "" || mailLogStatusFilter !== "ALL";
 
   const paymentSummary = paymentStats;
 
@@ -4650,6 +4777,66 @@ export default function Admin({ preview = false }: AdminProps) {
         `${targetLabel(record.targetType)} / ${record.targetName || "-"}`,
     },
     { title: "说明", dataIndex: "detail", render: (value) => value || "-" },
+    { title: "时间", dataIndex: "createTime", render: (value) => value || "-" },
+  ];
+
+  const mailLogColumns: ColumnsType<MailSendLog> = [
+    {
+      title: "邮件",
+      key: "mail",
+      render: (_, record) => (
+        <div className="min-w-[260px]">
+          <div className="font-medium text-slate-900">
+            {record.subject || "发货邮件"}
+          </div>
+          <div className="mt-1 truncate font-mono text-xs text-slate-500">
+            {record.recipientEmail}
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: "订单/商品",
+      key: "order",
+      render: (_, record) => (
+        <div className="text-xs leading-5 text-slate-500">
+          <div className="font-mono">{record.orderNo || "-"}</div>
+          <div>{record.productTitle || "未关联商品"}</div>
+          {record.deliveryCodeId ? <div>CDK #{record.deliveryCodeId}</div> : null}
+        </div>
+      ),
+    },
+    {
+      title: "类型",
+      key: "type",
+      render: (_, record) => (
+        <Space size={4} wrap>
+          <Tag>{record.mailType === "CDK_DELIVERY" ? "CDK发货" : "商品发货"}</Tag>
+          <Tag>{record.triggerType || "DELIVERY"}</Tag>
+        </Space>
+      ),
+    },
+    {
+      title: "状态",
+      dataIndex: "status",
+      render: (value) => (
+        <Tag color={mailSendStatusColor(value)}>
+          {mailSendStatusLabel(value)}
+        </Tag>
+      ),
+    },
+    {
+      title: "错误",
+      dataIndex: "errorMessage",
+      render: (value) =>
+        value ? (
+          <div className="max-w-[280px] truncate text-xs text-red-500">
+            {value}
+          </div>
+        ) : (
+          "-"
+        ),
+    },
     { title: "时间", dataIndex: "createTime", render: (value) => value || "-" },
   ];
 
@@ -7274,6 +7461,95 @@ export default function Admin({ preview = false }: AdminProps) {
                           emptyText: hasReportFilters
                             ? "当前筛选没有匹配举报记录，可清空筛选后重试"
                             : "暂无举报记录",
+                        }}
+                      />
+                    </Card>
+                  </section>
+
+                  <section
+                    id="mail-logs"
+                    className={sectionPanelClassName("mail-logs")}
+                  >
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <div className="text-xl font-semibold text-slate-900">
+                          邮件记录
+                        </div>
+                        <div className="mt-1 text-sm text-slate-500">
+                          匹配 {mailLogTotal} 条，当前页 {mailSendLogs.length} 条
+                        </div>
+                      </div>
+                      <Space wrap>
+                        <Select
+                          value={mailLogStatusFilter}
+                          onChange={setMailLogStatusFilter}
+                          style={{ width: 130 }}
+                          options={[
+                            { label: "全部状态", value: "ALL" },
+                            { label: "发送成功", value: "SUCCESS" },
+                            { label: "发送失败", value: "FAILED" },
+                          ]}
+                        />
+                        <Input.Search
+                          allowClear
+                          enterButton="搜索"
+                          placeholder="搜索订单号、邮箱或商品"
+                          value={mailLogKeyword}
+                          onChange={(event) =>
+                            setMailLogKeyword(event.target.value)
+                          }
+                          onSearch={(value) =>
+                            void loadMailSendLogs(
+                              1,
+                              mailLogPageSizeRef.current,
+                              value,
+                              mailLogStatusFilter,
+                            )
+                          }
+                          style={{ width: 260 }}
+                        />
+                        <Button
+                          icon={<ClearOutlined />}
+                          disabled={!hasMailLogFilters}
+                          onClick={() => void resetMailLogFilters()}
+                        >
+                          清空
+                        </Button>
+                        <Button
+                          icon={<MailOutlined />}
+                          loading={mailLogsLoading}
+                          onClick={() => void refreshMailLogs()}
+                        >
+                          刷新邮件
+                        </Button>
+                      </Space>
+                    </div>
+                    <Card className="rounded-[28px] border-slate-100 shadow-sm">
+                      <Table<MailSendLog>
+                        rowKey="id"
+                        loading={loading || mailLogsLoading}
+                        columns={mailLogColumns}
+                        dataSource={mailSendLogs}
+                        pagination={{
+                          current: mailLogPage,
+                          pageSize: mailLogPageSize,
+                          total: mailLogTotal,
+                          showSizeChanger: true,
+                          showTotal: (total) => `共 ${total} 条`,
+                        }}
+                        onChange={(pagination) => {
+                          void loadMailSendLogs(
+                            pagination.current ?? 1,
+                            pagination.pageSize ?? mailLogPageSize,
+                            mailLogKeyword,
+                            mailLogStatusFilter,
+                          );
+                        }}
+                        scroll={{ x: 960 }}
+                        locale={{
+                          emptyText: hasMailLogFilters
+                            ? "当前筛选没有匹配邮件记录，可清空筛选后重试"
+                            : "暂无邮件发送记录",
                         }}
                       />
                     </Card>
