@@ -79,6 +79,19 @@ function getStatusFilterLabel(value: string) {
   );
 }
 
+function buildSupportText(order: PaymentOrder) {
+  const issue = paymentOrderLastError(order) || "请描述遇到的问题";
+  return [
+    "订单售后处理",
+    `订单号：${order.outTradeNo}`,
+    `商品：${order.subject}`,
+    `状态：${paymentOrderStatusLabel(order)}`,
+    `收货邮箱：${order.deliveryEmail || "-"}`,
+    `金额：${isFreeOrder(order) ? "免费" : formatPrice(order.totalAmount)}`,
+    `问题：${issue}`,
+  ].join("\n");
+}
+
 type OrderMobileCardProps = {
   order: PaymentOrder;
   actionLoading: string | null;
@@ -1128,12 +1141,44 @@ export default function Orders() {
                       关闭订单
                     </Button>
                   </Popconfirm>
+                  <Button
+                    icon={<CopyOutlined />}
+                    onClick={() =>
+                      void copyText(
+                        buildSupportText(selectedOrder),
+                        "售后信息已复制",
+                      )
+                    }
+                  >
+                    复制售后信息
+                  </Button>
+                  <Button onClick={() => navigate(routePaths.chat)}>
+                    联系管理员
+                  </Button>
                   <Button onClick={() => setSelectedOrder(null)}>
                     关闭详情
                   </Button>
                 </Space>
               ) : (
-                <Button onClick={() => setSelectedOrder(null)}>关闭详情</Button>
+                <Space wrap>
+                  <Button
+                    icon={<CopyOutlined />}
+                    onClick={() =>
+                      void copyText(
+                        buildSupportText(selectedOrder),
+                        "售后信息已复制",
+                      )
+                    }
+                  >
+                    复制售后信息
+                  </Button>
+                  <Button onClick={() => navigate(routePaths.chat)}>
+                    联系管理员
+                  </Button>
+                  <Button onClick={() => setSelectedOrder(null)}>
+                    关闭详情
+                  </Button>
+                </Space>
               )}
             </div>
           ) : null}
