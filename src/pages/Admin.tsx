@@ -3935,6 +3935,8 @@ export default function Admin({ preview = false }: AdminProps) {
     paymentSummary.errors +
     reportSummary.pending +
     lowDeliveryCodeProducts.length;
+  const hasSystemHealthAttention =
+    systemHealth?.status === "WARNING" || systemHealth?.status === "ERROR";
   const systemHealthPercent =
     systemHealth?.score ??
     (sectionErrorItems.length > 0 ? 86 : paymentSummary.errors > 0 ? 92 : 98);
@@ -4946,7 +4948,9 @@ export default function Admin({ preview = false }: AdminProps) {
                       ? "payments"
                       : reportSummary.pending > 0
                         ? "reports"
-                        : "overview",
+                        : hasSystemHealthAttention
+                          ? "system-health"
+                          : "overview",
                   )
                 }
               >
