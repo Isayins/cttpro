@@ -673,6 +673,39 @@ export default function Products() {
               <div className="whitespace-pre-wrap rounded-2xl bg-slate-50 p-4 text-sm leading-7 text-slate-700">
                 {selectedProduct.description || "管理员还没有填写商品简介。"}
               </div>
+              <div className="grid gap-3 rounded-2xl border border-slate-100 bg-white p-4 text-sm text-slate-600 sm:grid-cols-3">
+                <div>
+                  <div className="text-xs text-slate-400">发货方式</div>
+                  <Tag
+                    className="mt-2"
+                    color={productDeliveryTypeTagColor(
+                      selectedProduct.deliveryType,
+                    )}
+                  >
+                    {productDeliveryTypeLabel(selectedProduct.deliveryType)}
+                  </Tag>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-400">库存状态</div>
+                  <div className="mt-2 font-medium text-slate-900">
+                    {stockText(selectedProduct)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-400">领取方式</div>
+                  <div className="mt-2 font-medium text-slate-900">
+                    {isFreeProduct(selectedProduct) ? "免费领取" : "在线购买"}
+                  </div>
+                </div>
+                <div className="sm:col-span-3">
+                  <div className="text-xs text-slate-400">购买须知</div>
+                  <div className="mt-2 leading-6">
+                    {isCdkEmailProduct(selectedProduct)
+                      ? "领取或支付成功后，系统会把取码链接或CDK发送到收货邮箱，请同时检查垃圾箱。"
+                      : "领取或支付成功后，系统会把管理员配置的交付内容发送到收货邮箱。"}
+                  </div>
+                </div>
+              </div>
               <Space>
                 <Button onClick={() => setSelectedProduct(null)}>关闭</Button>
                 <Button
