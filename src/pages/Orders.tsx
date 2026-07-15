@@ -39,6 +39,7 @@ import {
   paymentOrderLastError,
   paymentOrderCompletedMessage,
   paymentOrderStatusLabel,
+  paymentChannelLabel,
   paymentStatusColor,
 } from "../lib/paymentDisplay";
 import { routePaths } from "../router/routeAccess";
@@ -1016,6 +1017,44 @@ export default function Orders() {
                     </div>
                   </div>
                 </div>
+                <div className="mt-4 grid gap-2 rounded-2xl bg-white p-3 text-xs text-slate-500 sm:grid-cols-2">
+                  <div>
+                    <div>支付渠道</div>
+                    <div className="mt-1 text-slate-700">
+                      {paymentChannelLabel(selectedOrder.channel)}
+                    </div>
+                  </div>
+                  <div>
+                    <div>交易号</div>
+                    <div className="mt-1 break-all font-mono text-slate-700">
+                      {selectedOrder.tradeNo || "-"}
+                    </div>
+                  </div>
+                  <div>
+                    <div>资源类型</div>
+                    <div className="mt-1 text-slate-700">
+                      {selectedOrder.resourceType || "通用订单"}
+                    </div>
+                  </div>
+                  <div>
+                    <div>资源 ID</div>
+                    <div className="mt-1 text-slate-700">
+                      {selectedOrder.resourceId ?? "-"}
+                    </div>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <div>订单说明</div>
+                    <div className="mt-1 whitespace-pre-wrap text-slate-700">
+                      {selectedOrder.body || "暂无说明"}
+                    </div>
+                  </div>
+                </div>
+                {selectedOrderIssue ? (
+                  <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 p-3 text-xs leading-5 text-amber-700">
+                    <div className="font-semibold">发货异常</div>
+                    <div className="mt-1">{selectedOrderIssue}</div>
+                  </div>
+                ) : null}
               </div>
 
               {selectedOrder.qrCode &&
