@@ -64,8 +64,8 @@ jobs:
       - name: Make Maven Wrapper executable
         run: chmod +x mvnw
 
-      - name: Compile backend
-        run: ./mvnw -B -ntp -DskipTests compile
+      - name: Run backend tests
+        run: ./mvnw -B -ntp test
 
   python-quant:
     name: Python quant import check

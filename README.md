@@ -42,7 +42,7 @@ VITE_IDLE_LOGOUT_MINUTES=120
 ```bash
 cd java-backend
 cp .env.example .env
-./mvnw -DskipTests compile
+./mvnw test
 ./mvnw spring-boot:run
 ```
 
@@ -127,7 +127,7 @@ npm run check:all
 ```bash
 cd java-backend
 cp .env.example .env
-./mvnw -DskipTests compile
+./mvnw test
 ```
 
 如果需要验证网页功能，直接新建一个账户并登录后进行验证即可。
