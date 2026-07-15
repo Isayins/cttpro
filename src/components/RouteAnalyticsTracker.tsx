@@ -1,11 +1,20 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 
-import { analyticsApi } from "../services/api";
-
 const VISITOR_ID_KEY = "idncar_visitor_id";
 const SESSION_ID_KEY = "idncar_session_id";
 const PREVIOUS_PATH_KEY = "idncar_previous_path";
+
+type IdleDeadline = {
+  didTimeout: boolean;
+  timeRemaining: () => number;
+};
+
+type WindowWithIdleCallback = Window &
+  typeof globalThis & {
+    requestIdleCallback?: (callback: (deadline: IdleDeadline) => void, options?: { timeout?: number }) => number;
+    cancelIdleCallback?: (handle: number) => void;
+  };
 
 const routeTitleMap: Record<string, string> = {
   "/": "首页",
@@ -30,13 +39,29 @@ function createId(prefix: string) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function safeGetStorageItem(storage: Storage, key: string) {
+  try {
+    return storage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSetStorageItem(storage: Storage, key: string, value: string) {
+  try {
+    storage.setItem(key, value);
+  } catch {
+    // Analytics should never break browsing when storage is unavailable.
+  }
+}
+
 function getOrCreateStorageId(key: string, prefix: string, storage: Storage) {
-  const existing = storage.getItem(key);
+  const existing = safeGetStorageItem(storage, key);
   if (existing) {
     return existing;
   }
   const created = createId(prefix);
-  storage.setItem(key, created);
+  safeSetStorageItem(storage, key, created);
   return created;
 }
 
@@ -64,12 +89,23 @@ function resolveDeviceType(userAgent: string) {
   return "DESKTOP";
 }
 
+function scheduleIdleTask(callback: () => void) {
+  const idleWindow = window as WindowWithIdleCallback;
+  if (typeof idleWindow.requestIdleCallback === "function") {
+    const handle = idleWindow.requestIdleCallback(callback, { timeout: 2500 });
+    return () => idleWindow.cancelIdleCallback?.(handle);
+  }
+
+  const handle = window.setTimeout(callback, 600);
+  return () => window.clearTimeout(handle);
+}
+
 export default function RouteAnalyticsTracker() {
   const location = useLocation();
 
   useEffect(() => {
     const currentPath = `${location.pathname}${location.search}`;
-    const lastTrackedAt = Number(sessionStorage.getItem(`idncar_track_${currentPath}`) ?? "0");
+    const lastTrackedAt = Number(safeGetStorageItem(sessionStorage, `idncar_track_${currentPath}`) ?? "0");
     const now = Date.now();
 
     if (now - lastTrackedAt < 1200) {
@@ -78,24 +114,30 @@ export default function RouteAnalyticsTracker() {
 
     const visitorId = getOrCreateStorageId(VISITOR_ID_KEY, "visitor", localStorage);
     const sessionId = getOrCreateStorageId(SESSION_ID_KEY, "session", sessionStorage);
-    const previousPath = sessionStorage.getItem(PREVIOUS_PATH_KEY);
+    const previousPath = safeGetStorageItem(sessionStorage, PREVIOUS_PATH_KEY);
     const referrer = previousPath ? `${window.location.origin}${previousPath}` : document.referrer;
     const userAgent = navigator.userAgent;
 
-    sessionStorage.setItem(`idncar_track_${currentPath}`, String(now));
-    sessionStorage.setItem(PREVIOUS_PATH_KEY, currentPath);
+    safeSetStorageItem(sessionStorage, `idncar_track_${currentPath}`, String(now));
+    safeSetStorageItem(sessionStorage, PREVIOUS_PATH_KEY, currentPath);
 
-    void analyticsApi.trackVisit({
-      path: location.pathname,
-      pageTitle: resolvePageTitle(location.pathname),
-      visitorId,
-      sessionId,
-      referrer,
-      source: previousPath ? "internal" : undefined,
-      userAgent,
-      deviceType: resolveDeviceType(userAgent),
-    }).catch(() => {
-      // Ignore statistics failures so they never affect browsing.
+    return scheduleIdleTask(() => {
+      void import("../services/api/analytics")
+        .then(({ analyticsApi }) =>
+          analyticsApi.trackVisit({
+            path: location.pathname,
+            pageTitle: resolvePageTitle(location.pathname),
+            visitorId,
+            sessionId,
+            referrer,
+            source: previousPath ? "internal" : undefined,
+            userAgent,
+            deviceType: resolveDeviceType(userAgent),
+          }),
+        )
+        .catch(() => {
+          // Ignore statistics failures so they never affect browsing.
+        });
     });
   }, [location.pathname, location.search]);
 

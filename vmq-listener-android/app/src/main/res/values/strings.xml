@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">IDN V免签监听端</string>
+    <string name="notification_listener_name">IDN V免签通知监听</string>
+</resources>

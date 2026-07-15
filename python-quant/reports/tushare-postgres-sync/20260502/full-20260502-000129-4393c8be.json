@@ -1,0 +1,27 @@
+{
+  "jobId": "20260502-000129-4393c8be",
+  "mode": "full",
+  "db": {
+    "host": "127.0.0.1",
+    "port": 5432,
+    "name": "quant",
+    "schema": "tushare_data"
+  },
+  "startedAt": "2026-05-02 00:01:29",
+  "steps": {
+    "rangeRaw": {
+      "startDate": "20100101",
+      "endDate": "20260502",
+      "recordCount": {
+        "report_rc": 0,
+        "moneyflow_hsgt": 0,
+        "block_trade": 0,
+        "repurchase": 0
+      },
+      "affectedRows": 0,
+      "errorCount": 4
+    }
+  },
+  "finishedAt": "2026-05-02 00:01:31",
+  "status": "completed"
+}

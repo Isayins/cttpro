@@ -6,4 +6,14 @@
         SELECT * FROM replies WHERE post_id = #{postId} ORDER BY create_time DESC
     </select>
 
+    <select id="selectReplyCountByPostIds" resultType="map">
+        SELECT post_id AS postId, COUNT(*) AS replyCount
+        FROM replies
+        WHERE post_id IN
+        <foreach collection="postIds" item="postId" open="(" separator="," close=")">
+            #{postId}
+        </foreach>
+        GROUP BY post_id
+    </select>
+
 </mapper>

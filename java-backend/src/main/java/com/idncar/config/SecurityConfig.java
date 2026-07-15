@@ -26,6 +26,21 @@ public class SecurityConfig {
     @Value("#{'${app.security.allowed-origin-patterns:http://localhost:*,http://127.0.0.1:*,http://192.168.*:*,http://10.*:*,http://172.*:*,https://idncar.com,https://www.idncar.com,https://*.idncar.com}'.split(',')}")
     private List<String> allowedOriginPatterns;
 
+    @Value("${app.upload.avatar-subdir:avatars}")
+    private String uploadAvatarSubDir;
+
+    @Value("${app.upload.chat-image-subdir:chat-images}")
+    private String uploadChatImageSubDir;
+
+    @Value("${app.upload.forum-image-subdir:forum-images}")
+    private String uploadForumImageSubDir;
+
+    @Value("${app.upload.forum-board-avatar-subdir:forum-board-avatars}")
+    private String uploadForumBoardAvatarSubDir;
+
+    @Value("${app.upload.product-image-subdir:product-images}")
+    private String uploadProductImageSubDir;
+
     @Autowired
     private JwtAuthenticationFilter jwtAuthenticationFilter;
 
@@ -40,14 +55,52 @@ public class SecurityConfig {
             .authorizeHttpRequests(authorize -> authorize
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/auth/login", "/api/auth/register", "/api/auth/email-code").permitAll()
+                .requestMatchers("/api/code/fetch", "/api/code/fetch/").permitAll()
+                .requestMatchers("/api/mail/get/**").permitAll()
                 .requestMatchers("/api/qr-codes/public/**").permitAll()
-                .requestMatchers("/uploads/**").permitAll()
+                .requestMatchers(
+                        "/api/payments/alipay/notify",
+                        "/api/payments/alipay/notify/",
+                        "/api/payments/alipay/auth/callback",
+                        "/api/payments/alipay/auth/callback/",
+                        "/api/payments/vmq/notify",
+                        "/api/payments/vmq/notify/",
+                        "/api/payments/vmq/return",
+                        "/api/payments/vmq/return/",
+                        "/api/payments/vmq/getState",
+                        "/api/payments/vmq/getState/",
+                        "/api/payments/vmq/appHeart",
+                        "/api/payments/vmq/appHeart/",
+                        "/api/payments/vmq/appPush",
+                        "/api/payments/vmq/appPush/").permitAll()
+                .requestMatchers("/uploads/" + normalizePathSegment(uploadAvatarSubDir) + "/**",
+                        "/api/uploads/" + normalizePathSegment(uploadAvatarSubDir) + "/**",
+                        "/uploads/" + normalizePathSegment(uploadChatImageSubDir) + "/**",
+                        "/api/uploads/" + normalizePathSegment(uploadChatImageSubDir) + "/**",
+                        "/uploads/" + normalizePathSegment(uploadForumImageSubDir) + "/**",
+                        "/api/uploads/" + normalizePathSegment(uploadForumImageSubDir) + "/**",
+                        "/uploads/" + normalizePathSegment(uploadForumBoardAvatarSubDir) + "/**",
+                        "/api/uploads/" + normalizePathSegment(uploadForumBoardAvatarSubDir) + "/**",
+                        "/uploads/" + normalizePathSegment(uploadProductImageSubDir) + "/**",
+                        "/api/uploads/" + normalizePathSegment(uploadProductImageSubDir) + "/**").permitAll()
                 .requestMatchers("/api/auth/**").authenticated()
                 .requestMatchers("/api/admin/**").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/community/chat/images", "/api/community/chat/images/").authenticated()
                 .requestMatchers("/api/community/private/**").authenticated()
+                .requestMatchers(HttpMethod.GET,
+                        "/api/forum/sign-in/status",
+                        "/api/forum/sign-in/status/",
+                        "/api/forum/board-owner-applications",
+                        "/api/forum/board-owner-applications/",
+                        "/api/forum/board-owner-applications/mine",
+                        "/api/forum/board-owner-applications/mine/").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/forum/**").permitAll()
                 .requestMatchers("/api/forum/**").authenticated()
                 .requestMatchers("/api/quant/**").authenticated()
+                .requestMatchers("/api/tools/**").authenticated()
+                .requestMatchers("/api/payments/**").authenticated()
+                .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                .requestMatchers("/actuator/**").denyAll()
                 .anyRequest().permitAll()
             )
             .exceptionHandling(exception -> exception
@@ -72,5 +125,19 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
+    }
+
+    private String normalizePathSegment(String value) {
+        String normalized = value == null ? "" : value.trim().replace("\\", "/");
+        while (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+        while (normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        if (normalized.isBlank() || normalized.contains("/") || normalized.equals(".") || normalized.equals("..")) {
+            throw new IllegalStateException("Invalid avatar upload subdir: " + value);
+        }
+        return normalized;
     }
 }

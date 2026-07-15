@@ -1,0 +1,41 @@
+{
+  "jobId": "20260428-164331-1bd3ae64",
+  "mode": "full",
+  "db": {
+    "host": "127.0.0.1",
+    "port": 5432,
+    "name": "quant",
+    "schema": "tushare_data"
+  },
+  "startedAt": "2026-04-28 16:43:35",
+  "steps": {
+    "reference": {
+      "stockBasic": {
+        "count": 5835,
+        "affectedRows": 5835
+      },
+      "tradeCalSSE": {
+        "count": 0,
+        "affectedRows": 0
+      },
+      "tradeCalSZSE": {
+        "count": 0,
+        "affectedRows": 0
+      }
+    },
+    "marketRaw": {
+      "dateCount": 11,
+      "recordCount": {
+        "daily_basic": 10113,
+        "stk_nineturn": 8292
+      },
+      "affectedRows": 18405,
+      "structuredAffectedRows": 18405,
+      "errorCount": 0,
+      "startDate": "20000118",
+      "endDate": "20000104"
+    }
+  },
+  "finishedAt": "2026-04-28 16:45:25",
+  "status": "completed"
+}

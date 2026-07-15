@@ -1,0 +1,39 @@
+{
+  "jobId": "20260430-150234-bdecf284",
+  "mode": "full",
+  "db": {
+    "host": "127.0.0.1",
+    "port": 5432,
+    "name": "quant",
+    "schema": "tushare_data"
+  },
+  "startedAt": "2026-04-30 15:02:34",
+  "steps": {
+    "marketRaw": {
+      "dateCount": 788,
+      "recordCount": {
+        "daily_basic": 542835,
+        "moneyflow": 535716,
+        "bak_daily": 0,
+        "stk_nineturn": 492472,
+        "stk_limit": 553179,
+        "suspend_d": 14396,
+        "top_list": 7521,
+        "top_inst": 55852,
+        "margin": 388,
+        "margin_detail": 55505,
+        "margin_secs": 21829,
+        "hk_hold": 0,
+        "hsgt_top10_sh": 0,
+        "hsgt_top10_sz": 0
+      },
+      "affectedRows": 2279693,
+      "structuredAffectedRows": 2124202,
+      "errorCount": 7506,
+      "startDate": "20130403",
+      "endDate": "20100104"
+    }
+  },
+  "finishedAt": "2026-05-02 06:18:37",
+  "status": "completed"
+}

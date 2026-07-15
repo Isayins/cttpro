@@ -22,6 +22,7 @@ import {
   type TalkPost,
   writeChatProfile,
 } from "../lib/community";
+import { getErrorMessage } from "../lib/errorMessage";
 import { addTalkComment, deleteTalkPost, fetchTalkPosts, likeTalkPost, publishTalkPost } from "../services/communityService";
 
 const { TextArea } = Input;
@@ -29,6 +30,9 @@ const { TextArea } = Input;
 type SortMode = "latest" | "hot" | "commented";
 
 const categoryOptions: Array<TalkCategory> = ["全部", ...talkCategories];
+const TALK_CONTENT_MAX_LENGTH = 500;
+const TALK_COMMENT_MAX_LENGTH = 300;
+const TALK_NICKNAME_MAX_LENGTH = 20;
 
 function getAvatarLabel(name: string) {
   return (name || "ID")[0]?.toUpperCase() || "I";
@@ -39,6 +43,7 @@ export default function RandomTalk() {
   const [posts, setPosts] = useState<TalkPost[]>([]);
   const [nickname, setNickname] = useState(initialProfile.nickname);
   const [category, setCategory] = useState<TalkCategory>("全部");
+  const [publishCategory, setPublishCategory] = useState<Exclude<TalkCategory, "全部">>("闲聊摸鱼");
   const [sortMode, setSortMode] = useState<SortMode>("latest");
   const [keyword, setKeyword] = useState("");
   const [content, setContent] = useState("");
@@ -84,7 +89,7 @@ export default function RandomTalk() {
         );
       } catch (error) {
         if (!silent) {
-          message.error(error instanceof Error ? error.message : "随便聊聊加载失败");
+          message.error(getErrorMessage(error, "随便聊聊加载失败"));
         }
       } finally {
         if (active && !silent) {
@@ -142,6 +147,17 @@ export default function RandomTalk() {
   );
 
   const topPosts = useMemo(() => [...filteredPosts].sort((a, b) => b.likes - a.likes).slice(0, 3), [filteredPosts]);
+  const categoryStats = useMemo(
+    () => talkCategories.map((item) => ({ category: item, count: posts.filter((post) => post.category === item).length })),
+    [posts],
+  );
+  const hasActiveFilters = category !== "全部" || keyword.trim() !== "" || sortMode !== "latest";
+
+  function clearFilters() {
+    setCategory("全部");
+    setKeyword("");
+    setSortMode("latest");
+  }
 
   async function handlePublish() {
     const messageText = content.trim();
@@ -157,14 +173,14 @@ export default function RandomTalk() {
         author,
         avatarSeed: author,
         content: messageText,
-        category: category === "全部" ? "闲聊摸鱼" : category,
+        category: publishCategory,
       });
 
       setPosts((current) => [nextPost, ...current]);
       setContent("");
       message.success("已发布到随便聊聊");
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "发布失败");
+      message.error(getErrorMessage(error, "发布失败"));
     }
   }
 
@@ -174,7 +190,7 @@ export default function RandomTalk() {
       setPosts((current) => current.map((post) => (post.id === postId ? nextPost : post)));
       setActivePost((current) => (current?.id === postId ? nextPost : current));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "点赞失败");
+      message.error(getErrorMessage(error, "点赞失败"));
     }
   }
 
@@ -198,7 +214,7 @@ export default function RandomTalk() {
       }
       message.success("帖子已删除");
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "删除失败");
+      message.error(getErrorMessage(error, "删除失败"));
     }
   }
 
@@ -237,7 +253,7 @@ export default function RandomTalk() {
       setCommentInput("");
       message.success("回复成功");
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "回复失败");
+      message.error(getErrorMessage(error, "回复失败"));
     }
   }
 
@@ -268,8 +284,8 @@ export default function RandomTalk() {
             <Card className="rounded-[28px] border-slate-100 bg-white/90 shadow-sm">
               <div className="space-y-4">
                 <div className="text-lg font-semibold text-slate-900">你的身份</div>
-                <Input value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder="输入你的昵称" maxLength={20} />
-                <div className="rounded-3xl bg-slate-50 p-4 text-sm text-slate-600">
+                <Input value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder="输入你的昵称" maxLength={TALK_NICKNAME_MAX_LENGTH} showCount />
+                <div className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600">
                   <div className="flex items-center gap-3">
                     <Avatar className="bg-[#2a6df4]">{getAvatarLabel(nickname.trim() || "匿名游客")}</Avatar>
                     <div>
@@ -282,6 +298,7 @@ export default function RandomTalk() {
                   type="primary"
                   block
                   icon={<MessageOutlined />}
+                  disabled={filteredPosts.length === 0}
                   onClick={() => {
                     if (filteredPosts.length === 0) {
                       message.info("先发一条内容再看详情");
@@ -298,6 +315,20 @@ export default function RandomTalk() {
         </section>
 
         <Card className="rounded-[28px] border-slate-100 shadow-sm">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <Tag className="!mr-0">当前显示 {filteredPosts.length} 条</Tag>
+              <Tag className="!mr-0">全部 {posts.length} 条</Tag>
+              {category !== "全部" ? <Tag color="blue" className="!mr-0">分类：{category}</Tag> : null}
+              {keyword.trim() ? <Tag color="purple" className="!mr-0">搜索：{keyword.trim()}</Tag> : null}
+              {sortMode !== "latest" ? <Tag color="green" className="!mr-0">排序：{sortMode === "hot" ? "最多点赞" : "评论最多"}</Tag> : null}
+            </div>
+            {hasActiveFilters ? (
+              <Button size="small" onClick={clearFilters}>
+                清空筛选
+              </Button>
+            ) : null}
+          </div>
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px_220px]">
             <Input
               size="large"
@@ -328,6 +359,7 @@ export default function RandomTalk() {
           <div className="mt-4 flex flex-wrap gap-2">
             {categoryOptions.map((item) => {
               const active = item === category;
+              const count = item === "全部" ? posts.length : categoryStats.find((entry) => entry.category === item)?.count ?? 0;
               return (
                 <Button
                   key={item}
@@ -336,7 +368,7 @@ export default function RandomTalk() {
                   className={active ? "rounded-full bg-[#2a6df4]" : "rounded-full"}
                   onClick={() => setCategory(item)}
                 >
-                  {item}
+                  {item} {count}
                 </Button>
               );
             })}
@@ -349,20 +381,21 @@ export default function RandomTalk() {
               <div className="mb-3 text-lg font-semibold text-slate-900">发布一条内容</div>
               <div className="grid gap-3 md:grid-cols-[220px_minmax(0,1fr)]">
                 <Select
-                  value={category === "全部" ? "闲聊摸鱼" : category}
+                  value={publishCategory}
                   options={talkCategories.map((item) => ({ label: item, value: item }))}
-                  onChange={(value) => setCategory(value as TalkCategory)}
+                  onChange={(value) => setPublishCategory(value as Exclude<TalkCategory, "全部">)}
                 />
                 <TextArea
                   rows={4}
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   placeholder="说点什么，或者分享一个问题、一个想法。"
-                  maxLength={500}
+                  maxLength={TALK_CONTENT_MAX_LENGTH}
+                  showCount
                 />
               </div>
               <div className="mt-3 flex items-center justify-between">
-                <span className="text-sm text-slate-400">{content.length}/500</span>
+                <span className="text-sm text-slate-400">发布到 {publishCategory}</span>
                 <Button type="primary" icon={<SendOutlined />} onClick={() => void handlePublish()} disabled={!content.trim()}>
                   发布
                 </Button>
@@ -478,10 +511,11 @@ export default function RandomTalk() {
                 value={commentInput}
                 onChange={(e) => setCommentInput(e.target.value)}
                 placeholder="写下你的回复"
-                maxLength={300}
+                maxLength={TALK_COMMENT_MAX_LENGTH}
+                showCount
               />
               <div className="mt-3 flex items-center justify-between">
-                <span className="text-sm text-slate-400">{commentInput.length}/300</span>
+                <span className="text-sm text-slate-400">回复给 {activePost.author}</span>
                 <Button
                   type="primary"
                   icon={<SendOutlined />}

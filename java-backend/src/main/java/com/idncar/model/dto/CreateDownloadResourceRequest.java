@@ -11,6 +11,8 @@ public class CreateDownloadResourceRequest {
     private String url;
     private String icon;
     private Boolean locked;
+    private Boolean passwordProtected;
+    private String downloadPassword;
     private String category;
     private String fileSize;
     private String checksumSha256;

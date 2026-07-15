@@ -1,73 +1,139 @@
-# React + TypeScript + Vite
+# cttpro
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+cttpro 是一个前后端一体的业务项目，包含 React 前台、Spring Boot API 服务和 Python 量化数据服务。当前功能覆盖官网内容、论坛、下载资源、股票/策略看板、商品与支付宝当面付订单、后台运营管理、二维码和邮件验证码等模块。
 
-Currently, two official plugins are available:
+## 项目结构
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```text
+.
+├── src/                 # React + TypeScript 前端
+├── java-backend/        # Spring Boot 3 后端 API
+├── python-quant/        # FastAPI 量化/行情服务
+├── public/              # 前端静态资源
+├── .github/workflows/   # GitHub Actions 部署流程
+└── docker-compose.yml   # 本地/服务器容器编排
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## 前端
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+cp .env.example .env
+npm install
+npm run dev
+npm run lint
+npm run typecheck
+npm run build
+npm run check
 ```
+
+常用环境变量：
+
+```bash
+VITE_API_BASE_URL=http://localhost:9091
+VITE_STOCK_API_BASE_URL=http://localhost:8735
+VITE_API_TIMEOUT_MS=15000
+VITE_IDLE_LOGOUT_MINUTES=120
+```
+
+## Java 后端
+
+后端基于 Spring Boot 3、Java 17、MyBatis Plus、MySQL、Redis 和 JWT。
+
+```bash
+cd java-backend
+cp .env.example .env
+./mvnw -DskipTests compile
+./mvnw spring-boot:run
+```
+
+Windows PowerShell 下将 `./mvnw` 换成 `.\mvnw.cmd`。
+
+主要环境变量：
+
+```bash
+SPRING_DATASOURCE_URL=jdbc:mysql://localhost:3306/idncar?serverTimezone=Asia/Shanghai
+SPRING_DATASOURCE_USERNAME=root
+SPRING_DATASOURCE_PASSWORD=change-me
+SPRING_DATA_REDIS_HOST=localhost
+SPRING_DATA_REDIS_PORT=6379
+JWT_SECRET=change-me-base64-secret
+PYTHON_SERVICE_URL=http://localhost:8735
+```
+
+支付相关配置支持官方支付宝和内置 V免签两种通道。官方支付宝通过 `APP_PAYMENT_ALIPAY_*` 注入；接口内容加密默认开启，需要在支付宝开放平台配置 AES 接口内容加密，并将密钥填入 `APP_PAYMENT_ALIPAY_ENCRYPT_KEY`。V免签不需要单独部署 PHP 后台，启动后进入后台管理的「V免签配置」，系统会自动生成通讯密钥；保存收款码内容并启用后，监听端使用站点根路径的 `/getState`、`/appHeart`、`/appPush` 接口和后台显示的通讯密钥即可推送收款。生产环境不要使用仓库中的示例默认值。
+
+V免签使用“精确实付金额”区分同时创建的订单：当同一通道存在相同待支付金额时，系统会自动按配置把新订单调整为加/减几分钱的唯一金额。用户必须按页面展示的精确金额支付；如果监听端上报金额同时命中多笔订单，系统不会自动确认，需进入后台人工核实。
+
+创建支付订单后，后端会默认发送一封人工确认收款提醒邮件；收件人可通过 `APP_PAYMENT_MANUAL_CONFIRM_RECIPIENTS` 指定多个邮箱（逗号分隔），未配置时会尝试发送给后台 OWNER/ADMIN 账号邮箱。管理员需要登录后台进入「支付订单」并点击“人工确认”，系统才会把订单同步为已支付并触发发货/优惠码等后续流程；可用 `APP_PAYMENT_MANUAL_CONFIRM_ENABLED=false` 关闭这类提醒。
+
+## Python 量化服务
+
+```bash
+cd python-quant
+cp .env.example .env
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn src.main:app --host 0.0.0.0 --port 8735
+```
+
+主要环境变量：
+
+```bash
+STOCK_DB_HOST=localhost
+STOCK_DB_PORT=3306
+STOCK_DB_USER=root
+STOCK_DB_PASSWORD=change-me
+STOCK_DB_NAME=idncar
+QUANT_SERVICE_PORT=8735
+TUSHARE_TOKEN=your-token
+```
+
+## Docker
+
+```bash
+docker compose config
+docker compose up --build
+```
+
+Ubuntu 服务器一键部署：
+
+```bash
+bash deploy/ubuntu/deploy.sh
+```
+
+详细说明见 `deploy/ubuntu/README.md`。
+
+默认服务端口：
+
+- 前端本地开发：`5173`
+- Java 后端：`9091`
+- Python 量化服务：`8735`
+- MySQL：`3306`
+- Redis：`6379`
+
+Compose 已配置 MySQL、Redis、Python 量化服务和 Java 后端健康检查；Java 后端会等待依赖服务健康后再启动。
+
+## 验证清单
+
+提交或部署前建议至少执行：
+
+```bash
+npm run check:all
+```
+
+也可以单独验证 Java 后端：
+
+```bash
+cd java-backend
+cp .env.example .env
+./mvnw -DskipTests compile
+```
+
+如果需要验证网页功能，直接新建一个账户并登录后进行验证即可。
+
+## 注意事项
+
+- `artifacts/`、`dist/`、`storybook-static/`、`java-backend/uploads/`、`*.tsbuildinfo` 属于生成物或运行时数据，不应提交。
+- 生产密钥、数据库密码、Redis 密码、邮箱授权码、支付宝私钥和支付宝接口内容加密密钥都应通过环境变量或密钥管理系统注入。
+- GitHub Actions 流程位于 `.github/workflows/deploy.yml`：PR 会校验前端、Java 后端和 Python 服务，`main` 分支校验通过后才上传 Vite 的 `dist/*` 到服务器目录。

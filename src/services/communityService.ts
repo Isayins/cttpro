@@ -1,5 +1,6 @@
-import { API_BASE_URL } from "./api";
+import { apiRequest, type RequestOptions } from "./api/client";
 import type { ChatMessage, TalkComment, TalkPost } from "../lib/community";
+import { resolveAssetUrl } from "../lib/media";
 import type { ChatPresenceMode, PrivateChatMessage, PrivateChatUser } from "../types/app";
 
 type ChatMessageResponse = {
@@ -53,65 +54,20 @@ type ChatPresenceModeResponse = {
   mode: string;
 };
 
-interface ApiRequestOptions extends Omit<RequestInit, "body"> {
-  body?: unknown;
-}
+type UploadedChatImageResponse = {
+  url: string;
+  originalFileName?: string | null;
+};
 
-function getBrowserOrigin() {
-  return typeof window === "undefined" ? "http://localhost" : window.location.origin;
-}
+const IMAGE_UPLOAD_TIMEOUT_MS = 60_000;
 
-function getApiBaseUrl() {
-  return API_BASE_URL || getBrowserOrigin();
-}
+type CommunityRequestOptions = Omit<RequestOptions, "authMode">;
 
-function buildUrl(path: string) {
-  return new URL(path, getApiBaseUrl()).toString();
-}
-
-function safeParseJson(text: string) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new Error("服务器返回了无法解析的数据");
-  }
-}
-
-async function request<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-  const { body, headers, ...rest } = options;
-  const requestHeaders = new Headers(headers ?? {});
-  const token = typeof window === "undefined" ? null : window.localStorage.getItem("token");
-
-  if (body !== undefined && !(body instanceof FormData)) {
-    requestHeaders.set("Content-Type", "application/json");
-  }
-
-  if (token) {
-    requestHeaders.set("Authorization", `Bearer ${token}`);
-  }
-
-  const response = await fetch(buildUrl(path), {
-    ...rest,
-    headers: requestHeaders,
-    body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
+function request<T>(path: string, options: CommunityRequestOptions = {}): Promise<T> {
+  return apiRequest<T>(path, {
+    authMode: "optional",
+    ...options,
   });
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  const text = await response.text();
-  const parsed = text ? safeParseJson(text) : null;
-
-  if (!response.ok) {
-    const errorMessage =
-      parsed && typeof parsed === "object" && "message" in parsed
-        ? String((parsed as { message?: string }).message ?? "请求失败")
-        : response.statusText || "请求失败";
-    throw new Error(errorMessage);
-  }
-
-  return parsed as T;
 }
 
 function mapChatMessage(item: ChatMessageResponse): ChatMessage {
@@ -152,7 +108,7 @@ function mapPrivateChatUser(item: PrivateChatUserResponse): PrivateChatUser {
   return {
     id: item.id,
     nickname: item.nickname,
-    avatarUrl: item.avatarUrl ?? null,
+    avatarUrl: resolveAssetUrl(item.avatarUrl) ?? null,
     bio: item.bio ?? null,
     online: Boolean(item.online),
   };
@@ -163,7 +119,7 @@ function mapPrivateChatMessage(item: PrivateChatMessageResponse): PrivateChatMes
     id: item.id,
     senderId: item.senderId,
     senderNickname: item.senderNickname,
-    senderAvatarUrl: item.senderAvatarUrl ?? null,
+    senderAvatarUrl: resolveAssetUrl(item.senderAvatarUrl) ?? null,
     recipientId: item.recipientId,
     content: item.content,
     createdAt: item.createdAt,
@@ -190,6 +146,16 @@ export async function sendChatMessage(payload: {
     body: payload,
   });
   return mapChatMessage(item);
+}
+
+export async function uploadChatImage(file: File): Promise<UploadedChatImageResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  return request<UploadedChatImageResponse>("/api/community/chat/images", {
+    method: "POST",
+    body: formData,
+    timeoutMs: IMAGE_UPLOAD_TIMEOUT_MS,
+  });
 }
 
 export async function clearChatMessages(roomId: string): Promise<void> {

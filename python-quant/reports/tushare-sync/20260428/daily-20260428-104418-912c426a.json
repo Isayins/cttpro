@@ -1,0 +1,18 @@
+{
+  "jobId": "20260428-104418-912c426a",
+  "mode": "daily",
+  "startedAt": "2026-04-28 10:44:18",
+  "config": {
+    "dbHost": "127.0.0.1",
+    "dbPort": 3306,
+    "dbName": "quant",
+    "httpUrl": "http://tsy.xiaodefa.cn",
+    "pauseMs": 400,
+    "fullStartDate": "20000101"
+  },
+  "steps": {},
+  "finishedAt": "2026-04-28 10:44:19",
+  "status": "failed",
+  "error": "'TushareLocalSyncRunner' object has no attribute '_trade_start_date'",
+  "traceback": "Traceback (most recent call last):\n  File \"I:\\VibeCodingWorkStore\\cttpro\\python-quant\\run_tushare_local_sync.py\", line 214, in run\n    payload[\"steps\"][\"reference\"] = self._sync_reference()\n  File \"I:\\VibeCodingWorkStore\\cttpro\\python-quant\\run_tushare_local_sync.py\", line 292, in _sync_reference\n    trade_cal_sse = self.sync_service.sync_trade_calendar(\"SSE\", self._trade_start_date(), self._end_date())\nAttributeError: 'TushareLocalSyncRunner' object has no attribute '_trade_start_date'\n"
+}

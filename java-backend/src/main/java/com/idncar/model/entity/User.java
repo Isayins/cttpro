@@ -32,6 +32,14 @@ public class User {
 
     private String chatVisibility;
 
+    private Integer experience;
+
+    private Integer level;
+
+    private Integer consecutiveSignInDays;
+
+    private Date lastSignInAt;
+
     private Date createTime;
 
     private Date updateTime;

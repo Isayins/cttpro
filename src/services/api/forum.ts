@@ -1,18 +1,105 @@
-import type { CreatePostPayload, CreatePostReportPayload, ForumPostFilters, Post, Reply } from "../../types/app";
+import type {
+  CreatePostPayload,
+  CreatePostReportPayload,
+  ForumBoard,
+  ForumBoardLevelTitle,
+  ForumBoardOwnerApplication,
+  ForumBoardOwnerApplicationStatus,
+  ForumLeaderboard,
+  ForumPostFilters,
+  ForumSignInStatus,
+  PageResult,
+  Post,
+  Reply,
+  SaveForumBoardPayload,
+} from "../../types/app";
 import { apiRequest } from "./client";
 
+function normalizePostsResponse(response: PageResult<Post> | Post[]) {
+  return Array.isArray(response) ? response : Array.isArray(response.records) ? response.records : [];
+}
+
 export const forumApi = {
+  getBoards: (options: { includeInactive?: boolean } = {}) => {
+    const params = new URLSearchParams();
+    if (options.includeInactive) params.set("includeInactive", "true");
+    const query = params.toString();
+    return apiRequest<ForumBoard[]>(`/api/forum/boards${query ? `?${query}` : ""}`, {
+      authMode: options.includeInactive ? "required" : "optional",
+      timeoutMs: 7000,
+    });
+  },
+  createBoard: (payload: SaveForumBoardPayload) =>
+    apiRequest<ForumBoard>("/api/forum/boards", {
+      method: "POST",
+      authMode: "required",
+      body: payload,
+    }),
+  updateBoard: (boardId: number, payload: SaveForumBoardPayload) =>
+    apiRequest<ForumBoard>(`/api/forum/boards/${boardId}`, {
+      method: "PUT",
+      authMode: "required",
+      body: payload,
+    }),
+  updateBoardLevelTitles: (boardId: number, titles: ForumBoardLevelTitle[]) =>
+    apiRequest<ForumBoard>(`/api/forum/boards/${boardId}/level-titles`, {
+      method: "PUT",
+      authMode: "required",
+      body: { titles },
+    }),
+  applyBoardOwner: (boardId: number, payload: { reason: string }) =>
+    apiRequest<ForumBoardOwnerApplication>(`/api/forum/boards/${boardId}/owner-applications`, {
+      method: "POST",
+      authMode: "required",
+      body: payload,
+    }),
+  getMyBoardOwnerApplications: (options: { status?: ForumBoardOwnerApplicationStatus } = {}) => {
+    const params = new URLSearchParams();
+    if (options.status) params.set("status", options.status);
+    const query = params.toString();
+    return apiRequest<ForumBoardOwnerApplication[]>(`/api/forum/board-owner-applications/mine${query ? `?${query}` : ""}`, {
+      authMode: "required",
+      timeoutMs: 7000,
+    });
+  },
+  getBoardOwnerApplications: (options: { status?: ForumBoardOwnerApplicationStatus } = {}) => {
+    const params = new URLSearchParams();
+    if (options.status) params.set("status", options.status);
+    const query = params.toString();
+    return apiRequest<ForumBoardOwnerApplication[]>(`/api/forum/board-owner-applications${query ? `?${query}` : ""}`, {
+      authMode: "required",
+      timeoutMs: 7000,
+    });
+  },
+  reviewBoardOwnerApplication: (applicationId: number, payload: { approved: boolean; reviewNote?: string | null }) =>
+    apiRequest<ForumBoardOwnerApplication>(`/api/forum/board-owner-applications/${applicationId}/review`, {
+      method: "POST",
+      authMode: "required",
+      body: payload,
+    }),
+  uploadBoardAvatar: (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiRequest<{ url: string; originalFileName?: string }>("/api/forum/boards/avatar", {
+      method: "POST",
+      authMode: "required",
+      body: formData,
+      timeoutMs: 60_000,
+    });
+  },
   getPosts: (filters: ForumPostFilters = {}) => {
     const params = new URLSearchParams();
+    params.set("size", "30");
     if (filters.keyword) params.set("keyword", filters.keyword);
     if (filters.category) params.set("category", filters.category);
     if (filters.mine) params.set("mine", "true");
     if (filters.favorites) params.set("favorites", "true");
 
     const query = params.toString();
-    return apiRequest<Post[]>(`/api/forum/posts${query ? `?${query}` : ""}`, {
+    return apiRequest<PageResult<Post> | Post[]>(`/api/forum/posts${query ? `?${query}` : ""}`, {
       authMode: "optional",
-    });
+      timeoutMs: 7000,
+    }).then(normalizePostsResponse);
   },
   getPost: (postId: number) =>
     apiRequest<Post>(`/api/forum/posts/${postId}`, {
@@ -66,4 +153,40 @@ export const forumApi = {
       authMode: "required",
       body: payload,
     }),
+  uploadImage: (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiRequest<{ url: string; originalFileName?: string }>("/api/forum/images", {
+      method: "POST",
+      authMode: "required",
+      body: formData,
+      timeoutMs: 60_000,
+    });
+  },
+  getLeaderboard: (options: { boardId?: number | null } = {}) => {
+    const params = new URLSearchParams();
+    if (options.boardId) params.set("boardId", String(options.boardId));
+    const query = params.toString();
+    return apiRequest<ForumLeaderboard>(`/api/forum/leaderboard${query ? `?${query}` : ""}`, {
+      authMode: "optional",
+      timeoutMs: 7000,
+    });
+  },
+  getSignInStatus: (options: { boardId?: number | null } = {}) => {
+    const params = new URLSearchParams();
+    if (options.boardId) params.set("boardId", String(options.boardId));
+    const query = params.toString();
+    return apiRequest<ForumSignInStatus>(`/api/forum/sign-in/status${query ? `?${query}` : ""}`, {
+      authMode: "required",
+    });
+  },
+  signIn: (options: { boardId?: number | null } = {}) => {
+    const params = new URLSearchParams();
+    if (options.boardId) params.set("boardId", String(options.boardId));
+    const query = params.toString();
+    return apiRequest<ForumSignInStatus>(`/api/forum/sign-in${query ? `?${query}` : ""}`, {
+      method: "POST",
+      authMode: "required",
+    });
+  },
 };

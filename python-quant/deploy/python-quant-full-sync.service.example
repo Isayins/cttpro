@@ -1,0 +1,11 @@
+[Unit]
+Description=Python Quant Full Tushare Sync
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/python-quant
+EnvironmentFile=/opt/python-quant/.env
+ExecStart=/opt/python-quant/run_supplemental_tushare.sh
+User=ubuntu
+Group=ubuntu

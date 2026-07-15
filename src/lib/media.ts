@@ -1,4 +1,9 @@
-import { API_BASE_URL } from "../services/api";
+import { buildApiRequestUrl } from "../services/api/client";
+
+function buildAssetUrl(path: string) {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return buildApiRequestUrl(normalizedPath);
+}
 
 export function resolveAssetUrl(url?: string | null) {
   if (!url) {
@@ -15,8 +20,8 @@ export function resolveAssetUrl(url?: string | null) {
   }
 
   if (trimmed.startsWith("/")) {
-    return `${API_BASE_URL}${trimmed}`;
+    return buildAssetUrl(trimmed);
   }
 
-  return `${API_BASE_URL}/${trimmed}`;
+  return buildAssetUrl(trimmed);
 }

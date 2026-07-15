@@ -43,6 +43,7 @@ export const authApi = {
       method: "POST",
       authMode: "required",
       body: formData,
+      timeoutMs: 60_000,
     });
   },
   changePassword: (payload: ChangePasswordPayload) =>

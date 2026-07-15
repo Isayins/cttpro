@@ -36,6 +36,53 @@ CREATE TABLE IF NOT EXISTS posts (
     CONSTRAINT fk_posts_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS forum_boards (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(40) NOT NULL,
+    description VARCHAR(200) NULL,
+    avatar_url VARCHAR(500) NULL,
+    owner_user_id BIGINT NULL,
+    level_title_config TEXT NULL,
+    sort_order INT NOT NULL DEFAULT 0,
+    active TINYINT(1) NOT NULL DEFAULT 1,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_forum_boards_name (name),
+    KEY idx_forum_boards_active_sort (active, sort_order),
+    KEY idx_forum_boards_owner_user_id (owner_user_id)
+);
+
+CREATE TABLE IF NOT EXISTS forum_board_owner_applications (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    board_id BIGINT NOT NULL,
+    applicant_id BIGINT NOT NULL,
+    reason VARCHAR(500) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    reviewed_by BIGINT NULL,
+    review_note VARCHAR(500) NULL,
+    reviewed_at DATETIME NULL,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_forum_board_owner_applications_board_status (board_id, status),
+    KEY idx_forum_board_owner_applications_applicant_status (applicant_id, status),
+    KEY idx_forum_board_owner_applications_board_applicant_status (board_id, applicant_id, status),
+    KEY idx_forum_board_owner_applications_status_time (status, create_time)
+);
+
+CREATE TABLE IF NOT EXISTS forum_board_user_stats (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    board_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    experience INT NOT NULL DEFAULT 0,
+    level INT NOT NULL DEFAULT 1,
+    consecutive_sign_in_days INT NOT NULL DEFAULT 0,
+    last_sign_in_at DATETIME NULL,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_forum_board_user_stats_board_user (board_id, user_id),
+    KEY idx_forum_board_user_stats_board_sign_in (board_id, consecutive_sign_in_days, experience)
+);
+
 CREATE TABLE IF NOT EXISTS replies (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     post_id BIGINT NOT NULL,
@@ -138,7 +185,7 @@ CREATE TABLE IF NOT EXISTS private_chat_messages (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     sender_id BIGINT NOT NULL,
     recipient_id BIGINT NOT NULL,
-    content VARCHAR(1000) NOT NULL,
+    content TEXT NOT NULL,
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_private_chat_sender FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT fk_private_chat_recipient FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE CASCADE
@@ -172,6 +219,7 @@ CREATE TABLE IF NOT EXISTS download_resources (
     url VARCHAR(500) NOT NULL,
     icon VARCHAR(255) NULL,
     locked TINYINT(1) NOT NULL DEFAULT 0,
+    download_password_hash VARCHAR(100) NULL,
     category VARCHAR(40) NULL,
     file_size VARCHAR(40) NULL,
     checksum_sha256 VARCHAR(128) NULL,
@@ -179,6 +227,138 @@ CREATE TABLE IF NOT EXISTS download_resources (
     sort_order INT NOT NULL DEFAULT 0,
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS products (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    title VARCHAR(120) NOT NULL,
+    subtitle VARCHAR(180) NULL,
+    description TEXT NULL,
+    image_url VARCHAR(500) NULL,
+    price DECIMAL(12,2) NOT NULL,
+    stock INT NOT NULL DEFAULT 0,
+    sales_count INT NOT NULL DEFAULT 0,
+    delivery_type VARCHAR(30) NOT NULL DEFAULT 'NONE',
+    delivery_instructions TEXT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'DRAFT',
+    sort_order INT NOT NULL DEFAULT 0,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_products_status_sort_order (status, sort_order),
+    KEY idx_products_update_time (update_time)
+);
+
+CREATE TABLE IF NOT EXISTS product_delivery_codes (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    product_id BIGINT NOT NULL,
+    code VARCHAR(500) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'AVAILABLE',
+    created_by BIGINT NOT NULL,
+    assigned_to BIGINT NULL,
+    order_no VARCHAR(64) NULL,
+    assigned_at DATETIME NULL,
+    sent_at DATETIME NULL,
+    batch_no VARCHAR(40) NULL,
+    note VARCHAR(300) NULL,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_product_delivery_codes_product_code (product_id, code),
+    KEY idx_product_delivery_codes_product_status (product_id, status),
+    KEY idx_product_delivery_codes_batch_no (batch_no),
+    KEY idx_product_delivery_codes_order_no (order_no)
+);
+
+CREATE TABLE IF NOT EXISTS product_coupon_codes (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    code VARCHAR(32) NOT NULL,
+    product_id BIGINT NOT NULL,
+    discount_type VARCHAR(20) NOT NULL,
+    discount_value DECIMAL(12,2) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    created_by BIGINT NOT NULL,
+    used_by BIGINT NULL,
+    used_order_no VARCHAR(64) NULL,
+    used_at DATETIME NULL,
+    locked_by BIGINT NULL,
+    lock_order_no VARCHAR(64) NULL,
+    locked_at DATETIME NULL,
+    expires_at DATETIME NULL,
+    batch_no VARCHAR(40) NULL,
+    note VARCHAR(300) NULL,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_product_coupon_codes_code (code),
+    KEY idx_product_coupon_codes_product_status (product_id, status),
+    KEY idx_product_coupon_codes_status_expires (status, expires_at),
+    KEY idx_product_coupon_codes_batch_no (batch_no),
+    KEY idx_product_coupon_codes_lock_order_no (lock_order_no)
+);
+
+CREATE TABLE IF NOT EXISTS payment_orders (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    channel VARCHAR(30) NOT NULL DEFAULT 'ALIPAY_F2F',
+    out_trade_no VARCHAR(64) NOT NULL,
+    trade_no VARCHAR(64) NULL,
+    buyer_logon_id VARCHAR(120) NULL,
+    subject VARCHAR(256) NOT NULL,
+    body VARCHAR(500) NULL,
+    original_amount DECIMAL(12,2) NULL,
+    discount_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+    coupon_code VARCHAR(32) NULL,
+    coupon_code_id BIGINT NULL,
+    total_amount DECIMAL(12,2) NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'CREATED',
+    qr_code VARCHAR(512) NULL,
+    resource_type VARCHAR(60) NULL,
+    resource_id BIGINT NULL,
+    payer_user_id BIGINT NULL,
+    delivery_email VARCHAR(120) NULL,
+    expire_time DATETIME NULL,
+    paid_time DATETIME NULL,
+    closed_time DATETIME NULL,
+    paid_handled TINYINT(1) NOT NULL DEFAULT 0,
+    notify_payload TEXT NULL,
+    last_error VARCHAR(500) NULL,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_payment_orders_out_trade_no (out_trade_no),
+    KEY idx_payment_orders_payer_user_id (payer_user_id),
+    KEY idx_payment_orders_status (status),
+    KEY idx_payment_orders_create_time (create_time),
+    KEY idx_payment_orders_coupon_code_id (coupon_code_id)
+);
+
+CREATE TABLE IF NOT EXISTS payment_vmq_settings (
+    id BIGINT PRIMARY KEY,
+    enabled TINYINT(1) NOT NULL DEFAULT 0,
+    preferred TINYINT(1) NOT NULL DEFAULT 1,
+    pay_type INT NOT NULL DEFAULT 2,
+    communication_key VARCHAR(64) NOT NULL,
+    wx_pay_url VARCHAR(512) NULL,
+    alipay_pay_url VARCHAR(512) NULL,
+    amount_strategy VARCHAR(20) NOT NULL DEFAULT 'INCREASE',
+    order_timeout_minutes INT NOT NULL DEFAULT 5,
+    monitor_state VARCHAR(20) NOT NULL DEFAULT 'UNBOUND',
+    last_heart_time DATETIME NULL,
+    last_pay_time DATETIME NULL,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS payment_vmq_events (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    event_id VARCHAR(64) NOT NULL,
+    pay_type INT NOT NULL,
+    amount DECIMAL(12,2) NOT NULL,
+    paid_at DATETIME NOT NULL,
+    order_no VARCHAR(64) NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'RECEIVED',
+    payload TEXT NULL,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_payment_vmq_events_event_id (event_id),
+    KEY idx_payment_vmq_events_paid_at (paid_at),
+    KEY idx_payment_vmq_events_order_no (order_no)
 );
 
 CREATE TABLE IF NOT EXISTS qr_codes (
@@ -260,6 +440,56 @@ CREATE TABLE IF NOT EXISTS user_notifications (
     CONSTRAINT fk_user_notifications_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS hotmail_accounts (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id BIGINT NOT NULL,
+    email VARCHAR(120) NOT NULL,
+    group_name VARCHAR(80) NULL,
+    sub_emails TEXT NULL,
+    gpt_registered TINYINT(1) NOT NULL DEFAULT 0,
+    gpt_registered_sub_emails TEXT NULL,
+    grok_registered TINYINT(1) NOT NULL DEFAULT 0,
+    grok_registered_sub_emails TEXT NULL,
+    password TEXT NULL,
+    client_id VARCHAR(200) NULL,
+    refresh_token TEXT NOT NULL,
+    access_token TEXT NULL,
+    token_expires_at DATETIME NULL,
+    outlook_access_token TEXT NULL,
+    outlook_token_expires_at DATETIME NULL,
+    imap_access_token TEXT NULL,
+    imap_token_expires_at DATETIME NULL,
+    last_code VARCHAR(50) NULL,
+    last_code_time DATETIME NULL,
+    last_subject VARCHAR(500) NULL,
+    last_sender VARCHAR(255) NULL,
+    last_source VARCHAR(80) NULL,
+    last_folder VARCHAR(255) NULL,
+    last_error VARCHAR(600) NULL,
+    last_fetch_time DATETIME NULL,
+    token_check_status VARCHAR(30) NOT NULL DEFAULT 'UNKNOWN',
+    graph_token_ok TINYINT(1) NULL,
+    outlook_token_ok TINYINT(1) NULL,
+    imap_token_ok TINYINT(1) NULL,
+    token_check_summary VARCHAR(600) NULL,
+    token_checked_at DATETIME NULL,
+    public_code_token VARCHAR(80) NULL,
+    public_code_uid VARCHAR(80) NULL,
+    public_code_target_email VARCHAR(120) NULL,
+    public_code_enabled TINYINT(1) NOT NULL DEFAULT 0,
+    public_code_created_at DATETIME NULL,
+    public_code_last_access_time DATETIME NULL,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_hotmail_accounts_user_email (user_id, email),
+    UNIQUE KEY uk_hotmail_accounts_public_code_token (public_code_token),
+    UNIQUE KEY uk_hotmail_accounts_public_code_uid (public_code_uid),
+    KEY idx_hotmail_accounts_user_id (user_id),
+    KEY idx_hotmail_accounts_email (email),
+    KEY idx_hotmail_accounts_group_name (group_name),
+    KEY idx_hotmail_accounts_token_check_status (token_check_status)
+);
+
 INSERT INTO users (username, email, password, nickname, role, avatar_url, bio, status)
 SELECT
     'admin',
@@ -313,6 +543,15 @@ SET
     expires_at = COALESCE(expires_at, DATE_ADD(NOW(), INTERVAL 3650 DAY))
 WHERE code = 'IDNCAR2026';
 
+INSERT INTO payment_vmq_settings (
+    id, enabled, preferred, pay_type, communication_key, amount_strategy, order_timeout_minutes, monitor_state
+)
+SELECT 1, 0, 1, 2, LOWER(MD5(UUID())), 'INCREASE', 5, 'UNBOUND'
+FROM DUAL
+WHERE NOT EXISTS (
+    SELECT 1 FROM payment_vmq_settings WHERE id = 1
+);
+
 INSERT INTO download_resources (title, version, changelog, url, icon, locked, sort_order)
 SELECT
     'IDNCAR Windows Client',
@@ -358,4 +597,39 @@ SELECT
 FROM DUAL
 WHERE NOT EXISTS (
     SELECT 1 FROM site_notices WHERE sort_order = 3
+);
+
+INSERT INTO forum_boards (name, description, sort_order, active)
+SELECT '综合讨论', '日常交流和主题讨论', 1, 1
+FROM DUAL
+WHERE NOT EXISTS (
+    SELECT 1 FROM forum_boards WHERE name = '综合讨论'
+);
+
+INSERT INTO forum_boards (name, description, sort_order, active)
+SELECT '求助答疑', '提问、排查和经验互助', 2, 1
+FROM DUAL
+WHERE NOT EXISTS (
+    SELECT 1 FROM forum_boards WHERE name = '求助答疑'
+);
+
+INSERT INTO forum_boards (name, description, sort_order, active)
+SELECT '下载反馈', '下载资源、安装和版本反馈', 3, 1
+FROM DUAL
+WHERE NOT EXISTS (
+    SELECT 1 FROM forum_boards WHERE name = '下载反馈'
+);
+
+INSERT INTO forum_boards (name, description, sort_order, active)
+SELECT '建议反馈', '产品建议和体验优化', 4, 1
+FROM DUAL
+WHERE NOT EXISTS (
+    SELECT 1 FROM forum_boards WHERE name = '建议反馈'
+);
+
+INSERT INTO forum_boards (name, description, sort_order, active)
+SELECT '问题反馈', '问题报告和异常反馈', 5, 1
+FROM DUAL
+WHERE NOT EXISTS (
+    SELECT 1 FROM forum_boards WHERE name = '问题反馈'
 );

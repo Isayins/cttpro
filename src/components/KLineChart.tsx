@@ -438,15 +438,15 @@ export default function KLineChart({ candles, overlayMode, subChartMode }: Props
       <div className="chart-legend">
         {overlayMode === "ma" ? (
           <>
-            <span className="legend-item"><i className="legend-dot legend-blue" />MA5</span>
-            <span className="legend-item"><i className="legend-dot legend-amber" />MA10</span>
-            <span className="legend-item"><i className="legend-dot legend-violet" />MA20</span>
+            <span className="legend-item"><i className="legend-dot legend-blue" />5日均线</span>
+            <span className="legend-item"><i className="legend-dot legend-amber" />10日均线</span>
+            <span className="legend-item"><i className="legend-dot legend-violet" />20日均线</span>
           </>
         ) : (
           <>
-            <span className="legend-item"><i className="legend-dot legend-slate" />BOLL中轨</span>
-            <span className="legend-item"><i className="legend-dot legend-cyan" />BOLL上轨</span>
-            <span className="legend-item"><i className="legend-dot legend-pink" />BOLL下轨</span>
+            <span className="legend-item"><i className="legend-dot legend-slate" />布林中轨</span>
+            <span className="legend-item"><i className="legend-dot legend-cyan" />布林上轨</span>
+            <span className="legend-item"><i className="legend-dot legend-pink" />布林下轨</span>
           </>
         )}
         <span className="legend-item">

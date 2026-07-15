@@ -1,46 +1,121 @@
-﻿version: '3.8'
-
 services:
   java-backend:
     build:
       context: ./java-backend
       dockerfile: Dockerfile
     ports:
-      - "8080:8080"
+      - "${JAVA_BACKEND_PORT:-9091}:9091"
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/idncar?useSSL=false&serverTimezone=Asia/Shanghai
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-idncar}?useSSL=false&serverTimezone=Asia/Shanghai
       - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=123456
+      - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD:-change-me}
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
-      - PYTHON_SERVICE_URL=http://python-service:8000
+      - PYTHON_SERVICE_URL=http://python-service:8735
+      - APP_SITE_BASE_URL=${APP_SITE_BASE_URL:-https://idncar.com}
+      - APP_UPLOAD_BASE_DIR=/app/uploads
+      - SPRING_MAIL_HOST=${SPRING_MAIL_HOST:-smtp.163.com}
+      - SPRING_MAIL_PORT=${SPRING_MAIL_PORT:-465}
+      - SPRING_MAIL_USERNAME=${SPRING_MAIL_USERNAME:-pppopidc@163.com}
+      - APP_MAIL_FROM=${APP_MAIL_FROM:-pppopidc@163.com}
+      - APP_MAIL_LOGO_URL=${APP_MAIL_LOGO_URL:-}
+      - SPRING_MAIL_PASSWORD=${SPRING_MAIL_PASSWORD:-change-me-mail-authorization-code}
+      - SPRING_MAIL_SMTP_AUTH=${SPRING_MAIL_SMTP_AUTH:-true}
+      - SPRING_MAIL_STARTTLS_ENABLE=${SPRING_MAIL_STARTTLS_ENABLE:-false}
+      - SPRING_MAIL_SMTP_SSL_ENABLE=${SPRING_MAIL_SMTP_SSL_ENABLE:-true}
+      - APP_MAIL_MOCK_ENABLED=${APP_MAIL_MOCK_ENABLED:-false}
+      - APP_PAYMENT_MANUAL_CONFIRM_ENABLED=${APP_PAYMENT_MANUAL_CONFIRM_ENABLED:-true}
+      - APP_PAYMENT_MANUAL_CONFIRM_RECIPIENTS=${APP_PAYMENT_MANUAL_CONFIRM_RECIPIENTS:-}
+      - APP_PAYMENT_ALIPAY_ENABLED=${APP_PAYMENT_ALIPAY_ENABLED:-false}
+      - APP_PAYMENT_ALIPAY_APP_ID=${APP_PAYMENT_ALIPAY_APP_ID:-}
+      - APP_PAYMENT_ALIPAY_PRIVATE_KEY=${APP_PAYMENT_ALIPAY_PRIVATE_KEY:-}
+      - APP_PAYMENT_ALIPAY_ALIPAY_PUBLIC_KEY=${APP_PAYMENT_ALIPAY_ALIPAY_PUBLIC_KEY:-}
+      - APP_PAYMENT_ALIPAY_NOTIFY_URL=${APP_PAYMENT_ALIPAY_NOTIFY_URL:-}
+      - APP_PAYMENT_ALIPAY_GATEWAY_URL=${APP_PAYMENT_ALIPAY_GATEWAY_URL:-https://openapi.alipay.com/gateway.do}
+      - APP_PAYMENT_ALIPAY_ENCRYPT_ENABLED=${APP_PAYMENT_ALIPAY_ENCRYPT_ENABLED:-true}
+      - APP_PAYMENT_ALIPAY_ENCRYPT_TYPE=${APP_PAYMENT_ALIPAY_ENCRYPT_TYPE:-AES}
+      - APP_PAYMENT_ALIPAY_ENCRYPT_KEY=${APP_PAYMENT_ALIPAY_ENCRYPT_KEY:-}
+      - APP_UPLOAD_PRODUCT_IMAGE_SUBDIR=product-images
+    volumes:
+      - java-uploads:/app/uploads
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:9091/actuator/health >/dev/null",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 45s
     depends_on:
-      - mysql
-      - redis
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      python-service:
+        condition: service_healthy
 
   mysql:
     image: mysql:8.0
     ports:
-      - "3306:3306"
+      - "${MYSQL_PORT:-3306}:3306"
     environment:
-      - MYSQL_ROOT_PASSWORD=123456
-      - MYSQL_DATABASE=idncar
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-change-me}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-idncar}
     volumes:
       - mysql-data:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   redis:
     image: redis:7.0
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
 
   python-service:
     build:
       context: ./python-quant
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "${PYTHON_SERVICE_PORT:-8735}:8735"
     environment:
-      - DATABASE_URL=mysql://root:123456@mysql:3306/idncar
+      - STOCK_DB_HOST=mysql
+      - STOCK_DB_PORT=3306
+      - STOCK_DB_USER=root
+      - STOCK_DB_PASSWORD=${MYSQL_ROOT_PASSWORD:-change-me}
+      - STOCK_DB_NAME=${MYSQL_DATABASE:-idncar}
+      - QUANT_SERVICE_PORT=8735
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8735/health', timeout=3).read()",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    depends_on:
+      mysql:
+        condition: service_healthy
 
 volumes:
   mysql-data:
+  java-uploads:

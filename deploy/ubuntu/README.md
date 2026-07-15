@@ -1,0 +1,131 @@
+# Ubuntu 一键部署
+
+这个目录用于在 Ubuntu 服务器上一键部署 cttpro：
+
+- `frontend`：Nginx 静态站点，反代 `/api/` 和 WebSocket 到 Java 后端
+- `java-backend`：Spring Boot API
+- `python-service`：FastAPI 量化服务
+- `mysql`：MySQL 8
+- `redis`：Redis 7
+
+## 首次部署
+
+在服务器上进入项目根目录：
+
+```bash
+bash deploy/ubuntu/deploy.sh
+```
+
+脚本会自动：
+
+- 创建 `deploy/ubuntu/.env`
+- 为 MySQL、JWT、Hotmail 加密生成随机生产密钥
+- 检测并安装 Docker Engine / Docker Compose Plugin
+- 构建前端、Java 后端、Python 服务镜像
+- 启动全部服务并显示状态
+
+部署完成后访问：
+
+```text
+http://服务器IP
+```
+
+## 配置
+
+首次运行后可编辑：
+
+```bash
+nano deploy/ubuntu/.env
+```
+
+常用项：
+
+```bash
+HTTP_PORT=80
+MYSQL_DATABASE=idncar
+TUSHARE_TOKEN=
+APP_PAYMENT_ALIPAY_ENABLED=false
+APP_PAYMENT_ALIPAY_APP_ID=
+APP_PAYMENT_ALIPAY_PRIVATE_KEY=
+APP_PAYMENT_ALIPAY_ALIPAY_PUBLIC_KEY=
+APP_PAYMENT_ALIPAY_NOTIFY_URL=
+```
+
+如使用 V免签，不需要单独部署 PHP 后台。部署完成后进入后台管理的「V免签配置」启用通道、保存收款码内容，并把后台显示的通讯密钥填到监听端。
+
+改完配置后重新执行：
+
+```bash
+bash deploy/ubuntu/deploy.sh
+```
+
+## 维护命令
+
+查看状态：
+
+```bash
+docker compose --env-file deploy/ubuntu/.env -f deploy/ubuntu/docker-compose.yml ps
+```
+
+查看日志：
+
+```bash
+docker compose --env-file deploy/ubuntu/.env -f deploy/ubuntu/docker-compose.yml logs -f
+```
+
+停止服务：
+
+```bash
+docker compose --env-file deploy/ubuntu/.env -f deploy/ubuntu/docker-compose.yml down
+```
+
+保留数据库和上传文件的持久化卷；如需清空数据，需额外删除 Docker volumes。
+
+## Nohup 单独启动 Java 后端
+
+如果只部署 Java 后端 JAR，可以使用：
+
+```bash
+bash deploy/ubuntu/java-backend-nohup.sh start
+bash deploy/ubuntu/java-backend-nohup.sh status
+bash deploy/ubuntu/java-backend-nohup.sh logs
+bash deploy/ubuntu/java-backend-nohup.sh stop
+```
+
+默认从 `/opt/cttpro` 或 `/opt/cttpro/artifacts` 自动选择最新的 `java-backend-*.jar`。也可以显式指定：
+
+```bash
+APP_HOME=/opt/cttpro \
+JAR=/opt/cttpro/java-backend-1.0.0-20260704-083016.jar \
+bash deploy/ubuntu/java-backend-nohup.sh start
+```
+
+## 非 Docker Nginx
+
+当前生产机采用宿主机 Nginx、systemd Java 服务时，使用
+`deploy/ubuntu/nginx-host.conf`。该配置对应以下目录和端口：
+
+- 前端：`/var/www/html/cttpro/dist`
+- Java 后端：`127.0.0.1:9091`
+- 验证码服务：`127.0.0.1:8524`
+- 远程服务：`127.0.0.1:8080`
+
+配置中的 `/api/` 和 `/uploads/` 使用 `^~` 前缀，避免 JPG、PNG 等静态
+文件正则抢占上传文件请求；同时兼容数据库中历史 `/uploads/` 地址。
+
+更新生产配置时应先备份原文件，使用 `nginx -t` 校验成功后再执行
+`systemctl reload nginx`。不要使用全局 `error_page 404 /index.html`，SPA
+回退已由主站 `location /` 内的 `try_files` 处理。
+
+仓库提供了原子安装脚本，会自动定位站点配置、备份、校验并在失败时回滚。
+当前生产机实际加载 `/etc/nginx/conf.d/videos.conf`，建议显式传入该路径，避免
+同域名的 `sites-enabled` 旧配置被误选：
+
+```bash
+sudo AVATAR_FILE=user-7-01c37cd8ab9a4504944b8b7518788da5.jpg \
+  bash deploy/ubuntu/install-nginx-host.sh /etc/nginx/conf.d/videos.conf
+```
+
+如自动定位到的不是目标站点，可把实际配置路径作为第一个参数传入。脚本只有在
+`nginx -t` 成功后才会 reload，并会同时验证新 `/api/uploads/` 和历史
+`/uploads/` 头像地址。

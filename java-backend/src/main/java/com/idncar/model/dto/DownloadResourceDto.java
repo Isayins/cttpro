@@ -15,6 +15,7 @@ public class DownloadResourceDto {
     private String url;
     private String icon;
     private Boolean locked;
+    private Boolean passwordProtected;
     private String category;
     private String fileSize;
     private String checksumSha256;
@@ -32,6 +33,7 @@ public class DownloadResourceDto {
         dto.setUrl(entity.getUrl());
         dto.setIcon(entity.getIcon());
         dto.setLocked(Boolean.TRUE.equals(entity.getLocked()));
+        dto.setPasswordProtected(entity.getDownloadPasswordHash() != null && !entity.getDownloadPasswordHash().isBlank());
         dto.setCategory(entity.getCategory());
         dto.setFileSize(entity.getFileSize());
         dto.setChecksumSha256(entity.getChecksumSha256());
@@ -39,6 +41,15 @@ public class DownloadResourceDto {
         dto.setSortOrder(entity.getSortOrder());
         dto.setCreateTime(formatDate(entity.getCreateTime()));
         dto.setUpdateTime(formatDate(entity.getUpdateTime()));
+        return dto;
+    }
+
+    public static DownloadResourceDto fromPublicEntity(DownloadResource entity) {
+        DownloadResourceDto dto = fromEntity(entity);
+        if (Boolean.TRUE.equals(entity.getLocked())
+                || (entity.getDownloadPasswordHash() != null && !entity.getDownloadPasswordHash().isBlank())) {
+            dto.setUrl("download-resource:" + entity.getId());
+        }
         return dto;
     }
 

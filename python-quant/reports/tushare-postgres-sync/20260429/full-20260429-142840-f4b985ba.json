@@ -1,0 +1,27 @@
+{
+  "jobId": "20260429-142840-f4b985ba",
+  "mode": "full",
+  "db": {
+    "host": "127.0.0.1",
+    "port": 5432,
+    "name": "quant",
+    "schema": "tushare_data"
+  },
+  "startedAt": "2026-04-29 14:28:43",
+  "steps": {
+    "marketRaw": {
+      "dateCount": 1,
+      "recordCount": {
+        "daily_basic": 922,
+        "stk_nineturn": 757
+      },
+      "affectedRows": 1679,
+      "structuredAffectedRows": 1679,
+      "errorCount": 0,
+      "startDate": "20000124",
+      "endDate": "20000124"
+    }
+  },
+  "finishedAt": "2026-04-29 14:28:48",
+  "status": "completed"
+}

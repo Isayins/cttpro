@@ -4,6 +4,7 @@ public record VerifyDownloadCaptchaRequest(
         String captchaId,
         String answer,
         String resource,
-        String fileName
+        String fileName,
+        String password
 ) {
 }

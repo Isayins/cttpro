@@ -8,7 +8,20 @@ export interface User {
   bio?: string | null;
   status?: "ACTIVE" | "DISABLED";
   chatVisibility?: "ONLINE" | "INVISIBLE";
+  experience?: number;
+  level?: number;
+  consecutiveSignInDays?: number;
+  lastSignInAt?: string | null;
+  title?: string | null;
   createTime?: string | null;
+}
+
+export interface AdminUserStats {
+  total: number;
+  owner: number;
+  admin: number;
+  regular: number;
+  disabled: number;
 }
 
 export interface AuthResponse {
@@ -30,14 +43,20 @@ export interface Post {
   userId: number;
   author: string;
   authorAvatarUrl?: string | null;
+  authorExperience?: number;
+  authorLevel?: number;
+  authorTitle?: string | null;
   createTime: string;
   updateTime: string;
   viewCount: number;
   likeCount: number;
   favoriteCount: number;
+  replyCount: number;
   likedByCurrentUser: boolean;
   favoritedByCurrentUser: boolean;
   canEdit: boolean;
+  canDelete: boolean;
+  canPin: boolean;
 }
 
 export interface Reply {
@@ -47,7 +66,87 @@ export interface Reply {
   userId: number;
   author: string;
   authorAvatarUrl?: string | null;
+  authorExperience?: number;
+  authorLevel?: number;
+  authorTitle?: string | null;
   createTime: string;
+}
+
+export interface ForumSignInStatus {
+  boardId?: number | null;
+  boardName?: string | null;
+  signedToday: boolean;
+  consecutiveSignInDays: number;
+  gainedExperience: number;
+  experience: number;
+  level: number;
+  title?: string | null;
+  lastSignInAt?: string | null;
+}
+
+export interface ForumLeaderboardUser {
+  userId: number;
+  nickname: string;
+  avatarUrl?: string | null;
+  level: number;
+  experience: number;
+  title?: string | null;
+  consecutiveSignInDays: number;
+  postCountToday: number;
+  replyCountToday: number;
+  activityScore: number;
+}
+
+export interface ForumLeaderboard {
+  signInRank: ForumLeaderboardUser[];
+  activityRank: ForumLeaderboardUser[];
+}
+
+export interface ForumBoard {
+  id?: number | null;
+  name: string;
+  description?: string | null;
+  avatarUrl?: string | null;
+  ownerUserId?: number | null;
+  ownerNickname?: string | null;
+  ownerAvatarUrl?: string | null;
+  levelTitleConfig?: string | null;
+  sortOrder?: number | null;
+  active: boolean;
+  createTime?: string | null;
+  updateTime?: string | null;
+}
+
+export interface SaveForumBoardPayload {
+  name: string;
+  description?: string | null;
+  avatarUrl?: string | null;
+  sortOrder?: number | null;
+  active?: boolean;
+}
+
+export interface ForumBoardLevelTitle {
+  level: number;
+  title: string;
+}
+
+export type ForumBoardOwnerApplicationStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+export interface ForumBoardOwnerApplication {
+  id: number;
+  boardId: number;
+  boardName?: string | null;
+  boardAvatarUrl?: string | null;
+  applicantId: number;
+  applicantNickname?: string | null;
+  applicantAvatarUrl?: string | null;
+  reason: string;
+  status: ForumBoardOwnerApplicationStatus;
+  reviewedBy?: number | null;
+  reviewNote?: string | null;
+  reviewedAt?: string | null;
+  createTime?: string | null;
+  updateTime?: string | null;
 }
 
 export interface ForumPostFilters {
@@ -81,6 +180,13 @@ export interface InviteCode {
   createTime?: string | null;
 }
 
+export interface AdminInviteStats {
+  total: number;
+  active: number;
+  used: number;
+  expired: number;
+}
+
 export interface DownloadResource {
   id: number;
   title: string;
@@ -89,6 +195,7 @@ export interface DownloadResource {
   url: string;
   icon?: string | null;
   locked: boolean;
+  passwordProtected: boolean;
   category?: string | null;
   fileSize?: string | null;
   checksumSha256?: string | null;
@@ -96,6 +203,12 @@ export interface DownloadResource {
   sortOrder?: number | null;
   createTime?: string | null;
   updateTime?: string | null;
+}
+
+export interface AdminDownloadStats {
+  total: number;
+  locked: number;
+  open: number;
 }
 
 export interface UploadedDownloadFile {
@@ -106,6 +219,217 @@ export interface UploadedDownloadFile {
   fileSizeText: string;
 }
 
+export interface Product {
+  id: number;
+  title: string;
+  subtitle?: string | null;
+  description?: string | null;
+  imageUrl?: string | null;
+  price: string;
+  stock?: number | null;
+  salesCount?: number | null;
+  deliveryType?: "NONE" | "CDK_EMAIL" | string;
+  deliveryInstructions?: string | null;
+  deliveryCodeAvailableCount?: number | null;
+  deliveryCodeLockedCount?: number | null;
+  deliveryCodeSentCount?: number | null;
+  deliveryCodeDisabledCount?: number | null;
+  status: "PUBLISHED" | "DRAFT" | "OFFLINE" | string;
+  sortOrder?: number | null;
+  createTime?: string | null;
+  updateTime?: string | null;
+}
+
+export interface AdminProductStats {
+  total: number;
+  published: number;
+  draft: number;
+  offline: number;
+}
+
+export interface ProductDeliveryCode {
+  id: number;
+  productId: number;
+  productTitle?: string | null;
+  code: string;
+  status: "AVAILABLE" | "LOCKED" | "SENT" | "DISABLED" | string;
+  createdBy?: number | null;
+  assignedTo?: number | null;
+  assignedToName?: string | null;
+  orderNo?: string | null;
+  assignedAt?: string | null;
+  sentAt?: string | null;
+  batchNo?: string | null;
+  note?: string | null;
+  createTime?: string | null;
+  updateTime?: string | null;
+}
+
+export interface AdminProductDeliveryCodeStats {
+  total: number;
+  available: number;
+  locked: number;
+  sent: number;
+  disabled: number;
+}
+
+export interface ImportProductDeliveryCodesPayload {
+  productId: number;
+  content: string;
+  note?: string;
+}
+
+export interface ImportProductDeliveryCodesResponse {
+  batchNo?: string | null;
+  importedCount: number;
+  skippedCount: number;
+  records: ProductDeliveryCode[];
+}
+
+export interface ProductCouponCode {
+  id: number;
+  code: string;
+  productId: number;
+  productTitle?: string | null;
+  discountType: "AMOUNT" | "PERCENT" | string;
+  discountValue: string;
+  status: "ACTIVE" | "LOCKED" | "USED" | "DISABLED" | "EXPIRED" | string;
+  createdBy?: number | null;
+  usedBy?: number | null;
+  usedByName?: string | null;
+  usedOrderNo?: string | null;
+  usedAt?: string | null;
+  lockedBy?: number | null;
+  lockOrderNo?: string | null;
+  lockedAt?: string | null;
+  expiresAt?: string | null;
+  batchNo?: string | null;
+  note?: string | null;
+  createTime?: string | null;
+  updateTime?: string | null;
+}
+
+export interface AdminProductCouponStats {
+  total: number;
+  active: number;
+  locked: number;
+  used: number;
+  disabled: number;
+  expired: number;
+}
+
+export interface CreateProductCouponCodesPayload {
+  productId: number;
+  count: number;
+  discountType: "AMOUNT" | "PERCENT";
+  discountValue: string | number;
+  expiresInDays?: number | null;
+  prefix?: string;
+  note?: string;
+}
+
+export interface ProductCouponPreview {
+  code: string;
+  productId: number;
+  productTitle?: string | null;
+  discountType: "AMOUNT" | "PERCENT" | string;
+  discountValue: string;
+  originalAmount: string;
+  discountAmount: string;
+  payableAmount: string;
+  expiresAt?: string | null;
+}
+
+export interface SaveProductPayload {
+  title: string;
+  subtitle?: string;
+  description?: string;
+  imageUrl?: string;
+  price: string | number;
+  stock: number;
+  deliveryType?: "NONE" | "CDK_EMAIL";
+  deliveryInstructions?: string;
+  status?: "PUBLISHED" | "DRAFT" | "OFFLINE";
+  sortOrder?: number;
+}
+
+export interface UploadedProductImage {
+  url: string;
+  originalFileName?: string;
+}
+
+export interface AdminPaymentOrder {
+  id: number;
+  channel: string;
+  outTradeNo: string;
+  tradeNo?: string | null;
+  buyerLogonId?: string | null;
+  subject: string;
+  body?: string | null;
+  originalAmount?: string | null;
+  discountAmount?: string | null;
+  couponCode?: string | null;
+  totalAmount: string;
+  status: string;
+  qrCode?: string | null;
+  resourceType?: string | null;
+  resourceId?: number | null;
+  payerUserId?: number | null;
+  deliveryEmail?: string | null;
+  payerName?: string | null;
+  payerUsername?: string | null;
+  expireTime?: string | null;
+  paidTime?: string | null;
+  closedTime?: string | null;
+  paidHandled?: boolean | null;
+  lastError?: string | null;
+  createTime?: string | null;
+  updateTime?: string | null;
+}
+
+export interface AdminPaymentOrderStats {
+  total: number;
+  created: number;
+  waiting: number;
+  paid: number;
+  closed: number;
+  failed: number;
+  errors: number;
+}
+
+export interface VmqPaymentSettings {
+  id: number;
+  enabled: boolean;
+  preferred: boolean;
+  payType: 1 | 2 | number;
+  payTypeLabel?: string | null;
+  communicationKey: string;
+  wxPayUrl?: string | null;
+  alipayPayUrl?: string | null;
+  amountStrategy: "INCREASE" | "DECREASE" | string;
+  orderTimeoutMinutes: number;
+  monitorState: "UNBOUND" | "ONLINE" | "OFFLINE" | string;
+  lastHeartTime?: string | null;
+  lastPayTime?: string | null;
+  monitorBaseUrl?: string | null;
+  getStateUrl?: string | null;
+  appHeartUrl?: string | null;
+  appPushUrl?: string | null;
+  createTime?: string | null;
+  updateTime?: string | null;
+}
+
+export interface SaveVmqPaymentSettingsPayload {
+  enabled: boolean;
+  preferred: boolean;
+  payType: 1 | 2 | number;
+  communicationKey?: string;
+  wxPayUrl?: string;
+  alipayPayUrl?: string;
+  amountStrategy: "INCREASE" | "DECREASE" | string;
+  orderTimeoutMinutes: number;
+}
+
 export interface SiteNotice {
   id: number;
   title: string;
@@ -114,6 +438,12 @@ export interface SiteNotice {
   sortOrder?: number | null;
   createTime?: string | null;
   updateTime?: string | null;
+}
+
+export interface AdminSiteNoticeStats {
+  total: number;
+  published: number;
+  draft: number;
 }
 
 export interface TrackVisitPayload {
@@ -211,6 +541,8 @@ export interface CreateDownloadResourcePayload {
   url: string;
   icon?: string;
   locked?: boolean;
+  passwordProtected?: boolean;
+  downloadPassword?: string;
   category?: string;
   fileSize?: string;
   checksumSha256?: string;
@@ -241,6 +573,13 @@ export interface AdminPostReport {
   reviewedAt?: string | null;
 }
 
+export interface AdminPostReportStats {
+  total: number;
+  pending: number;
+  resolved: number;
+  rejected: number;
+}
+
 export interface ReviewPostReportPayload {
   status: "PENDING" | "RESOLVED" | "REJECTED";
   reviewNote?: string;
@@ -257,6 +596,13 @@ export interface AdminOperationLog {
   targetName?: string | null;
   detail?: string | null;
   createTime?: string | null;
+}
+
+export interface PageResult<T> {
+  records: T[];
+  total: number;
+  page: number;
+  size: number;
 }
 
 export interface QrCodeItem {
@@ -350,6 +696,20 @@ export interface JavaDecompileResult {
   engine: string;
 }
 
+export interface ToolDiagnosticsResult {
+  requestId: string;
+  userId: number;
+  serverTimeMillis: number;
+  serverTimeIso: string;
+  serverZone: string;
+  javaVersion?: string | null;
+  remoteAddr?: string | null;
+  forwardedFor?: string | null;
+  method?: string | null;
+  path?: string | null;
+  userAgent?: string | null;
+}
+
 export interface PrivateChatUser {
   id: number;
   nickname: string;
@@ -369,3 +729,81 @@ export interface PrivateChatMessage {
 }
 
 export type ChatPresenceMode = "ONLINE" | "INVISIBLE";
+
+export interface HotmailAccount {
+  id: number;
+  email: string;
+  groupName?: string | null;
+  subEmails?: string | null;
+  gptRegistered: boolean;
+  gptRegisteredSubEmails?: string | null;
+  grokRegistered: boolean;
+  grokRegisteredSubEmails?: string | null;
+  passwordSaved: boolean;
+  lastCode?: string | null;
+  lastCodeTime?: string | null;
+  lastSubject?: string | null;
+  lastSender?: string | null;
+  lastSource?: string | null;
+  lastFolder?: string | null;
+  lastError?: string | null;
+  lastFetchTime?: string | null;
+  tokenCheckStatus?: "UNKNOWN" | "OK" | "MISSING_IMAP" | "TOKEN_INVALID" | "PARTIAL_FAIL" | string;
+  graphTokenOk?: boolean | null;
+  outlookTokenOk?: boolean | null;
+  imapTokenOk?: boolean | null;
+  tokenCheckSummary?: string | null;
+  tokenCheckedAt?: string | null;
+  publicCodeToken?: string | null;
+  publicCodeUid?: string | null;
+  publicCodeTargetEmail?: string | null;
+  publicCodeEnabled: boolean;
+  publicCodeCreatedAt?: string | null;
+  publicCodeLastAccessTime?: string | null;
+  createTime?: string | null;
+}
+
+export interface HotmailCodeResult {
+  accountId: number;
+  email: string;
+  code?: string | null;
+  subject?: string | null;
+  sender?: string | null;
+  receivedTime?: string | null;
+  fetchTime?: string | null;
+  source?: string | null;
+  folder?: string | null;
+  error?: string | null;
+  found: boolean;
+}
+
+export interface HotmailPasswordResult {
+  accountId: number;
+  email: string;
+  password: string;
+}
+
+export interface UpdateHotmailAccountMetadataPayload {
+  groupName?: string | null;
+  subEmails?: string | null;
+  gptRegistered?: boolean;
+  gptRegisteredSubEmails?: string | null;
+  grokRegistered?: boolean;
+  grokRegisteredSubEmails?: string | null;
+}
+
+export interface HotmailImportFailure {
+  line: number;
+  email?: string | null;
+  reason: string;
+}
+
+export interface ImportHotmailResponse {
+  message: string;
+  imported: number;
+  skipped: number;
+  duplicateCount: number;
+  batchDuplicateCount: number;
+  existingDuplicateCount: number;
+  failures: HotmailImportFailure[];
+}

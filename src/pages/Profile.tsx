@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Avatar,
@@ -9,6 +9,7 @@ import {
   Form,
   Input,
   List,
+  Progress,
   Row,
   Space,
   Tag,
@@ -26,11 +27,26 @@ import {
   UserOutlined,
 } from "@ant-design/icons";
 
+import AvatarCropModal from "../components/AvatarCropModal";
 import MainLayout from "../layouts/MainLayout";
 import { useAuth } from "../context/useAuth";
+import { getFriendlyMessage } from "../lib/errorMessage";
 import { resolveAssetUrl } from "../lib/media";
-import { authApi, forumApi } from "../services/api";
+import { IMAGE_ACCEPT, isAllowedImageFile } from "../lib/richContent";
+import { isAllowedImageResourceUrl } from "../lib/urlValidation";
+import { authApi } from "../services/api/auth";
+import { forumApi } from "../services/api/forum";
 import type { ChangePasswordPayload, LoginRecord, Post, UpdateProfilePayload } from "../types/app";
+
+const AVATAR_MAX_SIZE_BYTES = 5 * 1024 * 1024;
+const numberFormatter = new Intl.NumberFormat("zh-CN");
+const dateTimeFormatter = new Intl.DateTimeFormat("zh-CN", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+});
 
 function getRoleLabel(role?: string) {
   if (role === "OWNER") return "网站拥有者";
@@ -55,13 +71,49 @@ function getDeviceLabel(deviceType?: string | null) {
   return "未知设备";
 }
 
-function getFriendlyMessage(error: unknown, fallback: string) {
-  if (!(error instanceof Error) || !error.message) {
-    return fallback;
+function formatCount(value?: number | null) {
+  return numberFormatter.format(value ?? 0);
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) {
+    return "未知";
   }
 
-  const text = error.message.trim();
-  return /[\u4e00-\u9fa5]/.test(text) ? text : fallback;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return dateTimeFormatter.format(date);
+}
+
+function getProfileCompletionTone(rate: number) {
+  if (rate >= 100) return "success";
+  if (rate >= 50) return "normal";
+  return "exception";
+}
+
+function validateNewPassword(_: unknown, value?: string) {
+  if (!value) {
+    return Promise.resolve();
+  }
+  if (value.length < 6) {
+    return Promise.reject(new Error("新密码至少 6 位"));
+  }
+  if (!/[A-Za-z]/.test(value) || !/\d/.test(value)) {
+    return Promise.reject(new Error("新密码需要同时包含字母和数字"));
+  }
+  return Promise.resolve();
+}
+
+function normalizeProfilePayload(values: UpdateProfilePayload): UpdateProfilePayload {
+  return {
+    ...values,
+    nickname: values.nickname?.trim() ?? "",
+    avatarUrl: values.avatarUrl?.trim() ?? "",
+    bio: values.bio?.trim() ?? "",
+  };
 }
 
 export default function Profile() {
@@ -71,11 +123,13 @@ export default function Profile() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarSourceFile, setAvatarSourceFile] = useState<File | null>(null);
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [loadingContent, setLoadingContent] = useState(false);
   const [loginRecords, setLoginRecords] = useState<LoginRecord[]>([]);
   const [myPosts, setMyPosts] = useState<Post[]>([]);
   const [favoritePosts, setFavoritePosts] = useState<Post[]>([]);
+  const avatarUploadInFlightRef = useRef(false);
 
   useEffect(() => {
     if (!user) {
@@ -138,11 +192,39 @@ export default function Profile() {
 
   const completedProfileCount = profileChecklist.filter((item) => item.done).length;
   const profileCompletionRate = Math.round((completedProfileCount / profileChecklist.length) * 100);
+  const latestLoginRecord = loginRecords[0];
+  const overviewCards = useMemo(
+    () => [
+      {
+        label: "资料完整度",
+        value: `${profileCompletionRate}%`,
+        detail: `已完成 ${completedProfileCount} / ${profileChecklist.length} 项`,
+      },
+      {
+        label: "我的帖子",
+        value: formatCount(myPosts.length),
+        detail: loadingContent ? "同步中" : "论坛发布内容",
+      },
+      {
+        label: "我的收藏",
+        value: formatCount(favoritePosts.length),
+        detail: loadingContent ? "同步中" : "收藏的帖子",
+      },
+      {
+        label: "最近登录",
+        value: latestLoginRecord?.loginStatus === "SUCCESS" ? "正常" : latestLoginRecord ? "异常" : "暂无",
+        detail: latestLoginRecord ? formatDateTime(latestLoginRecord.createTime) : "暂无登录记录",
+      },
+    ],
+    [completedProfileCount, favoritePosts.length, latestLoginRecord, loadingContent, myPosts.length, profileChecklist.length, profileCompletionRate],
+  );
 
   async function handleProfileSubmit(values: UpdateProfilePayload) {
+    const payload = normalizeProfilePayload(values);
+    profileForm.setFieldsValue(payload);
     setSavingProfile(true);
     try {
-      await updateProfile(values);
+      await updateProfile(payload);
       message.success("个人资料已更新");
     } catch (error) {
       message.error(getFriendlyMessage(error, "更新个人资料失败"));
@@ -165,14 +247,46 @@ export default function Profile() {
     }
   }
 
+  function handleAvatarFileSelect(file: File) {
+    if (!isAllowedImageFile(file)) {
+      message.error("仅支持 JPG、PNG、WEBP、GIF 图片");
+      return;
+    }
+
+    if (file.size > AVATAR_MAX_SIZE_BYTES) {
+      message.error("头像图片不能超过 5MB");
+      return;
+    }
+
+    setAvatarSourceFile(file);
+  }
+
   async function handleAvatarUpload(file: File) {
+    if (avatarUploadInFlightRef.current) {
+      message.warning("头像正在上传中，请稍候");
+      return false;
+    }
+    if (!isAllowedImageFile(file)) {
+      message.error("仅支持 JPG、PNG、WEBP、GIF 图片");
+      return false;
+    }
+
+    if (file.size > AVATAR_MAX_SIZE_BYTES) {
+      message.error("头像图片不能超过 5MB");
+      return false;
+    }
+
+    avatarUploadInFlightRef.current = true;
     setUploadingAvatar(true);
     try {
       await uploadAvatar(file);
       message.success("头像已上传并保存到服务器");
+      return true;
     } catch (error) {
       message.error(getFriendlyMessage(error, "头像上传失败"));
+      return false;
     } finally {
+      avatarUploadInFlightRef.current = false;
       setUploadingAvatar(false);
     }
   }
@@ -180,14 +294,29 @@ export default function Profile() {
   return (
     <MainLayout>
       <div className="space-y-8 py-8 md:space-y-10 md:py-10">
-        <section className="rounded-[32px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(246,249,255,0.98))] p-6 shadow-[0_18px_60px_rgba(15,23,42,0.06)] md:p-8">
-          <div className="space-y-3">
-            <div className="text-xs font-medium uppercase tracking-[0.28em] text-slate-400">Profile Center</div>
-            <h1 className="text-3xl font-semibold text-slate-900 md:text-4xl">个人中心</h1>
-            <p className="max-w-3xl text-sm leading-8 text-slate-500 md:text-base">
-              在这里可以维护头像、昵称、简介和账户安全设置。上传头像后会直接保存在 Java
-              服务所在服务器上，并同步展示到站内头像位。
-            </p>
+        <section className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_18px_60px_rgba(15,23,42,0.06)] md:p-8">
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(420px,0.85fr)] xl:items-end">
+            <div className="space-y-3">
+              <div className="text-xs font-medium uppercase tracking-[0.28em] text-slate-400">个人中心</div>
+              <h1 className="text-3xl font-semibold text-slate-900 md:text-4xl">账号与资料</h1>
+              <p className="max-w-3xl text-sm leading-8 text-slate-500 md:text-base">
+                维护公开资料、账户安全、社区内容和最近登录记录。头像、昵称和简介会同步到站内公开展示位置。
+              </p>
+              <Space wrap>
+                <Tag color={getRoleColor(user?.role)}>{getRoleLabel(user?.role)}</Tag>
+                <Tag color={user?.status === "DISABLED" ? "red" : "green"}>{getStatusLabel(user?.status)}</Tag>
+                {user?.title ? <Tag color="blue">{user.title}</Tag> : null}
+              </Space>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {overviewCards.map((item) => (
+                <div key={item.label} className="rounded-2xl border border-white bg-slate-50/85 px-4 py-3">
+                  <div className="text-xs text-slate-500">{item.label}</div>
+                  <div className="mt-1 text-2xl font-semibold leading-none text-slate-950">{item.value}</div>
+                  <div className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">{item.detail}</div>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -213,7 +342,17 @@ export default function Profile() {
                       <MailOutlined />
                       <span>{user?.email || "未绑定邮箱"}</span>
                     </div>
-                    <div>注册时间: {user?.createTime || "未知"}</div>
+                    <div>注册时间: {formatDateTime(user?.createTime)}</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-2xl bg-white px-3 py-2">
+                        <div className="text-xs text-slate-400">等级</div>
+                        <div className="mt-1 font-semibold text-slate-900">Lv.{user?.level ?? 1}</div>
+                      </div>
+                      <div className="rounded-2xl bg-white px-3 py-2">
+                        <div className="text-xs text-slate-400">经验</div>
+                        <div className="mt-1 font-semibold text-slate-900">{formatCount(user?.experience)}</div>
+                      </div>
+                    </div>
                     <div>个人简介: {user?.bio || "这个用户还没有填写个人简介。"}</div>
                   </div>
                 </div>
@@ -230,6 +369,8 @@ export default function Profile() {
                     </div>
                     <Tag color={profileCompletionRate >= 100 ? "green" : "blue"}>{profileCompletionRate}%</Tag>
                   </div>
+
+                  <Progress percent={profileCompletionRate} status={getProfileCompletionTone(profileCompletionRate)} />
 
                   <div className="grid grid-cols-4 gap-2">
                     {profileChecklist.map((item) => (
@@ -270,19 +411,19 @@ export default function Profile() {
                     <div>
                       <div className="text-base font-semibold text-slate-900">头像上传</div>
                       <p className="mt-1 text-sm leading-7 text-slate-500">
-                        支持 JPG、PNG、WEBP、GIF，单张不超过 5MB，文件会保存到服务器本地。
+                        支持 JPG、PNG、WEBP、GIF，单张不超过 5MB，上传前可调整圆形显示区域。
                       </p>
                     </div>
                   </div>
                   <Upload
-                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    accept={IMAGE_ACCEPT}
                     showUploadList={false}
                     beforeUpload={(file) => {
-                      void handleAvatarUpload(file as File);
+                      handleAvatarFileSelect(file as File);
                       return false;
                     }}
                   >
-                    <Button icon={<UploadOutlined />} loading={uploadingAvatar}>
+                    <Button icon={<UploadOutlined />} loading={uploadingAvatar} disabled={uploadingAvatar}>
                       上传头像
                     </Button>
                   </Upload>
@@ -297,7 +438,16 @@ export default function Profile() {
                     <Input placeholder="请输入你的展示昵称" />
                   </Form.Item>
 
-                  <Form.Item name="avatarUrl" label="头像地址">
+                  <Form.Item
+                    name="avatarUrl"
+                    label="头像地址"
+                    rules={[
+                      {
+                        validator: (_, value: string | undefined) =>
+                          isAllowedImageResourceUrl(value) ? Promise.resolve() : Promise.reject(new Error("请输入有效的头像图片地址，支持 http(s)、上传路径或站内 /images 路径")),
+                      },
+                    ]}
+                  >
                     <Input placeholder="上传后会自动填写，也可以手动填写外链地址" />
                   </Form.Item>
 
@@ -343,7 +493,7 @@ export default function Profile() {
                       <Form.Item
                         name="newPassword"
                         label="新密码"
-                        rules={[{ required: true, message: "请输入新密码" }]}
+                        rules={[{ required: true, message: "请输入新密码" }, { validator: validateNewPassword }]}
                       >
                         <Input.Password prefix={<LockOutlined />} placeholder="请输入新密码" />
                       </Form.Item>
@@ -403,7 +553,7 @@ export default function Profile() {
                   </div>
                   <div>
                     <div className="text-sm text-slate-500">我的帖子</div>
-                    <div className="text-2xl font-semibold text-slate-900">{myPosts.length}</div>
+                    <div className="text-2xl font-semibold text-slate-900">{formatCount(myPosts.length)}</div>
                   </div>
                 </div>
                 <Link to="/forum?view=mine" className="mt-4 inline-flex items-center text-sm text-[#2a6df4]">
@@ -419,7 +569,7 @@ export default function Profile() {
                   </div>
                   <div>
                     <div className="text-sm text-slate-500">我的收藏</div>
-                    <div className="text-2xl font-semibold text-slate-900">{favoritePosts.length}</div>
+                    <div className="text-2xl font-semibold text-slate-900">{formatCount(favoritePosts.length)}</div>
                   </div>
                 </div>
                 <Link to="/forum?view=favorites" className="mt-4 inline-flex items-center text-sm text-[#d48806]">
@@ -464,7 +614,7 @@ export default function Profile() {
                         className="block rounded-2xl border border-white bg-white px-4 py-4 transition hover:border-[#d9e4f4]"
                       >
                         <div className="text-sm font-medium text-slate-900">{item.title}</div>
-                        <div className="mt-2 text-xs text-slate-400">{item.createTime}</div>
+                        <div className="mt-2 text-xs text-slate-400">{formatDateTime(item.createTime)}</div>
                         <div className="mt-2 line-clamp-2 text-sm leading-7 text-slate-600">{item.content}</div>
                       </Link>
                     ))}
@@ -494,7 +644,7 @@ export default function Profile() {
                       >
                         <div className="text-sm font-medium text-slate-900">{item.title}</div>
                         <div className="mt-2 text-xs text-slate-400">
-                          {item.author} · {item.createTime}
+                          {item.author} · {formatDateTime(item.createTime)}
                         </div>
                         <div className="mt-2 line-clamp-2 text-sm leading-7 text-slate-600">{item.content}</div>
                       </Link>
@@ -534,7 +684,7 @@ export default function Profile() {
                           {item.loginStatus === "SUCCESS" ? "登录成功" : "登录失败"}
                         </Tag>
                         <Tag>{getDeviceLabel(item.deviceType)}</Tag>
-                        <span className="text-sm text-slate-500">{item.createTime || "未知时间"}</span>
+                        <span className="text-sm text-slate-500">{formatDateTime(item.createTime)}</span>
                       </Space>
                       <span className="text-sm text-slate-500">{item.ipAddress || "未知 IP"}</span>
                     </div>
@@ -548,6 +698,14 @@ export default function Profile() {
             />
           )}
         </Card>
+
+        <AvatarCropModal
+          file={avatarSourceFile}
+          uploading={uploadingAvatar}
+          onCancel={() => setAvatarSourceFile(null)}
+          onConfirm={handleAvatarUpload}
+          onError={(error) => message.error(getFriendlyMessage(error, "头像裁剪失败"))}
+        />
       </div>
     </MainLayout>
   );

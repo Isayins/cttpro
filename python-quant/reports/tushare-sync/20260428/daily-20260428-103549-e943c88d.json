@@ -1,0 +1,101 @@
+{
+  "jobId": "20260428-103549-e943c88d",
+  "mode": "daily",
+  "startedAt": "2026-04-28 10:35:50",
+  "config": {
+    "dbHost": "127.0.0.1",
+    "dbPort": 3306,
+    "dbName": "quant",
+    "httpUrl": "http://tsy.xiaodefa.cn",
+    "pauseMs": 400,
+    "fullStartDate": "20000101"
+  },
+  "steps": {
+    "reference": {
+      "stockBasic": {
+        "ok": true,
+        "count": 5835,
+        "affectedRows": 11670
+      },
+      "tradeCalSSE": {
+        "ok": true,
+        "count": 18,
+        "affectedRows": 18
+      },
+      "tradeCalSZSE": {
+        "ok": true,
+        "count": 18,
+        "affectedRows": 18
+      }
+    },
+    "marketTradeDates": {
+      "dateCount": 12,
+      "recordCount": {
+        "daily": 54954,
+        "adj_factor": 66134,
+        "daily_basic": 0,
+        "moneyflow": 0,
+        "bak_daily": 0,
+        "cyq_perf": 0,
+        "stk_nineturn": 0,
+        "stk_limit": 0,
+        "suspend_d": 0,
+        "stk_auction_o": 0,
+        "stk_auction_c": 0,
+        "top_list": 0,
+        "top_inst": 0,
+        "margin": 0,
+        "margin_detail": 0,
+        "margin_secs": 0,
+        "hk_hold": 0,
+        "hsgt_top10_sh": 0,
+        "hsgt_top10_sz": 0
+      },
+      "affectedRows": 121088,
+      "errorCount": 205,
+      "startDate": "20260428",
+      "endDate": "20260413"
+    },
+    "announcementDates": {
+      "dateCount": 8,
+      "recordCount": {
+        "forecast": 0,
+        "express": 0,
+        "dividend": 0,
+        "stk_holdernumber": 0,
+        "top10_holders": 0,
+        "top10_floatholders": 0,
+        "stk_holdertrade": 0
+      },
+      "affectedRows": 0,
+      "errorCount": 56,
+      "startDate": "20260421",
+      "endDate": "20260428"
+    },
+    "contentDates": {
+      "dateCount": 4,
+      "recordCount": {
+        "cctv_news": 0,
+        "index_global": 0
+      },
+      "affectedRows": 0,
+      "errorCount": 8,
+      "startDate": "20260425",
+      "endDate": "20260428"
+    },
+    "rangeDatasets": {
+      "startDate": "20260425",
+      "endDate": "20260428",
+      "recordCount": {
+        "report_rc": 0,
+        "moneyflow_hsgt": 0,
+        "block_trade": 0,
+        "repurchase": 0
+      },
+      "affectedRows": 0,
+      "errorCount": 4
+    }
+  },
+  "finishedAt": "2026-04-28 10:40:36",
+  "status": "completed"
+}

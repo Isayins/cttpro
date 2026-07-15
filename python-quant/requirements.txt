@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+pymysql
+psycopg[binary]
+pandas
+numpy
+python-dotenv
+tushare==1.4.24
+akshare

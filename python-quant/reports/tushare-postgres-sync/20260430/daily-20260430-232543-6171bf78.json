@@ -1,0 +1,114 @@
+{
+  "jobId": "20260430-232543-6171bf78",
+  "mode": "daily",
+  "db": {
+    "host": "127.0.0.1",
+    "port": 5432,
+    "name": "quant",
+    "schema": "tushare_data"
+  },
+  "startedAt": "2026-04-30 23:25:43",
+  "steps": {
+    "reference": {
+      "stockBasic": {
+        "count": 5837,
+        "affectedRows": 5837
+      },
+      "tradeCalSSE": {
+        "count": 1,
+        "affectedRows": 1
+      },
+      "tradeCalSZSE": {
+        "count": 1,
+        "affectedRows": 1
+      }
+    },
+    "klineDaily": {
+      "dateCount": 3,
+      "recordCount": {
+        "daily": 16410,
+        "adj_factor": 16551
+      },
+      "affectedRows": 32961,
+      "errorCount": 0,
+      "startDate": "20260430",
+      "endDate": "20260428"
+    },
+    "marketRaw": {
+      "dateCount": 2,
+      "recordCount": {
+        "daily_basic": 10922,
+        "moneyflow": 10303,
+        "bak_daily": 11036,
+        "cyq_perf": 10922,
+        "stk_nineturn": 10919,
+        "stk_limit": 15142,
+        "suspend_d": 166,
+        "stk_auction_o": 10980,
+        "stk_auction_c": 11020,
+        "top_list": 182,
+        "top_inst": 1916,
+        "margin": 3,
+        "margin_detail": 4386,
+        "margin_secs": 8796,
+        "hk_hold": 924,
+        "hsgt_top10_sh": 20,
+        "hsgt_top10_sz": 20
+      },
+      "affectedRows": 107657,
+      "structuredAffectedRows": 80208,
+      "errorCount": 0,
+      "startDate": "20260430",
+      "endDate": "20260429"
+    },
+    "announcementRaw": {
+      "dateCount": 31,
+      "recordCount": {
+        "forecast": 294,
+        "express": 71,
+        "dividend": 5210,
+        "stk_holdernumber": 15016,
+        "top10_holders": 64756,
+        "top10_floatholders": 64531,
+        "stk_holdertrade": 985
+      },
+      "affectedRows": 150863,
+      "errorCount": 0,
+      "startDate": "20260331",
+      "endDate": "20260430"
+    },
+    "contentRaw": {
+      "dateCount": 8,
+      "recordCount": {
+        "cctv_news": 114,
+        "index_global": 32000
+      },
+      "affectedRows": 32114,
+      "errorCount": 0,
+      "startDate": "20260423",
+      "endDate": "20260430"
+    },
+    "rangeRaw": {
+      "startDate": "20260429",
+      "endDate": "20260430",
+      "recordCount": {
+        "report_rc": 5000,
+        "moneyflow_hsgt": 2,
+        "block_trade": 303,
+        "repurchase": 112
+      },
+      "affectedRows": 5417,
+      "errorCount": 0
+    },
+    "independentApis": {
+      "stk_auction_o": "included in marketRaw",
+      "stk_auction_c": "included in marketRaw",
+      "stk_nineturn": "included in marketRaw",
+      "stk_mins": {
+        "enabled": false
+      }
+    }
+  },
+  "finishedAt": "2026-05-01 09:36:52",
+  "status": "completed"
+}

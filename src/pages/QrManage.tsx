@@ -1,23 +1,49 @@
 import { useEffect, useMemo, useState } from "react";
-import { Button, Card, Form, Input, Modal, Popconfirm, Select, Space, Switch, Table, Tag, message } from "antd";
+import { Button, Card, Form, Input, Modal, Popconfirm, QRCode, Select, Space, Switch, Table, Tag, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
+import {
+  ClearOutlined,
+  CopyOutlined,
+  DeleteOutlined,
+  DownloadOutlined,
+  PauseCircleOutlined,
+  PlayCircleOutlined,
+  ReloadOutlined,
+} from "@ant-design/icons";
 
 import MainLayout from "../layouts/MainLayout";
-import { adminApi } from "../services/api";
-import logo from "../store/images/idncar.png";
+import { getFriendlyMessage } from "../lib/errorMessage";
+import { isAllowedWebTargetUrl } from "../lib/urlValidation";
+import { adminApi } from "../services/api/admin";
+import logo from "../assets/idncar-mark.svg";
 import type { QrCodeItem, QrScanLog, SaveQrCodePayload } from "../types/app";
-
-function getFriendlyMessage(error: unknown, fallback: string) {
-  if (!(error instanceof Error) || !error.message) return fallback;
-  return /[\u4e00-\u9fa5]/.test(error.message) ? error.message : fallback;
-}
 
 function buildShortLink(shortCode: string) {
   return `${window.location.origin}/q/${shortCode}`;
 }
 
-function getPreviewUrl(shortCode: string) {
-  return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=16&color=32-76-214&data=${encodeURIComponent(buildShortLink(shortCode))}`;
+function validateTargetUrl(_: unknown, value?: string) {
+  return isAllowedWebTargetUrl(value)
+    ? Promise.resolve()
+    : Promise.reject(new Error("目标链接需为 http(s) 地址或以 / 开头的站内路径"));
+}
+
+function buildQrSavePayload(item: QrCodeItem, status: "ACTIVE" | "DISABLED"): SaveQrCodePayload {
+  return {
+    title: item.title,
+    description: item.description ?? undefined,
+    shortCode: item.shortCode,
+    targetUrl: item.targetUrl,
+    status,
+    loginRequired: item.loginRequired,
+    accessCodeRequired: item.accessCodeRequired,
+    expiresAt: item.expiresAt ?? undefined,
+  };
+}
+
+function csvCell(value: string | number | boolean | null | undefined) {
+  const text = String(value ?? "");
+  return `"${text.replace(/"/g, '""')}"`;
 }
 
 export default function QrManage() {
@@ -29,6 +55,9 @@ export default function QrManage() {
   const [editingItem, setEditingItem] = useState<QrCodeItem | null>(null);
   const [previewItem, setPreviewItem] = useState<QrCodeItem | null>(null);
   const [logItem, setLogItem] = useState<QrCodeItem | null>(null);
+  const [keyword, setKeyword] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [selectedItemIds, setSelectedItemIds] = useState<number[]>([]);
   const [form] = Form.useForm<SaveQrCodePayload>();
 
   useEffect(() => {
@@ -38,7 +67,10 @@ export default function QrManage() {
   async function loadQrCodes() {
     setLoading(true);
     try {
-      setItems(await adminApi.getQrCodes());
+      const result = await adminApi.getQrCodes();
+      const availableIds = new Set(result.map((item) => item.id));
+      setItems(result);
+      setSelectedItemIds((current) => current.filter((id) => availableIds.has(id)));
     } catch (error) {
       message.error(getFriendlyMessage(error, "加载二维码列表失败"));
     } finally {
@@ -110,9 +142,77 @@ export default function QrManage() {
     try {
       await adminApi.deleteQrCode(item.id);
       setItems((current) => current.filter((currentItem) => currentItem.id !== item.id));
+      setSelectedItemIds((current) => current.filter((id) => id !== item.id));
       message.success("二维码已删除");
     } catch (error) {
       message.error(getFriendlyMessage(error, "删除二维码失败"));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleUpdateSelectedStatus(status: "ACTIVE" | "DISABLED") {
+    if (selectedItemIds.length === 0) {
+      message.warning("请先勾选要处理的二维码");
+      return;
+    }
+    const selectedIdSet = new Set(selectedItemIds);
+    const targets = items.filter((item) => selectedIdSet.has(item.id) && item.status !== status);
+    if (targets.length === 0) {
+      message.warning(status === "ACTIVE" ? "所选二维码已经是启用状态" : "所选二维码已经是停用状态");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const results = await Promise.allSettled(
+        targets.map((item) => adminApi.updateQrCode(item.id, buildQrSavePayload(item, status))),
+      );
+      const successCount = results.filter((result) => result.status === "fulfilled").length;
+      const failedCount = results.length - successCount;
+      if (successCount > 0) {
+        message.success(`已${status === "ACTIVE" ? "启用" : "停用"} ${successCount} 个二维码${failedCount > 0 ? `，${failedCount} 个失败` : ""}`);
+      } else {
+        message.error(status === "ACTIVE" ? "批量启用失败" : "批量停用失败");
+      }
+      setSelectedItemIds([]);
+      await loadQrCodes();
+    } catch (error) {
+      message.error(getFriendlyMessage(error, status === "ACTIVE" ? "批量启用失败" : "批量停用失败"));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleDeleteSelected() {
+    if (selectedItemIds.length === 0) {
+      message.warning("请先勾选要删除的二维码");
+      return;
+    }
+    const selectedIdSet = new Set(selectedItemIds);
+    const targets = items.filter((item) => selectedIdSet.has(item.id));
+    if (targets.length === 0) {
+      message.warning("所选二维码不存在或已被删除");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const results = await Promise.allSettled(targets.map((item) => adminApi.deleteQrCode(item.id).then(() => item.id)));
+      const deletedIds = results
+        .filter((result): result is PromiseFulfilledResult<number> => result.status === "fulfilled")
+        .map((result) => result.value);
+      const failedCount = results.length - deletedIds.length;
+      if (deletedIds.length > 0) {
+        const deletedIdSet = new Set(deletedIds);
+        setItems((current) => current.filter((item) => !deletedIdSet.has(item.id)));
+        setSelectedItemIds([]);
+        message.success(`已删除 ${deletedIds.length} 个二维码${failedCount > 0 ? `，${failedCount} 个失败` : ""}`);
+      } else {
+        message.error("批量删除二维码失败");
+      }
+    } catch (error) {
+      message.error(getFriendlyMessage(error, "批量删除二维码失败"));
     } finally {
       setSubmitting(false);
     }
@@ -136,10 +236,82 @@ export default function QrManage() {
     }
   }
 
+  function clearFilters() {
+    setKeyword("");
+    setStatusFilter("ALL");
+  }
+
+  function selectFilteredItems() {
+    if (filteredItems.length === 0) {
+      message.warning("当前筛选结果为空");
+      return;
+    }
+    setSelectedItemIds(filteredItems.map((item) => item.id));
+    message.success(`已选择 ${filteredItems.length} 个二维码`);
+  }
+
+  function copySelectedLinks() {
+    if (selectedItems.length === 0) {
+      message.warning("请先勾选要复制的二维码");
+      return;
+    }
+    void copyText(selectedItems.map((item) => buildShortLink(item.shortCode)).join("\n"), `已复制 ${selectedItems.length} 个短链`);
+  }
+
+  function exportQrCodes() {
+    const targets = selectedItems.length > 0 ? selectedItems : filteredItems;
+    if (targets.length === 0) {
+      message.warning("当前没有可导出的二维码");
+      return;
+    }
+    const rows = [
+      ["标题", "短码", "短链", "目标链接", "状态", "需要登录", "访问验证码", "过期时间", "累计扫码", "今日扫码", "最近扫码"].map(csvCell).join(","),
+      ...targets.map((item) =>
+        [
+          item.title,
+          item.shortCode,
+          buildShortLink(item.shortCode),
+          item.targetUrl,
+          item.status === "ACTIVE" ? "启用" : "停用",
+          item.loginRequired ? "是" : "否",
+          item.accessCodeRequired ? "是" : "否",
+          item.expiresAt || "",
+          item.scanCount ?? 0,
+          item.todayScanCount ?? 0,
+          item.lastScanTime || "",
+        ].map(csvCell).join(","),
+      ),
+    ];
+    const blob = new Blob([`\uFEFF${rows.join("\n")}`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `qr-codes-${Date.now()}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    message.success(selectedItems.length > 0 ? "已导出所选二维码" : "已导出当前筛选二维码");
+  }
+
   const totalScanCount = useMemo(
     () => items.reduce((sum, item) => sum + (item.scanCount ?? 0), 0),
     [items],
   );
+  const filteredItems = useMemo(() => {
+    const normalizedKeyword = keyword.trim().toLowerCase();
+    return items.filter((item) => {
+      const matchesStatus = statusFilter === "ALL" || item.status === statusFilter;
+      const searchable = [item.title, item.description, item.shortCode, item.targetUrl].filter(Boolean).join(" ").toLowerCase();
+      const matchesKeyword = !normalizedKeyword || searchable.includes(normalizedKeyword);
+      return matchesStatus && matchesKeyword;
+    });
+  }, [items, keyword, statusFilter]);
+  const selectedItems = useMemo(() => {
+    const selectedIdSet = new Set(selectedItemIds);
+    return items.filter((item) => selectedIdSet.has(item.id));
+  }, [items, selectedItemIds]);
+  const activeCount = useMemo(() => items.filter((item) => item.status === "ACTIVE").length, [items]);
+  const disabledCount = items.length - activeCount;
+  const hasFilters = keyword.trim() !== "" || statusFilter !== "ALL";
 
   const columns: ColumnsType<QrCodeItem> = [
     {
@@ -147,9 +319,8 @@ export default function QrManage() {
       key: "qr",
       render: (_, record) => (
         <div className="flex items-center gap-3">
-          <div className="relative h-16 w-16 overflow-hidden rounded-2xl border border-slate-100 bg-white p-1">
-            <img src={getPreviewUrl(record.shortCode)} alt={record.title} className="h-full w-full rounded-xl object-cover" />
-            <img src={logo} alt="IDNCAR" className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-md border border-white bg-white p-[2px]" />
+          <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-slate-100 bg-white p-1">
+            <QRCode value={buildShortLink(record.shortCode)} size={56} color="#204cd6" icon={logo} iconSize={18} bordered={false} />
           </div>
           <div>
             <div className="font-medium text-slate-900">{record.title}</div>
@@ -207,34 +378,98 @@ export default function QrManage() {
   ];
 
   return (
-    <MainLayout>
+    <MainLayout contentWidth="wide">
       <div className="space-y-8 py-8 md:py-10">
         <Card className="rounded-[30px] border-slate-100 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <div className="text-sm uppercase tracking-[0.24em] text-slate-400">QR Center</div>
+              <div className="text-sm uppercase tracking-[0.24em] text-slate-400">二维码中心</div>
               <h1 className="mt-2 text-3xl font-semibold text-slate-900">品牌二维码管理</h1>
               <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-500">
                 支持动态短链、扫码统计、过期控制、登录后访问和访问验证码。生成后二维码短链固定，目标地址以后也能继续改。
               </p>
             </div>
             <Space>
-              <Button onClick={() => void loadQrCodes()}>刷新列表</Button>
+              <Button icon={<ReloadOutlined />} onClick={() => void loadQrCodes()}>刷新列表</Button>
               <Button type="primary" onClick={openCreate}>新建二维码</Button>
             </Space>
           </div>
           <div className="mt-5 flex flex-wrap gap-3">
             <Tag color="blue">二维码数量 {items.length}</Tag>
+            <Tag color="green">启用 {activeCount}</Tag>
+            <Tag color="red">停用 {disabledCount}</Tag>
             <Tag color="cyan">累计扫码 {totalScanCount}</Tag>
+            {hasFilters ? <Tag color="purple">筛选 {filteredItems.length}</Tag> : null}
+            {selectedItemIds.length > 0 ? <Tag color="gold">已选 {selectedItemIds.length}</Tag> : null}
           </div>
         </Card>
 
         <Card className="rounded-[30px] border-slate-100 shadow-sm">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <Space wrap>
+              <Input.Search
+                allowClear
+                enterButton="搜索"
+                placeholder="搜索标题、短码或目标链接"
+                value={keyword}
+                onChange={(event) => setKeyword(event.target.value)}
+                style={{ width: 280 }}
+              />
+              <Select
+                value={statusFilter}
+                onChange={setStatusFilter}
+                style={{ width: 130 }}
+                options={[
+                  { label: "全部状态", value: "ALL" },
+                  { label: "启用", value: "ACTIVE" },
+                  { label: "停用", value: "DISABLED" },
+                ]}
+              />
+              <Button onClick={selectFilteredItems} disabled={filteredItems.length === 0}>选择筛选结果</Button>
+              <Button icon={<ClearOutlined />} disabled={!hasFilters} onClick={clearFilters}>清空筛选</Button>
+            </Space>
+            <Space wrap>
+              <Button icon={<CopyOutlined />} disabled={selectedItems.length === 0} onClick={copySelectedLinks}>复制所选短链</Button>
+              <Button icon={<DownloadOutlined />} disabled={filteredItems.length === 0 && selectedItems.length === 0} onClick={exportQrCodes}>导出</Button>
+              <Button
+                icon={<PlayCircleOutlined />}
+                loading={submitting}
+                disabled={selectedItems.length === 0}
+                onClick={() => void handleUpdateSelectedStatus("ACTIVE")}
+              >
+                启用所选
+              </Button>
+              <Button
+                icon={<PauseCircleOutlined />}
+                loading={submitting}
+                disabled={selectedItems.length === 0}
+                onClick={() => void handleUpdateSelectedStatus("DISABLED")}
+              >
+                停用所选
+              </Button>
+              <Popconfirm
+                title={`确认删除选中的 ${selectedItems.length} 个二维码吗？`}
+                description="删除后短链、二维码和扫码记录入口都会失效。"
+                okText="删除"
+                okButtonProps={{ danger: true }}
+                onConfirm={() => void handleDeleteSelected()}
+                disabled={selectedItems.length === 0}
+              >
+                <Button danger icon={<DeleteOutlined />} loading={submitting} disabled={selectedItems.length === 0}>删除所选</Button>
+              </Popconfirm>
+            </Space>
+          </div>
           <Table<QrCodeItem>
             rowKey="id"
             loading={loading}
             columns={columns}
-            dataSource={items}
+            dataSource={filteredItems}
+            rowSelection={{
+              selectedRowKeys: selectedItemIds,
+              onChange: (keys) => {
+                setSelectedItemIds(keys.map((key) => Number(key)).filter((key) => Number.isFinite(key)));
+              },
+            }}
             pagination={{ pageSize: 6 }}
             scroll={{ x: 960 }}
             locale={{ emptyText: "还没有创建二维码" }}
@@ -253,7 +488,14 @@ export default function QrManage() {
           <Form.Item name="shortCode" label="短码">
             <Input placeholder="留空自动生成，例如 home2026" />
           </Form.Item>
-          <Form.Item name="targetUrl" label="目标链接" rules={[{ required: true, message: "请输入目标链接" }]}>
+          <Form.Item
+            name="targetUrl"
+            label="目标链接"
+            rules={[
+              { required: true, message: "请输入目标链接" },
+              { validator: validateTargetUrl },
+            ]}
+          >
             <Input placeholder="https://idncar.com/downloads 或 /downloads" />
           </Form.Item>
           <Form.Item name="status" label="状态">
@@ -268,8 +510,13 @@ export default function QrManage() {
           <Form.Item noStyle shouldUpdate={(prev, next) => prev.accessCodeRequired !== next.accessCodeRequired}>
             {({ getFieldValue }) =>
               getFieldValue("accessCodeRequired") ? (
-                <Form.Item name="accessCode" label="访问验证码">
-                  <Input placeholder="编辑时留空则保持原验证码" />
+                <Form.Item
+                  name="accessCode"
+                  label="访问验证码"
+                  rules={editingItem ? [] : [{ required: true, message: "新建需要验证码的二维码时，请填写访问验证码" }]}
+                  extra={editingItem ? "编辑时留空会继续使用原验证码；填写新值则替换验证码。" : undefined}
+                >
+                  <Input placeholder={editingItem ? "留空保持原验证码" : "请输入访问验证码"} />
                 </Form.Item>
               ) : null
             }
@@ -287,15 +534,14 @@ export default function QrManage() {
       <Modal title={previewItem ? `二维码预览：${previewItem.title}` : "二维码预览"} open={Boolean(previewItem)} onCancel={() => setPreviewItem(null)} footer={null}>
         {previewItem ? (
           <div className="space-y-4 text-center">
-            <div className="relative mx-auto h-72 w-72 rounded-[32px] border border-slate-100 bg-white p-4 shadow-sm">
-              <img src={getPreviewUrl(previewItem.shortCode)} alt={previewItem.title} className="h-full w-full rounded-[24px] object-cover" />
-              <img src={logo} alt="IDNCAR" className="absolute left-1/2 top-1/2 h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-2xl border-4 border-white bg-white p-2 shadow-sm" />
+            <div className="mx-auto flex h-72 w-72 items-center justify-center rounded-[32px] border border-slate-100 bg-white p-4 shadow-sm">
+              <QRCode value={buildShortLink(previewItem.shortCode)} size={256} color="#204cd6" icon={logo} iconSize={56} bordered={false} />
             </div>
             <div className="text-lg font-semibold text-slate-900">{previewItem.title}</div>
             <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">{buildShortLink(previewItem.shortCode)}</div>
             <Space>
               <Button onClick={() => void copyText(buildShortLink(previewItem.shortCode), "短链已复制")}>复制短链</Button>
-              <Button type="primary" onClick={() => window.open(buildShortLink(previewItem.shortCode), "_blank")}>打开测试</Button>
+              <Button type="primary" onClick={() => window.open(buildShortLink(previewItem.shortCode), "_blank", "noopener,noreferrer")}>打开测试</Button>
             </Space>
           </div>
         ) : null}

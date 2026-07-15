@@ -1,4 +1,5 @@
-import { API_BASE_URL, downloadApi } from "./api";
+import { apiRequest, buildApiRequestUrl } from "./api/client";
+import { downloadApi } from "./api/download";
 import type { DownloadResource } from "../types/app";
 
 export type DownloadItem = {
@@ -9,6 +10,7 @@ export type DownloadItem = {
   url: string;
   icon?: string | null;
   locked?: boolean;
+  passwordProtected?: boolean;
   category?: string | null;
   fileSize?: string | null;
   checksumSha256?: string | null;
@@ -26,6 +28,7 @@ function mapDownload(item: DownloadResource): DownloadItem {
     url: item.url,
     icon: item.icon,
     locked: item.locked,
+    passwordProtected: item.passwordProtected,
     category: item.category,
     fileSize: item.fileSize,
     checksumSha256: item.checksumSha256,
@@ -66,16 +69,12 @@ function getBrowserOrigin() {
   return typeof window === "undefined" ? "http://localhost" : window.location.origin;
 }
 
-function getApiBaseUrl() {
-  return API_BASE_URL || getBrowserOrigin();
-}
-
 function getApiOrigin() {
-  return new URL(getApiBaseUrl(), getBrowserOrigin()).origin;
+  return new URL(buildApiRequestUrl("/"), getBrowserOrigin()).origin;
 }
 
-function buildApiUrl(path: string) {
-  return new URL(path, getApiBaseUrl()).toString();
+function buildAbsoluteApiUrl(path: string) {
+  return new URL(buildApiRequestUrl(path), getBrowserOrigin()).toString();
 }
 
 export function resolveDownloadUrl(url: string) {
@@ -105,7 +104,7 @@ export function resolveDownloadUrl(url: string) {
 }
 
 async function detectFileSizeFromUrl(url: string): Promise<string | null> {
-  const target = resolveDownloadUrl(url);
+  const target = buildDirectDownloadUrl(url);
   if (!/^https?:\/\//i.test(target)) {
     return null;
   }
@@ -152,7 +151,12 @@ export async function hydrateMissingFileSizes(items: DownloadItem[]): Promise<Do
   const nextItems = [...items];
   for (let i = 0; i < nextItems.length; i += 1) {
     const item = nextItems[i];
-    if (item.fileSize || !item.url) {
+    if (
+      item.fileSize ||
+      !item.url ||
+      item.locked ||
+      item.passwordProtected
+    ) {
       continue;
     }
 
@@ -165,60 +169,46 @@ export async function hydrateMissingFileSizes(items: DownloadItem[]): Promise<Do
   return nextItems;
 }
 
-export function buildVerifyPageUrl(resource: string, fileName?: string) {
+export function buildVerifyPageUrl(
+  resource: string,
+  fileName?: string,
+  requirements?: { captchaRequired?: boolean; passwordRequired?: boolean },
+) {
   const verifyUrl = new URL("/verify", getBrowserOrigin());
   verifyUrl.searchParams.set("resource", resource);
   if (fileName && fileName.trim()) {
     verifyUrl.searchParams.set("fileName", fileName.trim());
   }
+  verifyUrl.searchParams.set(
+    "captcha",
+    requirements?.captchaRequired === false ? "0" : "1",
+  );
+  if (requirements?.passwordRequired) {
+    verifyUrl.searchParams.set("password", "1");
+  }
   return verifyUrl.toString();
 }
 
 export function buildProtectedDownloadUrl(downloadToken: string) {
-  const downloadUrl = new URL("/api/download", getApiBaseUrl());
+  const downloadUrl = new URL(buildAbsoluteApiUrl("/api/download/"));
   downloadUrl.searchParams.set("token", downloadToken);
   return downloadUrl.toString();
 }
 
-async function fetchJson(input: RequestInfo, init?: RequestInit, timeout = 10000) {
-  const controller = new AbortController();
-  const timerId = window.setTimeout(() => controller.abort(), timeout);
-
-  try {
-    const response = await fetch(input, { ...init, signal: controller.signal });
-    const text = await response.text();
-    let json: unknown = null;
-
-    try {
-      json = text ? JSON.parse(text) : null;
-    } catch {
-      throw new Error("服务器返回的数据格式不正确");
-    }
-
-    if (!response.ok) {
-      const message =
-        json && typeof json === "object" && ("message" in json || "error" in json)
-          ? String((json as Record<string, unknown>).message ?? (json as Record<string, unknown>).error)
-          : response.statusText || "请求失败";
-      throw new Error(message);
-    }
-
-    return json;
-  } catch (error: unknown) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error("请求超时，请稍后重试");
-    }
-    throw error;
-  } finally {
-    window.clearTimeout(timerId);
+export function buildDirectDownloadUrl(resource: string, fileName?: string) {
+  const downloadUrl = new URL(buildAbsoluteApiUrl("/api/download/direct/"));
+  downloadUrl.searchParams.set("resource", resource);
+  if (fileName && fileName.trim()) {
+    downloadUrl.searchParams.set("fileName", fileName.trim());
   }
+  return downloadUrl.toString();
 }
 
 export async function getCaptcha(): Promise<{ captchaId: string; image: string }> {
-  return fetchJson(buildApiUrl("/api/captcha"), { cache: "no-store" }, 8000) as Promise<{
-    captchaId: string;
-    image: string;
-  }>;
+  return apiRequest<{ captchaId: string; image: string }>("/api/download/captcha", {
+    cache: "no-store",
+    timeoutMs: 8000,
+  });
 }
 
 export async function verifyCaptcha(
@@ -226,14 +216,11 @@ export async function verifyCaptcha(
   answer: string,
   resource: string,
   fileName?: string,
+  password?: string,
 ): Promise<{ ok?: boolean; downloadToken?: string; message?: string }> {
-  return fetchJson(
-    buildApiUrl("/api/verify_captcha"),
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ captchaId, answer, resource, fileName }),
-    },
-    10000,
-  ) as Promise<{ ok?: boolean; downloadToken?: string; message?: string }>;
+  return apiRequest<{ ok?: boolean; downloadToken?: string; message?: string }>("/api/download/verify", {
+    method: "POST",
+    body: { captchaId, answer, resource, fileName, password },
+    timeoutMs: 10000,
+  });
 }

@@ -12,7 +12,10 @@ import com.idncar.model.dto.PrivateChatMessageDto;
 import com.idncar.model.dto.PrivateChatUserDto;
 import com.idncar.model.dto.UpdateChatPresenceModeRequest;
 import com.idncar.service.CommunityService;
+import com.idncar.util.ImageUploadHelper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,8 +27,10 @@ import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/community")
@@ -33,6 +38,12 @@ public class CommunityController {
 
     @Autowired
     private CommunityService communityService;
+
+    @Value("${app.upload.base-dir:uploads}")
+    private String uploadBaseDir;
+
+    @Value("${app.upload.chat-image-subdir:chat-images}")
+    private String uploadChatImageSubDir;
 
     @GetMapping({"/chat/rooms/{roomId}/messages", "/chat/rooms/{roomId}/messages/"})
     public ResponseEntity<List<ChatRoomMessageDto>> getChatMessages(@PathVariable String roomId) {
@@ -42,6 +53,12 @@ public class CommunityController {
     @PostMapping({"/chat/messages", "/chat/messages/"})
     public ResponseEntity<ChatRoomMessageDto> createChatMessage(@RequestBody CreateChatMessageRequest request) {
         return ResponseEntity.ok(communityService.createChatMessage(request));
+    }
+
+    @PostMapping(value = {"/chat/images", "/chat/images/"}, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Map<String, String>> uploadChatImage(@RequestAttribute("userId") Long userId,
+                                                               @RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(ImageUploadHelper.saveImage(file, userId, uploadBaseDir, uploadChatImageSubDir, "chat", "聊天"));
     }
 
     @DeleteMapping({"/chat/rooms/{roomId}/messages", "/chat/rooms/{roomId}/messages/"})
@@ -105,4 +122,5 @@ public class CommunityController {
                                                                      @RequestBody CreateCommunityTalkCommentRequest request) {
         return ResponseEntity.ok(communityService.createTalkComment(postId, request));
     }
+
 }

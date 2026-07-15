@@ -1,0 +1,1197 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IDNCAR 贴吧式论坛 Demo</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        min-height: 100%;
+      }
+
+      body {
+        margin: 0;
+        color: #111827;
+        background: #fff;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      .app {
+        min-height: 100vh;
+        padding-top: 54px;
+      }
+
+      .topbar {
+        position: fixed;
+        inset: 0 0 auto 0;
+        z-index: 20;
+        display: grid;
+        grid-template-columns: 590px minmax(420px, 620px) minmax(220px, 1fr);
+        align-items: center;
+        height: 54px;
+        border-bottom: 1px solid #edf0f5;
+        background: rgba(255, 255, 255, 0.96);
+        backdrop-filter: blur(10px);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding-left: 32px;
+        font-size: 20px;
+        font-weight: 800;
+      }
+
+      .brand-mark {
+        display: grid;
+        place-items: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 10px;
+        color: #fff;
+        background: linear-gradient(135deg, #2468ff, #8854ff);
+        font-weight: 900;
+      }
+
+      .search {
+        position: relative;
+      }
+
+      .search input {
+        width: 100%;
+        height: 36px;
+        border: 0;
+        border-radius: 999px;
+        outline: none;
+        background: #f5f6fa;
+        color: #1f2937;
+        padding: 0 18px 0 44px;
+      }
+
+      .search span {
+        position: absolute;
+        left: 18px;
+        top: 8px;
+        color: #8b95a5;
+      }
+
+      .top-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 18px;
+        padding-right: 32px;
+        color: #111827;
+      }
+
+      .publish {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        height: 36px;
+        min-width: 94px;
+        border: 0;
+        border-radius: 999px;
+        background: #346cff;
+        color: #fff;
+        font-weight: 700;
+      }
+
+      .icon-button {
+        width: 26px;
+        height: 26px;
+        border: 0;
+        background: transparent;
+        color: #111827;
+        font-size: 20px;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: 288px minmax(760px, 1024px) 328px;
+        gap: 0;
+        max-width: none;
+        margin: 0;
+      }
+
+      .left-shell {
+        position: sticky;
+        top: 54px;
+        height: calc(100vh - 54px);
+        border-right: 1px solid #edf0f5;
+        overflow: hidden auto;
+        padding: 8px 0 32px;
+      }
+
+      .left-inner {
+        width: 204px;
+        margin-left: 48px;
+        padding-top: 8px;
+      }
+
+      .nav-card {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        width: 100%;
+        height: 48px;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        padding: 0 16px;
+        color: #111827;
+        text-align: left;
+        font-size: 15px;
+        font-weight: 700;
+      }
+
+      .nav-card.active {
+        background: #f5f6fb;
+      }
+
+      .nav-icon {
+        display: grid;
+        place-items: center;
+        width: 22px;
+        height: 22px;
+        border: 1.8px solid #111827;
+        border-radius: 8px;
+        font-size: 12px;
+      }
+
+      .left-section {
+        border-top: 1px solid #f0f2f5;
+        margin-top: 14px;
+        padding-top: 18px;
+      }
+
+      .section-title {
+        margin: 0 0 14px;
+        color: #8b95a5;
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .bar-list {
+        display: grid;
+        gap: 14px;
+      }
+
+      .bar-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border: 0;
+        background: transparent;
+        padding: 0;
+        text-align: left;
+        color: #111827;
+        font-size: 15px;
+        font-weight: 650;
+      }
+
+      .bar-avatar,
+      .user-avatar {
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+        width: 30px;
+        height: 30px;
+        overflow: hidden;
+        border-radius: 8px;
+        color: #fff;
+        background: #111827;
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .bar-avatar.red {
+        background: #ef1745;
+      }
+
+      .bar-avatar.sky {
+        background: linear-gradient(135deg, #60a5fa, #f472b6);
+      }
+
+      .bar-avatar.gold {
+        background: linear-gradient(135deg, #f59e0b, #7c2d12);
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 16px;
+        height: 16px;
+        border-radius: 999px;
+        background: #62cfa8;
+        color: #fff;
+        padding: 0 5px;
+        font-size: 10px;
+        font-weight: 800;
+      }
+
+      .expand {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        height: 34px;
+        border: 0;
+        border-radius: 8px;
+        background: #f5f6fa;
+        color: #111827;
+        padding: 0 12px;
+        font-weight: 700;
+      }
+
+      .feed-shell {
+        min-height: calc(100vh - 54px);
+        padding: 18px 32px 56px 238px;
+      }
+
+      .feed {
+        max-width: 650px;
+        margin: 0 auto;
+      }
+
+      .feed-item {
+        position: relative;
+        padding: 0 0 20px;
+        border-bottom: 1px solid #f0f2f5;
+        margin-bottom: 18px;
+      }
+
+      .feed-item.ad {
+        display: grid;
+        grid-template-columns: 42px minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: start;
+      }
+
+      .post-head {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+      }
+
+      .user-avatar {
+        width: 42px;
+        height: 42px;
+        border-radius: 10px;
+        font-size: 14px;
+      }
+
+      .post-meta {
+        min-width: 0;
+      }
+
+      .name-line {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 14px;
+        font-weight: 800;
+      }
+
+      .sub-line {
+        margin-top: 2px;
+        color: #8b95a5;
+        font-size: 12px;
+        font-weight: 650;
+      }
+
+      .level {
+        border-radius: 4px;
+        background: #ffe9dd;
+        color: #f97316;
+        padding: 1px 4px;
+        font-size: 10px;
+        font-weight: 900;
+      }
+
+      .medal {
+        border-radius: 4px;
+        background: #fff3c4;
+        color: #d97706;
+        padding: 1px 4px;
+        font-size: 10px;
+        font-weight: 900;
+      }
+
+      .post-title {
+        display: block;
+        margin: 12px 0 6px;
+        border: 0;
+        background: transparent;
+        color: #111827;
+        padding: 0;
+        text-align: left;
+        font-size: 16px;
+        font-weight: 900;
+        line-height: 1.4;
+      }
+
+      .post-text {
+        margin: 0 0 10px;
+        color: #111827;
+        font-size: 14px;
+        line-height: 1.65;
+      }
+
+      .feed-image {
+        display: block;
+        width: min(460px, 100%);
+        overflow: hidden;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        background: #f3f4f6;
+      }
+
+      .feed-image img {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+
+      .feed-image.portrait {
+        width: 206px;
+        height: 274px;
+      }
+
+      .feed-image.portrait img {
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .feed-image.wide {
+        width: min(520px, 100%);
+      }
+
+      .video-wrap {
+        position: relative;
+      }
+
+      .play {
+        position: absolute;
+        inset: 50% auto auto 50%;
+        display: grid;
+        place-items: center;
+        width: 54px;
+        height: 54px;
+        border-radius: 999px;
+        background: rgba(17, 24, 39, 0.72);
+        color: #fff;
+        transform: translate(-50%, -50%);
+        font-size: 22px;
+      }
+
+      .actions {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr) 26px;
+        align-items: center;
+        width: min(540px, 100%);
+        margin-top: 12px;
+        color: #5f6b7a;
+      }
+
+      .actions button {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        padding: 0;
+        font-size: 14px;
+      }
+
+      .actions .close-post {
+        justify-content: end;
+      }
+
+      .ad-logo {
+        width: 42px;
+        height: 42px;
+        border-radius: 10px;
+        background: #7c2d12;
+        color: #fef3c7;
+        display: grid;
+        place-items: center;
+        font-weight: 900;
+      }
+
+      .ad-title {
+        margin: 0 0 8px;
+        font-weight: 900;
+      }
+
+      .ad-copy {
+        margin: 0 0 10px;
+        color: #111827;
+        line-height: 1.6;
+      }
+
+      .ad-button {
+        align-self: start;
+        border: 0;
+        border-radius: 999px;
+        background: #eef3ff;
+        color: #346cff;
+        padding: 8px 18px;
+        font-weight: 800;
+      }
+
+      .right-shell {
+        position: sticky;
+        top: 54px;
+        height: calc(100vh - 54px);
+        overflow: hidden auto;
+        padding: 18px 0 48px;
+      }
+
+      .right-inner {
+        width: 280px;
+      }
+
+      .ad-banner {
+        width: 100%;
+        height: 156px;
+        border-radius: 8px;
+        overflow: hidden;
+        background: linear-gradient(135deg, #2d1b69, #2297ff);
+        color: #fff;
+        padding: 18px;
+        display: grid;
+        align-content: end;
+        font-weight: 900;
+        margin-bottom: 18px;
+      }
+
+      .side-panel {
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        background: #fff;
+        padding: 16px;
+        margin-bottom: 18px;
+      }
+
+      .panel-title {
+        margin: 0 0 14px;
+        font-size: 15px;
+        font-weight: 900;
+      }
+
+      .hot-list {
+        display: grid;
+        gap: 13px;
+        color: #374151;
+        font-size: 13px;
+      }
+
+      .hot-item {
+        display: grid;
+        grid-template-columns: 18px minmax(0, 1fr) 18px;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .hot-index {
+        color: #ff7a1a;
+        font-weight: 900;
+      }
+
+      .hot-tag {
+        justify-self: end;
+        border-radius: 4px;
+        background: #fff1db;
+        color: #ff7a1a;
+        padding: 1px 3px;
+        font-size: 10px;
+        font-weight: 900;
+      }
+
+      .mini-forums {
+        display: grid;
+        gap: 14px;
+      }
+
+      .mini-forum {
+        display: grid;
+        grid-template-columns: 34px minmax(0, 1fr);
+        gap: 10px;
+      }
+
+      .mini-title {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .mini-copy {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: #8b95a5;
+        font-size: 12px;
+      }
+
+      .mini-orange {
+        margin-top: 3px;
+        color: #f97316;
+        font-size: 12px;
+      }
+
+      .detail-mode .feed-shell {
+        padding-top: 0;
+      }
+
+      .detail-page {
+        display: none;
+        max-width: 704px;
+        margin: 0 auto;
+      }
+
+      .detail-mode .feed-list {
+        display: none;
+      }
+
+      .detail-mode .detail-page {
+        display: block;
+      }
+
+      .detail-top {
+        display: grid;
+        grid-template-columns: 52px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 14px;
+        padding: 0 0 16px;
+      }
+
+      .back {
+        display: grid;
+        place-items: center;
+        width: 42px;
+        height: 42px;
+        border: 0;
+        border-radius: 999px;
+        background: #f5f6fb;
+        color: #111827;
+        font-size: 26px;
+      }
+
+      .follow {
+        border: 0;
+        border-radius: 999px;
+        background: #eef3ff;
+        color: #346cff;
+        padding: 8px 18px;
+        font-weight: 800;
+      }
+
+      .detail-title {
+        margin: 12px 0 8px;
+        font-size: 21px;
+        font-weight: 900;
+      }
+
+      .detail-image {
+        width: min(456px, 100%);
+        height: 608px;
+        overflow: hidden;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+      }
+
+      .detail-image img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .detail-actions {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 10px;
+        width: min(680px, 100%);
+        border-bottom: 1px solid #f0f2f5;
+        padding: 14px 0 18px;
+        color: #4b5563;
+      }
+
+      .detail-actions button {
+        border: 0;
+        background: transparent;
+        color: inherit;
+        text-align: left;
+        font-size: 15px;
+      }
+
+      .reply-tabs {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 20px 0 12px;
+      }
+
+      .tab-line {
+        display: flex;
+        gap: 34px;
+        font-weight: 900;
+      }
+
+      .tab-line span:first-child {
+        color: #111827;
+        border-bottom: 3px solid #346cff;
+        padding-bottom: 8px;
+      }
+
+      .sorts {
+        display: flex;
+        gap: 4px;
+        border-radius: 999px;
+        background: #f7f8fb;
+        padding: 3px;
+        color: #8b95a5;
+        font-size: 12px;
+      }
+
+      .sorts span {
+        padding: 4px 9px;
+      }
+
+      .sorts span:first-child {
+        border-radius: 999px;
+        background: #fff;
+        color: #111827;
+      }
+
+      .comment-input {
+        display: grid;
+        grid-template-columns: 36px minmax(0, 1fr);
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 22px;
+      }
+
+      .comment-input input {
+        height: 40px;
+        border: 1px solid #e5e7eb;
+        border-radius: 999px;
+        outline: none;
+        background: #f7f8fb;
+        padding: 0 16px;
+      }
+
+      .reply-list {
+        display: grid;
+        gap: 22px;
+      }
+
+      .reply-item {
+        display: grid;
+        grid-template-columns: 42px minmax(0, 1fr);
+        gap: 10px;
+      }
+
+      .reply-body {
+        min-width: 0;
+      }
+
+      .reply-name {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: #4b5563;
+        font-size: 14px;
+        font-weight: 800;
+      }
+
+      .reply-text {
+        margin: 6px 0;
+        color: #111827;
+        line-height: 1.7;
+      }
+
+      .reply-foot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: #8b95a5;
+        font-size: 13px;
+      }
+
+      .detail-side-card {
+        display: none;
+      }
+
+      .detail-mode .home-side {
+        display: none;
+      }
+
+      .detail-mode .detail-side-card {
+        display: block;
+      }
+
+      .forum-card-head {
+        display: grid;
+        grid-template-columns: 42px minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .sign {
+        border: 0;
+        border-radius: 999px;
+        background: #f5f6fb;
+        color: #346cff;
+        padding: 8px 14px;
+        font-weight: 900;
+      }
+
+      .forum-desc {
+        margin: 14px 0;
+        color: #4b5563;
+        font-size: 14px;
+        line-height: 1.85;
+      }
+
+      .enter {
+        width: 100%;
+        height: 36px;
+        border: 0;
+        border-radius: 999px;
+        background: #f5f6fb;
+        color: #111827;
+        font-weight: 900;
+      }
+
+      .rec-list {
+        display: grid;
+        gap: 14px;
+      }
+
+      .rec-item {
+        border-bottom: 1px solid #f0f2f5;
+        padding-bottom: 12px;
+      }
+
+      .rec-item:last-child {
+        border-bottom: 0;
+        padding-bottom: 0;
+      }
+
+      .rec-title {
+        display: -webkit-box;
+        overflow: hidden;
+        color: #111827;
+        font-size: 14px;
+        font-weight: 800;
+        line-height: 1.6;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+      }
+
+      .rec-image {
+        width: 100%;
+        height: 120px;
+        object-fit: cover;
+        border-radius: 8px;
+        margin-top: 8px;
+      }
+
+      .rec-meta {
+        display: flex;
+        justify-content: space-between;
+        color: #8b95a5;
+        font-size: 12px;
+        margin-top: 6px;
+      }
+
+      @media (max-width: 1180px) {
+        .topbar {
+          grid-template-columns: 288px minmax(280px, 1fr) 180px;
+        }
+
+        .layout {
+          grid-template-columns: 256px minmax(0, 1fr);
+          max-width: none;
+        }
+
+        .right-shell {
+          display: none;
+        }
+
+        .left-shell {
+          padding-right: 24px;
+        }
+
+        .left-inner {
+          margin-left: 24px;
+        }
+      }
+
+      @media (max-width: 760px) {
+        .topbar {
+          grid-template-columns: 1fr auto;
+          padding: 0 12px;
+        }
+
+        .brand {
+          padding-left: 0;
+        }
+
+        .search,
+        .top-actions .icon-button {
+          display: none;
+        }
+
+        .top-actions {
+          padding-right: 0;
+        }
+
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .left-shell {
+          display: none;
+        }
+
+        .feed-shell {
+          padding: 18px 16px 42px;
+        }
+
+        .actions {
+          grid-template-columns: repeat(4, 1fr);
+        }
+
+        .actions .close-post {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app" id="app">
+      <header class="topbar">
+        <div class="brand"><span class="brand-mark">贴</span> IDNCAR吧</div>
+        <label class="search">
+          <span>⌕</span>
+          <input id="searchInput" placeholder="搜索吧或者帖子" />
+        </label>
+        <div class="top-actions">
+          <button class="publish">+ 发帖</button>
+          <button class="icon-button">≡</button>
+          <button class="icon-button">⇩</button>
+          <button class="icon-button">♙</button>
+          <button class="icon-button">◉</button>
+        </div>
+      </header>
+
+      <div class="layout">
+        <aside class="left-shell">
+          <div class="left-inner">
+            <button class="nav-card active"><span class="nav-icon">⌂</span>首页</button>
+            <button class="nav-card"><span class="nav-icon">○</span>我的</button>
+
+            <section class="left-section">
+              <h2 class="section-title">我常逛的吧</h2>
+              <div class="bar-list">
+                <button class="bar-item"><span class="bar-avatar red">牛</span>小牛电动车吧</button>
+                <button class="bar-item"><span class="bar-avatar gold">逸</span>遮天吧</button>
+                <button class="bar-item"><span class="bar-avatar sky">曼</span>曼城吧</button>
+                <button class="bar-item"><span class="bar-avatar">F1</span>f1吧</button>
+                <button class="bar-item"><span class="bar-avatar sky">深</span>无人深空吧</button>
+              </div>
+            </section>
+
+            <section class="left-section">
+              <h2 class="section-title">我关注的吧</h2>
+              <div class="bar-list">
+                <button class="bar-item"><span class="bar-avatar sky">曼</span>曼城吧 <span class="badge">5</span></button>
+                <button class="bar-item"><span class="bar-avatar gold">遮</span>遮天吧 <span class="badge">4</span></button>
+                <button class="bar-item"><span class="bar-avatar sky">空</span>无人深空吧 <span class="badge">4</span></button>
+                <button class="bar-item"><span class="bar-avatar red">A</span>apex英雄吧 <span class="badge">3</span></button>
+                <button class="bar-item"><span class="bar-avatar gold">线</span>穿越火线吧 <span class="badge">3</span></button>
+                <button class="bar-item"><span class="bar-avatar sky">20</span>fifa20吧 <span class="badge">3</span></button>
+                <button class="bar-item"><span class="bar-avatar">F1</span>f1吧 <span class="badge">2</span></button>
+                <button class="bar-item"><span class="bar-avatar gold">瓦</span>瓦罗兰特吧 <span class="badge">2</span></button>
+                <button class="expand">⌄ 展开全部</button>
+              </div>
+            </section>
+          </div>
+        </aside>
+
+        <main class="feed-shell">
+          <div class="feed">
+            <section class="feed-list" id="feedList"></section>
+
+            <section class="detail-page" id="detailPage">
+              <div class="detail-top">
+                <button class="back" id="backButton">‹</button>
+                <div class="post-head">
+                  <div class="user-avatar sky">T</div>
+                  <div class="post-meta">
+                    <div class="name-line">TimEinsrio <span class="level">Lv.7</span><span class="medal">世界冠军</span></div>
+                    <div class="sub-line">07-04　江苏</div>
+                  </div>
+                </div>
+                <button class="follow">关注</button>
+              </div>
+
+              <h1 class="detail-title">少爷可以换理想了</h1>
+              <p class="post-text">rt</p>
+              <div class="detail-image">
+                <img src="https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=760&h=1014&q=80" alt="赛车活动现场" />
+              </div>
+              <div class="detail-actions">
+                <button>↗ 转发</button>
+                <button>☵ 14</button>
+                <button>♡ 47</button>
+                <button>☆ 2</button>
+                <button>…</button>
+              </div>
+
+              <div class="reply-tabs">
+                <div class="tab-line"><span>全部回复（14）</span><span>只看楼主</span></div>
+                <div class="sorts"><span>热门</span><span>正序</span><span>倒序</span></div>
+              </div>
+
+              <label class="comment-input">
+                <span class="user-avatar sky">我</span>
+                <input placeholder="发贴于百度 文明第一步" />
+              </label>
+
+              <div class="reply-list">
+                <article class="reply-item">
+                  <div class="user-avatar sky">e</div>
+                  <div class="reply-body">
+                    <div class="reply-name">ever120909 <span class="level">Lv.3</span><span class="medal">车队领队</span></div>
+                    <p class="reply-text">智己？</p>
+                    <div class="reply-foot"><span>6小时前　上海</span><span>♡ 赞　☵ 回复　…</span></div>
+                  </div>
+                </article>
+                <article class="reply-item">
+                  <div class="user-avatar red">赛</div>
+                  <div class="reply-body">
+                    <div class="reply-name">赛车四冠王勒克莱尔 <span class="level">Lv.4</span><span class="medal">GP2车手</span></div>
+                    <p class="reply-text">阿斯顿马丁 dbx😂 智己确实像</p>
+                    <div class="reply-foot"><span>6小时前　广东</span><span>♡ 赞　☵ 回复　…</span></div>
+                  </div>
+                </article>
+                <article class="reply-item">
+                  <div class="user-avatar gold">龙</div>
+                  <div class="reply-body">
+                    <div class="reply-name">原始传奇</div>
+                    <p class="reply-text">176老传奇，装备靠打拿自由交易，个性玩法，就玩原始传奇！</p>
+                    <div class="reply-foot"><span>广告</span><span>查看</span></div>
+                  </div>
+                </article>
+              </div>
+            </section>
+          </div>
+        </main>
+
+        <aside class="right-shell">
+          <div class="right-inner">
+            <div class="home-side">
+              <div class="ad-banner">小云雀AI<br />一句话打造一个爆款</div>
+              <section class="side-panel">
+                <h2 class="panel-title">最看料热点</h2>
+                <div class="hot-list">
+                  <div class="hot-item"><span class="hot-index">1</span><span>越南腐乳TES耻辱出局</span><span class="hot-tag">热</span></div>
+                  <div class="hot-item"><span class="hot-index">2</span><span>追骂顾客点餐少，嚣张老板被罚</span><span class="hot-tag">新</span></div>
+                  <div class="hot-item"><span class="hot-index">3</span><span>纯绿色？欧盟给私人飞机开绿灯</span><span class="hot-tag">新</span></div>
+                  <div class="hot-item"><span class="hot-index">4</span><span>逆天剧情儿子改姓连坐爹</span><span class="hot-tag">新</span></div>
+                  <div class="hot-item"><span class="hot-index">5</span><span>表哥带大幼弟网友评论区接力</span><span></span></div>
+                </div>
+              </section>
+              <section class="side-panel">
+                <h2 class="panel-title">最有料吧</h2>
+                <div class="mini-forums">
+                  <div class="mini-forum"><span class="bar-avatar sky">田</span><div><div class="mini-title">田黑特吧</div><div class="mini-copy">最强守护 升级吧友最多</div><div class="mini-orange">盖楼2W次，签到1362人</div></div></div>
+                  <div class="mini-forum"><span class="bar-avatar red">陈</span><div><div class="mini-title">陈都灵吧</div><div class="mini-copy">7.5望灵盖楼榜热闹</div><div class="mini-orange">盖楼2.6W次，签到825人</div></div></div>
+                  <div class="mini-forum"><span class="bar-avatar gold">左</span><div><div class="mini-title">左右函吧</div><div class="mini-copy">左右函数迷们</div><div class="mini-orange">盖楼1.7W次，签到756人</div></div></div>
+                  <div class="mini-forum"><span class="bar-avatar sky">神</span><div><div class="mini-title">梓渝吧</div><div class="mini-copy">2026.7.5</div><div class="mini-orange">盖楼9963次，签到9219人</div></div></div>
+                </div>
+              </section>
+            </div>
+
+            <div class="detail-side-card">
+              <section class="side-panel">
+                <div class="forum-card-head">
+                  <span class="bar-avatar">F1</span>
+                  <div>
+                    <div class="mini-title">f1吧 ⊙</div>
+                    <div class="mini-copy">关注39W　帖子1.5KW</div>
+                  </div>
+                  <button class="sign">签到</button>
+                </div>
+                <p class="forum-desc">世界一级方程式锦标赛观赛,讨论,聊天。f1运动激情与速度、团队与配合的精神让感兴趣的人相聚在贴吧。</p>
+                <button class="enter">进吧看看</button>
+              </section>
+              <section class="side-panel">
+                <h2 class="panel-title">相关推荐</h2>
+                <div class="rec-list">
+                  <article class="rec-item">
+                    <div class="rec-title">新能源车主“醒一醒”！换电池比大修发动机贵多了</div>
+                    <img class="rec-image" src="https://images.unsplash.com/photo-1593941707882-a5bba14938c7?auto=format&fit=crop&w=620&q=80" alt="汽车电池" />
+                    <div class="rec-meta"><span>汽车</span><span>670评论　591点赞</span></div>
+                  </article>
+                  <article class="rec-item">
+                    <div class="rec-title">#来了哥经验分享：关于电动车换电池的避坑指南</div>
+                    <img class="rec-image" src="https://images.unsplash.com/photo-1558981806-ec527fa84c39?auto=format&fit=crop&w=620&q=80" alt="摩托车" />
+                    <div class="rec-meta"><span>摩托社</span><span>5评论　25点赞</span></div>
+                  </article>
+                  <article class="rec-item">
+                    <div class="rec-title">【精】MIUI系统真实的使用体验，千字长文整理</div>
+                    <div class="rec-meta"><span>Android系统</span><span>103</span></div>
+                  </article>
+                </div>
+              </section>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <script>
+      const posts = [
+        {
+          avatar: "F1",
+          avatarClass: "",
+          bar: "f1吧 ⊙",
+          meta: "关注 39W　帖子 1.5KW",
+          title: "少爷可以换理想了",
+          text: "rt",
+          image: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=420&h=560&q=80",
+          imageClass: "portrait",
+          comments: "14",
+          likes: "46",
+        },
+        {
+          avatar: "D2",
+          avatarClass: "red",
+          bar: "dota2吧 ⊙",
+          meta: "关注 645.8W　帖子 17.8KW",
+          title: "雷泽电棍暴走",
+          text: "",
+          image: "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=720&q=80",
+          imageClass: "wide video-wrap",
+          comments: "评论",
+          likes: "2",
+          video: true,
+        },
+        {
+          ad: true,
+          title: "176老传奇，装备靠打拿自由交易，个性玩法，就玩原始传奇！",
+          image: "https://images.unsplash.com/photo-1599508704512-2f19efd1e35f?auto=format&fit=crop&w=620&q=80",
+        },
+        {
+          avatar: "车",
+          avatarClass: "sky",
+          bar: "新能源汽车吧",
+          meta: "关注 88W　帖子 420W",
+          title: "换电池到底值不值？一张图看懂成本",
+          text: "今天把几个车型的电池成本列了一下，大家可以看下自己的车大概会落在哪个区间。",
+          image: "https://images.unsplash.com/photo-1593941707882-a5bba14938c7?auto=format&fit=crop&w=640&q=80",
+          imageClass: "wide",
+          comments: "67",
+          likes: "103",
+        },
+      ];
+
+      const feedList = document.getElementById("feedList");
+      const app = document.getElementById("app");
+      const backButton = document.getElementById("backButton");
+      const searchInput = document.getElementById("searchInput");
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;");
+      }
+
+      function renderPost(post, index) {
+        if (post.ad) {
+          return `
+            <article class="feed-item ad">
+              <div class="ad-logo">龙</div>
+              <div>
+                <div class="name-line">原始传奇</div>
+                <div class="sub-line">广告</div>
+                <p class="ad-copy">${escapeHtml(post.title)}</p>
+                <a class="feed-image wide"><img src="${escapeHtml(post.image)}" alt="广告图" /></a>
+              </div>
+              <button class="ad-button">查看</button>
+            </article>
+          `;
+        }
+
+        return `
+          <article class="feed-item">
+            <div class="post-head">
+              <div class="user-avatar ${post.avatarClass}">${escapeHtml(post.avatar)}</div>
+              <div class="post-meta">
+                <div class="name-line">${escapeHtml(post.bar)}</div>
+                <div class="sub-line">${escapeHtml(post.meta)}</div>
+              </div>
+            </div>
+            <button class="post-title" data-open-detail="${index}">${escapeHtml(post.title)}</button>
+            ${post.text ? `<p class="post-text">${escapeHtml(post.text)}</p>` : ""}
+            <button class="feed-image ${post.imageClass}" data-open-detail="${index}">
+              <img src="${escapeHtml(post.image)}" alt="帖子图片" />
+              ${post.video ? '<span class="play">▶</span>' : ""}
+            </button>
+            <div class="actions">
+              <button>↗ 分享</button>
+              <button>☵ ${escapeHtml(post.comments)}</button>
+              <button>♡ ${escapeHtml(post.likes)}</button>
+              <button></button>
+              <button class="close-post">×</button>
+            </div>
+          </article>
+        `;
+      }
+
+      feedList.innerHTML = posts.map(renderPost).join("");
+
+      document.addEventListener("click", (event) => {
+        const detailTrigger = event.target.closest("[data-open-detail]");
+        if (!detailTrigger) {
+          return;
+        }
+        app.classList.add("detail-mode");
+        searchInput.value = "f1吧";
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+
+      backButton.addEventListener("click", () => {
+        app.classList.remove("detail-mode");
+        searchInput.value = "";
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    </script>
+  </body>
+</html>

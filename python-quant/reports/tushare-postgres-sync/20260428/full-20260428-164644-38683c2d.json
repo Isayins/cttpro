@@ -1,0 +1,31 @@
+{
+  "jobId": "20260428-164644-38683c2d",
+  "mode": "full",
+  "db": {
+    "host": "127.0.0.1",
+    "port": 5432,
+    "name": "quant",
+    "schema": "tushare_data"
+  },
+  "startedAt": "2026-04-28 16:46:48",
+  "steps": {
+    "reference": {
+      "stockBasic": {
+        "count": 5835,
+        "affectedRows": 5835
+      },
+      "tradeCalSSE": {
+        "count": 3,
+        "affectedRows": 3
+      },
+      "tradeCalSZSE": {
+        "count": 3,
+        "affectedRows": 3
+      }
+    }
+  },
+  "finishedAt": "2026-04-28 17:37:41",
+  "status": "failed",
+  "error": "connection timeout expired",
+  "traceback": "Traceback (most recent call last):\n  File \"I:\\VibeCodingWorkStore\\cttpro\\python-quant\\run_tushare_postgres_sync.py\", line 1539, in run\n    payload[\"steps\"][\"marketRaw\"] = self.sync_raw_trade_dates()\n  File \"I:\\VibeCodingWorkStore\\cttpro\\python-quant\\run_tushare_postgres_sync.py\", line 1696, in sync_raw_trade_dates\n    self.save_state()\n  File \"I:\\VibeCodingWorkStore\\cttpro\\python-quant\\run_tushare_postgres_sync.py\", line 2055, in save_state\n    self.store.upsert_job_progress(self.job_id, group_name, group_state)\n  File \"I:\\VibeCodingWorkStore\\cttpro\\python-quant\\run_tushare_postgres_sync.py\", line 926, in upsert_job_progress\n    return self.execute(\n  File \"I:\\VibeCodingWorkStore\\cttpro\\python-quant\\run_tushare_postgres_sync.py\", line 196, in execute\n    with self.connect() as conn:\n  File \"I:\\VibeCodingWorkStore\\cttpro\\python-quant\\run_tushare_postgres_sync.py\", line 184, in connect\n    return psycopg.connect(\n  File \"H:\\SoftWare\\Python_3.10\\lib\\site-packages\\psycopg\\connection.py\", line 122, in connect\n    raise last_ex.with_traceback(None)\npsycopg.errors.ConnectionTimeout: connection timeout expired\n"
+}

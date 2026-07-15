@@ -20,6 +20,7 @@ public class DownloadResource {
     private String url;
     private String icon;
     private Boolean locked;
+    private String downloadPasswordHash;
     private String category;
     private String fileSize;
     private String checksumSha256;

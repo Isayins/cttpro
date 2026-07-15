@@ -1,0 +1,66 @@
+export const routePaths = {
+  home: "/",
+  verify: "/verify",
+  publicMailCode: "/code/fetch",
+  qrAccess: "/q/:shortCode",
+  login: "/login",
+  forbidden: "/403",
+  lc: "/lc",
+  about: "/about",
+  downloads: "/downloads",
+  products: "/products",
+  orders: "/orders",
+  tools: "/tools",
+  mailcode: "/mailcode",
+  randomTalk: "/randomtalk",
+  chat: "/chat",
+  stock: "/stock",
+  forum: "/forum",
+  profile: "/profile",
+  admin: "/admin",
+  adminPreview: "/admin-preview",
+  adminDemos: "/admin/demos",
+  adminEnterpriseDemo: "/admin/demos/enterprise",
+  adminQrCodes: "/admin/qrcodes",
+} as const;
+
+export const homeAnchors = {
+  notes: `${routePaths.home}#notes`,
+  plan: `${routePaths.home}#plan`,
+} as const;
+
+export const lcAnchors = {
+  siteNotices: `${routePaths.lc}#site-notices`,
+} as const;
+
+export const publicRoutePaths = [
+  routePaths.home,
+  routePaths.verify,
+  routePaths.publicMailCode,
+  routePaths.qrAccess,
+  routePaths.login,
+  routePaths.forbidden,
+] as const;
+
+export const protectedRoutePaths = [
+  routePaths.lc,
+  routePaths.about,
+  routePaths.downloads,
+  routePaths.products,
+  routePaths.orders,
+  routePaths.tools,
+  routePaths.mailcode,
+  routePaths.randomTalk,
+  routePaths.chat,
+  routePaths.stock,
+  routePaths.forum,
+  routePaths.profile,
+] as const;
+
+export const adminRoutePaths = [
+  routePaths.admin,
+  routePaths.adminPreview,
+  routePaths.adminDemos,
+  routePaths.adminEnterpriseDemo,
+  routePaths.adminQrCodes,
+] as const;

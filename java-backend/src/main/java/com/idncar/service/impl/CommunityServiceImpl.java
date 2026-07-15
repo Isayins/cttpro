@@ -16,6 +16,7 @@ import com.idncar.model.dto.UpdateChatPresenceModeRequest;
 import com.idncar.model.entity.User;
 import com.idncar.service.CommunityService;
 import com.idncar.service.UserAccessService;
+import com.idncar.util.RichContentValidator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -41,9 +42,9 @@ import java.util.stream.Collectors;
 @Service
 public class CommunityServiceImpl implements CommunityService {
 
-    private static final String DEFAULT_CHAT_AUTHOR = "Anonymous";
-    private static final String DEFAULT_TALK_AUTHOR = "Anonymous";
-    private static final String DEFAULT_TALK_CATEGORY = "Chat";
+    private static final String DEFAULT_CHAT_AUTHOR = "匿名用户";
+    private static final String DEFAULT_TALK_AUTHOR = "匿名用户";
+    private static final String DEFAULT_TALK_CATEGORY = "闲聊";
     private static final String VISIBILITY_ONLINE = "ONLINE";
     private static final String VISIBILITY_INVISIBLE = "INVISIBLE";
 
@@ -71,7 +72,7 @@ public class CommunityServiceImpl implements CommunityService {
     private final RowMapper<PrivateChatMessageDto> privateChatMessageRowMapper = (rs, rowNum) -> new PrivateChatMessageDto(
             rs.getLong("id"),
             rs.getLong("sender_id"),
-            defaultIfBlank(rs.getString("sender_nickname"), "User"),
+            defaultIfBlank(rs.getString("sender_nickname"), "用户"),
             rs.getString("sender_avatar_url"),
             rs.getLong("recipient_id"),
             rs.getString("content"),
@@ -118,7 +119,7 @@ public class CommunityServiceImpl implements CommunityService {
         String roomId = requireRoomId(request.roomId());
         String author = limitText(defaultIfBlank(normalizeNullableText(request.author()), DEFAULT_CHAT_AUTHOR), 40);
         String avatarSeed = limitText(defaultIfBlank(normalizeNullableText(request.avatarSeed()), author), 60);
-        String content = limitText(requireText(request.content(), "Message content is required"), 500);
+        String content = RichContentValidator.requireSafeImageMarkupUrls(limitText(requireText(request.content(), "消息内容不能为空"), 500));
         Date now = Date.from(Instant.now());
 
         long id = insertAndReturnKey(
@@ -173,7 +174,7 @@ public class CommunityServiceImpl implements CommunityService {
 
                     return new PrivateChatUserDto(
                             userId,
-                            defaultIfBlank(rs.getString("nickname"), "User"),
+                            defaultIfBlank(rs.getString("nickname"), "用户"),
                             rs.getString("avatar_url"),
                             rs.getString("bio"),
                             true
@@ -217,7 +218,7 @@ public class CommunityServiceImpl implements CommunityService {
     public PrivateChatMessageDto createPrivateMessage(Long currentUserId, CreatePrivateChatMessageRequest request) {
         User sender = userAccessService.requireActiveUser(currentUserId);
         Long recipientUserId = requirePrivateTarget(currentUserId, request.recipientUserId());
-        String content = limitText(requireText(request.content(), "Message content is required"), 1000);
+        String content = RichContentValidator.requireSafeImageMarkupUrls(limitText(requireText(request.content(), "消息内容不能为空"), 1000));
         Date now = Date.from(Instant.now());
 
         long id = insertAndReturnKey(
@@ -234,7 +235,7 @@ public class CommunityServiceImpl implements CommunityService {
         return new PrivateChatMessageDto(
                 id,
                 sender.getId(),
-                defaultIfBlank(sender.getNickname(), "User"),
+                defaultIfBlank(sender.getNickname(), "用户"),
                 sender.getAvatarUrl(),
                 recipientUserId,
                 content,
@@ -287,7 +288,7 @@ public class CommunityServiceImpl implements CommunityService {
     public CommunityTalkPostDto createTalkPost(CreateCommunityTalkPostRequest request) {
         String author = limitText(defaultIfBlank(normalizeNullableText(request.author()), DEFAULT_TALK_AUTHOR), 40);
         String avatarSeed = limitText(defaultIfBlank(normalizeNullableText(request.avatarSeed()), author), 60);
-        String content = limitText(requireText(request.content(), "Post content is required"), 500);
+        String content = limitText(requireText(request.content(), "帖子内容不能为空"), 500);
         String category = limitText(defaultIfBlank(normalizeNullableText(request.category()), DEFAULT_TALK_CATEGORY), 40);
         Date now = Date.from(Instant.now());
 
@@ -327,9 +328,9 @@ public class CommunityServiceImpl implements CommunityService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteTalkPost(Long postId, String author) {
         CommunityTalkPostDto post = requireTalkPost(postId);
-        String normalizedAuthor = requireText(author, "Author is required");
+        String normalizedAuthor = requireText(author, "作者不能为空");
         if (!Objects.equals(post.author(), normalizedAuthor)) {
-            throw ApiException.forbidden("You can only delete your own post");
+            throw ApiException.forbidden("只能删除自己发布的帖子");
         }
 
         jdbcTemplate.update("DELETE FROM community_talk_comments WHERE post_id = ?", postId);
@@ -341,7 +342,7 @@ public class CommunityServiceImpl implements CommunityService {
     public CommunityTalkCommentDto createTalkComment(Long postId, CreateCommunityTalkCommentRequest request) {
         requireTalkPost(postId);
         String author = limitText(defaultIfBlank(normalizeNullableText(request.author()), DEFAULT_TALK_AUTHOR), 40);
-        String content = limitText(requireText(request.content(), "Comment content is required"), 300);
+        String content = limitText(requireText(request.content(), "评论内容不能为空"), 300);
         Date now = Date.from(Instant.now());
 
         long id = insertAndReturnKey(
@@ -369,10 +370,10 @@ public class CommunityServiceImpl implements CommunityService {
 
     private Long requirePrivateTarget(Long currentUserId, Long targetUserId) {
         if (targetUserId == null || targetUserId <= 0) {
-            throw ApiException.badRequest("Target user is required");
+            throw ApiException.badRequest("目标用户不能为空");
         }
         if (Objects.equals(currentUserId, targetUserId)) {
-            throw ApiException.badRequest("You cannot send a private message to yourself");
+            throw ApiException.badRequest("不能给自己发送私信");
         }
         userAccessService.requireActiveUser(targetUserId);
         return targetUserId;
@@ -386,7 +387,7 @@ public class CommunityServiceImpl implements CommunityService {
 
     private CommunityTalkPostDto requireTalkPost(Long postId) {
         if (postId == null || postId <= 0) {
-            throw ApiException.badRequest("Post id is invalid");
+            throw ApiException.badRequest("帖子编号无效");
         }
 
         return jdbcTemplate.query(
@@ -400,7 +401,7 @@ public class CommunityServiceImpl implements CommunityService {
                         postId
                 ).stream()
                 .findFirst()
-                .orElseThrow(() -> ApiException.notFound("Post does not exist"));
+                .orElseThrow(() -> ApiException.notFound("帖子不存在"));
     }
 
     private Map<Long, List<CommunityTalkCommentDto>> loadTalkCommentsByPostIds(List<Long> postIds) {
@@ -444,7 +445,7 @@ public class CommunityServiceImpl implements CommunityService {
 
         Number key = keyHolder.getKey();
         if (key == null) {
-            throw ApiException.badRequest("Failed to create record");
+            throw ApiException.badRequest("创建记录失败");
         }
         return key.longValue();
     }
@@ -462,7 +463,7 @@ public class CommunityServiceImpl implements CommunityService {
     }
 
     private String requireRoomId(String roomId) {
-        return limitText(requireText(roomId, "Room id is required"), 32);
+        return limitText(requireText(roomId, "房间编号不能为空"), 32);
     }
 
     private String requireText(String value, String message) {
@@ -504,7 +505,7 @@ public class CommunityServiceImpl implements CommunityService {
         }
 
         if (strict) {
-            throw ApiException.badRequest("Invalid visibility mode");
+            throw ApiException.badRequest("在线状态取值无效");
         }
         return VISIBILITY_ONLINE;
     }

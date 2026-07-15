@@ -1,0 +1,1261 @@
+[
+  {
+    "routeName": "home",
+    "routePath": "/",
+    "viewportName": "desktop",
+    "metrics": {
+      "clientWidth": 1440,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/",
+      "scrollWidth": 1440,
+      "url": "http://127.0.0.1:5191/",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "login",
+    "routePath": "/login",
+    "viewportName": "desktop",
+    "metrics": {
+      "clientWidth": 1440,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/lc",
+      "scrollWidth": 1440,
+      "url": "http://127.0.0.1:5191/lc",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "forbidden",
+    "routePath": "/403",
+    "viewportName": "desktop",
+    "metrics": {
+      "clientWidth": 1440,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/403",
+      "scrollWidth": 1440,
+      "url": "http://127.0.0.1:5191/403",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "verify",
+    "routePath": "/verify",
+    "viewportName": "desktop",
+    "metrics": {
+      "clientWidth": 1440,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/verify",
+      "scrollWidth": 1440,
+      "url": "http://127.0.0.1:5191/verify",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "public-mail-code",
+    "routePath": "/code/fetch",
+    "viewportName": "desktop",
+    "metrics": {
+      "clientWidth": 1440,
+      "clippedCandidates": [
+        {
+          "className": "ant-switch-inner",
+          "clientWidth": 28,
+          "scrollWidth": 48,
+          "tag": "span",
+          "text": ""
+        }
+      ],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/code/fetch",
+      "scrollWidth": 1440,
+      "url": "http://127.0.0.1:5191/code/fetch",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "qr-access",
+    "routePath": "/q/download",
+    "viewportName": "desktop",
+    "metrics": {
+      "clientWidth": 1440,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/q/download",
+      "scrollWidth": 1440,
+      "url": "http://127.0.0.1:5191/q/download",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "lc",
+    "routePath": "/lc",
+    "viewportName": "desktop",
+    "metrics": {
+      "clientWidth": 1425,
+      "clippedCandidates": [
+        {
+          "className": "slick-list",
+          "clientWidth": 909,
+          "scrollWidth": 6363,
+          "tag": "div",
+          "text": "工作台商品、订单和股票工作台入口，按使用频率整理在首页如果要查看商品、订单或行情工作台，可以从首页直接进入。管理员入口也会根据你的权限自动显示。商品中心股票工作"
+        },
+        {
+          "className": "",
+          "clientWidth": 24,
+          "scrollWidth": 28,
+          "tag": "button",
+          "text": "1"
+        },
+        {
+          "className": "",
+          "clientWidth": 16,
+          "scrollWidth": 20,
+          "tag": "button",
+          "text": "2"
+        },
+        {
+          "className": "",
+          "clientWidth": 16,
+          "scrollWidth": 20,
+          "tag": "button",
+          "text": "3"
+        }
+      ],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/lc",
+      "scrollWidth": 1425,
+      "url": "http://127.0.0.1:5191/lc",
+      "visibleOutOfViewport": [
+        {
+          "className": "",
+          "rect": {
+            "h": 390,
+            "w": 909,
+            "x": -843,
+            "y": 201
+          },
+          "tag": "div",
+          "text": "工作台商品、订单和股票工作台入口，按使用频率整理在首页如果要查看商品、订单或行情工作台，可以从首页直接进入。管理员入口也会根据你的权限自动显示。商品中心股票工作"
+        },
+        {
+          "className": "",
+          "rect": {
+            "h": 390,
+            "w": 909,
+            "x": -843,
+            "y": 201
+          },
+          "tag": "div",
+          "text": "工作台商品、订单和股票工作台入口，按使用频率整理在首页如果要查看商品、订单或行情工作台，可以从首页直接进入。管理员入口也会根据你的权限自动显示。商品中心股票工作"
+        },
+        {
+          "className": "min-h-[330px] bg-[radial-gradient(circle_at_18%_78%,rgba(220,238,255,0.34),transparent_24%),radial-gradient(circle_at_80",
+          "rect": {
+            "h": 390,
+            "w": 909,
+            "x": -843,
+            "y": 201
+          },
+          "tag": "div",
+          "text": "工作台商品、订单和股票工作台入口，按使用频率整理在首页如果要查看商品、订单或行情工作台，可以从首页直接进入。管理员入口也会根据你的权限自动显示。商品中心股票工作"
+        },
+        {
+          "className": "flex h-full flex-col justify-between",
+          "rect": {
+            "h": 298,
+            "w": 845,
+            "x": -811,
+            "y": 233
+          },
+          "tag": "div",
+          "text": "工作台商品、订单和股票工作台入口，按使用频率整理在首页如果要查看商品、订单或行情工作台，可以从首页直接进入。管理员入口也会根据你的权限自动显示。商品中心股票工作"
+        },
+        {
+          "className": "",
+          "rect": {
+            "h": 226,
+            "w": 845,
+            "x": -811,
+            "y": 233
+          },
+          "tag": "div",
+          "text": "工作台商品、订单和股票工作台入口，按使用频率整理在首页如果要查看商品、订单或行情工作台，可以从首页直接进入。管理员入口也会根据你的权限自动显示。"
+        },
+        {
+          "className": "inline-flex rounded-full border border-[#e6edf8] bg-white/78 px-3 py-1 text-xs tracking-[0.18em] text-[#5e6c82]",
+          "rect": {
+            "h": 26,
+            "w": 68,
+            "x": -811,
+            "y": 233
+          },
+          "tag": "div",
+          "text": "工作台"
+        },
+        {
+          "className": "mt-5 max-w-2xl text-3xl font-semibold leading-tight text-slate-900 md:text-5xl",
+          "rect": {
+            "h": 96,
+            "w": 672,
+            "x": -811,
+            "y": 279
+          },
+          "tag": "h1",
+          "text": "商品、订单和股票工作台入口，按使用频率整理在首页"
+        },
+        {
+          "className": "mt-5 max-w-2xl text-base leading-8 text-slate-600",
+          "rect": {
+            "h": 64,
+            "w": 672,
+            "x": -811,
+            "y": 395
+          },
+          "tag": "p",
+          "text": "如果要查看商品、订单或行情工作台，可以从首页直接进入。管理员入口也会根据你的权限自动显示。"
+        }
+      ]
+    }
+  },
+  {
+    "routeName": "about",
+    "routePath": "/about",
+    "viewportName": "desktop",
+    "metrics": {
+      "clientWidth": 1425,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/about",
+      "scrollWidth": 1425,
+      "url": "http://127.0.0.1:5191/about",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "downloads",
+    "routePath": "/downloads",
+    "viewportName": "desktop",
+    "metrics": {
+      "clientWidth": 1425,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/downloads",
+      "scrollWidth": 1425,
+      "url": "http://127.0.0.1:5191/downloads",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "products",
+    "routePath": "/products",
+    "viewportName": "desktop",
+    "metrics": {
+      "clientWidth": 1425,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/products",
+      "scrollWidth": 1425,
+      "url": "http://127.0.0.1:5191/products",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "orders",
+    "routePath": "/orders",
+    "viewportName": "desktop",
+    "metrics": {
+      "clientWidth": 1425,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/orders",
+      "scrollWidth": 1425,
+      "url": "http://127.0.0.1:5191/orders",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "tools",
+    "routePath": "/tools",
+    "viewportName": "desktop",
+    "metrics": {
+      "clientWidth": 1425,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/tools",
+      "scrollWidth": 1425,
+      "url": "http://127.0.0.1:5191/tools",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "mailcode",
+    "routePath": "/mailcode",
+    "viewportName": "desktop",
+    "metrics": {
+      "clientWidth": 1425,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/mailcode",
+      "scrollWidth": 1425,
+      "url": "http://127.0.0.1:5191/mailcode",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "randomtalk",
+    "routePath": "/randomtalk",
+    "viewportName": "desktop",
+    "metrics": {
+      "clientWidth": 1425,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/randomtalk",
+      "scrollWidth": 1425,
+      "url": "http://127.0.0.1:5191/randomtalk",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "chat",
+    "routePath": "/chat",
+    "viewportName": "desktop",
+    "metrics": {
+      "clientWidth": 1425,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/chat",
+      "scrollWidth": 1425,
+      "url": "http://127.0.0.1:5191/chat",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "stock",
+    "routePath": "/stock",
+    "viewportName": "desktop",
+    "metrics": {
+      "clientWidth": 1425,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/stock",
+      "scrollWidth": 1425,
+      "url": "http://127.0.0.1:5191/stock",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "forum",
+    "routePath": "/forum",
+    "viewportName": "desktop",
+    "metrics": {
+      "clientWidth": 1425,
+      "clippedCandidates": [
+        {
+          "className": "ant-progress-bg ant-progress-bg-outer",
+          "clientWidth": 174,
+          "scrollWidth": 198,
+          "tag": "div",
+          "text": ""
+        }
+      ],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/forum",
+      "scrollWidth": 1425,
+      "url": "http://127.0.0.1:5191/forum",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "profile",
+    "routePath": "/profile",
+    "viewportName": "desktop",
+    "metrics": {
+      "clientWidth": 1425,
+      "clippedCandidates": [
+        {
+          "className": "ant-progress-bg ant-progress-bg-outer",
+          "clientWidth": 269,
+          "scrollWidth": 358,
+          "tag": "div",
+          "text": ""
+        }
+      ],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/profile",
+      "scrollWidth": 1425,
+      "url": "http://127.0.0.1:5191/profile",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "admin",
+    "routePath": "/admin",
+    "viewportName": "desktop",
+    "metrics": {
+      "clientWidth": 1425,
+      "clippedCandidates": [
+        {
+          "className": "ant-progress-bg ant-progress-bg-outer",
+          "clientWidth": 197,
+          "scrollWidth": 201,
+          "tag": "div",
+          "text": ""
+        }
+      ],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/admin",
+      "scrollWidth": 1425,
+      "url": "http://127.0.0.1:5191/admin",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "admin-preview",
+    "routePath": "/admin-preview",
+    "viewportName": "desktop",
+    "metrics": {
+      "clientWidth": 1425,
+      "clippedCandidates": [
+        {
+          "className": "ant-progress-bg ant-progress-bg-outer",
+          "clientWidth": 197,
+          "scrollWidth": 201,
+          "tag": "div",
+          "text": ""
+        }
+      ],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/admin-preview",
+      "scrollWidth": 1425,
+      "url": "http://127.0.0.1:5191/admin-preview",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "admin-demos",
+    "routePath": "/admin/demos",
+    "viewportName": "desktop",
+    "metrics": {
+      "clientWidth": 1425,
+      "clippedCandidates": [
+        {
+          "className": "ant-progress-bg ant-progress-bg-outer",
+          "clientWidth": 173,
+          "scrollWidth": 177,
+          "tag": "div",
+          "text": ""
+        }
+      ],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/admin/demos",
+      "scrollWidth": 1425,
+      "url": "http://127.0.0.1:5191/admin/demos",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "admin-enterprise-demo",
+    "routePath": "/admin/demos/enterprise",
+    "viewportName": "desktop",
+    "metrics": {
+      "clientWidth": 1425,
+      "clippedCandidates": [
+        {
+          "className": "ant-progress-bg ant-progress-bg-outer",
+          "clientWidth": 197,
+          "scrollWidth": 201,
+          "tag": "div",
+          "text": ""
+        },
+        {
+          "className": "overflow-x-auto rounded-2xl border border-slate-100",
+          "clientWidth": 1073,
+          "scrollWidth": 1080,
+          "tag": "div",
+          "text": "编号模块对象用户金额/数量状态负责人更新操作ORD-0819支付订单高级策略包Chen¥199待发货发货池09:48查看USR-4421用户管理管理员申请Mik"
+        }
+      ],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/admin/demos/enterprise",
+      "scrollWidth": 1425,
+      "url": "http://127.0.0.1:5191/admin/demos/enterprise",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "admin-qrcodes",
+    "routePath": "/admin/qrcodes",
+    "viewportName": "desktop",
+    "metrics": {
+      "clientWidth": 1425,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/admin/qrcodes",
+      "scrollWidth": 1425,
+      "url": "http://127.0.0.1:5191/admin/qrcodes",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "not-found",
+    "routePath": "/definitely-not-found",
+    "viewportName": "desktop",
+    "metrics": {
+      "clientWidth": 1440,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/definitely-not-found",
+      "scrollWidth": 1440,
+      "url": "http://127.0.0.1:5191/definitely-not-found",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "home",
+    "routePath": "/",
+    "viewportName": "mobile",
+    "metrics": {
+      "clientWidth": 375,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/",
+      "scrollWidth": 375,
+      "url": "http://127.0.0.1:5191/",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "login",
+    "routePath": "/login",
+    "viewportName": "mobile",
+    "metrics": {
+      "clientWidth": 375,
+      "clippedCandidates": [
+        {
+          "className": "slick-list",
+          "clientWidth": 291,
+          "scrollWidth": 2037,
+          "tag": "div",
+          "text": "工作台商品、订单和股票工作台入口，按使用频率整理在首页如果要查看商品、订单或行情工作台，可以从首页直接进入。管理员入口也会根据你的权限自动显示。商品中心股票工作"
+        },
+        {
+          "className": "",
+          "clientWidth": 24,
+          "scrollWidth": 28,
+          "tag": "button",
+          "text": "1"
+        },
+        {
+          "className": "",
+          "clientWidth": 16,
+          "scrollWidth": 20,
+          "tag": "button",
+          "text": "2"
+        },
+        {
+          "className": "",
+          "clientWidth": 16,
+          "scrollWidth": 20,
+          "tag": "button",
+          "text": "3"
+        }
+      ],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/lc",
+      "scrollWidth": 375,
+      "url": "http://127.0.0.1:5191/lc",
+      "visibleOutOfViewport": [
+        {
+          "className": "",
+          "rect": {
+            "h": 403,
+            "w": 291,
+            "x": -249,
+            "y": 189
+          },
+          "tag": "div",
+          "text": "工作台商品、订单和股票工作台入口，按使用频率整理在首页如果要查看商品、订单或行情工作台，可以从首页直接进入。管理员入口也会根据你的权限自动显示。商品中心股票工作"
+        },
+        {
+          "className": "",
+          "rect": {
+            "h": 403,
+            "w": 291,
+            "x": -249,
+            "y": 189
+          },
+          "tag": "div",
+          "text": "工作台商品、订单和股票工作台入口，按使用频率整理在首页如果要查看商品、订单或行情工作台，可以从首页直接进入。管理员入口也会根据你的权限自动显示。商品中心股票工作"
+        },
+        {
+          "className": "min-h-[330px] bg-[radial-gradient(circle_at_18%_78%,rgba(220,238,255,0.34),transparent_24%),radial-gradient(circle_at_80",
+          "rect": {
+            "h": 403,
+            "w": 291,
+            "x": -249,
+            "y": 189
+          },
+          "tag": "div",
+          "text": "工作台商品、订单和股票工作台入口，按使用频率整理在首页如果要查看商品、订单或行情工作台，可以从首页直接进入。管理员入口也会根据你的权限自动显示。商品中心股票工作"
+        },
+        {
+          "className": "flex h-full flex-col justify-between",
+          "rect": {
+            "h": 347,
+            "w": 243,
+            "x": -225,
+            "y": 217
+          },
+          "tag": "div",
+          "text": "工作台商品、订单和股票工作台入口，按使用频率整理在首页如果要查看商品、订单或行情工作台，可以从首页直接进入。管理员入口也会根据你的权限自动显示。商品中心股票工作"
+        },
+        {
+          "className": "",
+          "rect": {
+            "h": 275,
+            "w": 243,
+            "x": -225,
+            "y": 217
+          },
+          "tag": "div",
+          "text": "工作台商品、订单和股票工作台入口，按使用频率整理在首页如果要查看商品、订单或行情工作台，可以从首页直接进入。管理员入口也会根据你的权限自动显示。"
+        },
+        {
+          "className": "inline-flex rounded-full border border-[#e6edf8] bg-white/78 px-3 py-1 text-xs tracking-[0.18em] text-[#5e6c82]",
+          "rect": {
+            "h": 26,
+            "w": 68,
+            "x": -225,
+            "y": 217
+          },
+          "tag": "div",
+          "text": "工作台"
+        },
+        {
+          "className": "mt-5 max-w-2xl text-3xl font-semibold leading-tight text-slate-900 md:text-5xl",
+          "rect": {
+            "h": 113,
+            "w": 243,
+            "x": -225,
+            "y": 263
+          },
+          "tag": "h1",
+          "text": "商品、订单和股票工作台入口，按使用频率整理在首页"
+        },
+        {
+          "className": "mt-5 max-w-2xl text-base leading-8 text-slate-600",
+          "rect": {
+            "h": 96,
+            "w": 243,
+            "x": -225,
+            "y": 396
+          },
+          "tag": "p",
+          "text": "如果要查看商品、订单或行情工作台，可以从首页直接进入。管理员入口也会根据你的权限自动显示。"
+        }
+      ]
+    }
+  },
+  {
+    "routeName": "forbidden",
+    "routePath": "/403",
+    "viewportName": "mobile",
+    "metrics": {
+      "clientWidth": 375,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/403",
+      "scrollWidth": 375,
+      "url": "http://127.0.0.1:5191/403",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "verify",
+    "routePath": "/verify",
+    "viewportName": "mobile",
+    "metrics": {
+      "clientWidth": 390,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/verify",
+      "scrollWidth": 390,
+      "url": "http://127.0.0.1:5191/verify",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "public-mail-code",
+    "routePath": "/code/fetch",
+    "viewportName": "mobile",
+    "metrics": {
+      "clientWidth": 375,
+      "clippedCandidates": [
+        {
+          "className": "ant-switch-inner",
+          "clientWidth": 28,
+          "scrollWidth": 48,
+          "tag": "span",
+          "text": ""
+        }
+      ],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/code/fetch",
+      "scrollWidth": 375,
+      "url": "http://127.0.0.1:5191/code/fetch",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "qr-access",
+    "routePath": "/q/download",
+    "viewportName": "mobile",
+    "metrics": {
+      "clientWidth": 390,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/q/download",
+      "scrollWidth": 390,
+      "url": "http://127.0.0.1:5191/q/download",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "lc",
+    "routePath": "/lc",
+    "viewportName": "mobile",
+    "metrics": {
+      "clientWidth": 375,
+      "clippedCandidates": [
+        {
+          "className": "slick-list",
+          "clientWidth": 291,
+          "scrollWidth": 2037,
+          "tag": "div",
+          "text": "工作台商品、订单和股票工作台入口，按使用频率整理在首页如果要查看商品、订单或行情工作台，可以从首页直接进入。管理员入口也会根据你的权限自动显示。商品中心股票工作"
+        },
+        {
+          "className": "",
+          "clientWidth": 24,
+          "scrollWidth": 28,
+          "tag": "button",
+          "text": "1"
+        },
+        {
+          "className": "",
+          "clientWidth": 16,
+          "scrollWidth": 20,
+          "tag": "button",
+          "text": "2"
+        },
+        {
+          "className": "",
+          "clientWidth": 16,
+          "scrollWidth": 20,
+          "tag": "button",
+          "text": "3"
+        }
+      ],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/lc",
+      "scrollWidth": 375,
+      "url": "http://127.0.0.1:5191/lc",
+      "visibleOutOfViewport": [
+        {
+          "className": "",
+          "rect": {
+            "h": 403,
+            "w": 291,
+            "x": -249,
+            "y": 189
+          },
+          "tag": "div",
+          "text": "工作台商品、订单和股票工作台入口，按使用频率整理在首页如果要查看商品、订单或行情工作台，可以从首页直接进入。管理员入口也会根据你的权限自动显示。商品中心股票工作"
+        },
+        {
+          "className": "",
+          "rect": {
+            "h": 403,
+            "w": 291,
+            "x": -249,
+            "y": 189
+          },
+          "tag": "div",
+          "text": "工作台商品、订单和股票工作台入口，按使用频率整理在首页如果要查看商品、订单或行情工作台，可以从首页直接进入。管理员入口也会根据你的权限自动显示。商品中心股票工作"
+        },
+        {
+          "className": "min-h-[330px] bg-[radial-gradient(circle_at_18%_78%,rgba(220,238,255,0.34),transparent_24%),radial-gradient(circle_at_80",
+          "rect": {
+            "h": 403,
+            "w": 291,
+            "x": -249,
+            "y": 189
+          },
+          "tag": "div",
+          "text": "工作台商品、订单和股票工作台入口，按使用频率整理在首页如果要查看商品、订单或行情工作台，可以从首页直接进入。管理员入口也会根据你的权限自动显示。商品中心股票工作"
+        },
+        {
+          "className": "flex h-full flex-col justify-between",
+          "rect": {
+            "h": 347,
+            "w": 243,
+            "x": -225,
+            "y": 217
+          },
+          "tag": "div",
+          "text": "工作台商品、订单和股票工作台入口，按使用频率整理在首页如果要查看商品、订单或行情工作台，可以从首页直接进入。管理员入口也会根据你的权限自动显示。商品中心股票工作"
+        },
+        {
+          "className": "",
+          "rect": {
+            "h": 275,
+            "w": 243,
+            "x": -225,
+            "y": 217
+          },
+          "tag": "div",
+          "text": "工作台商品、订单和股票工作台入口，按使用频率整理在首页如果要查看商品、订单或行情工作台，可以从首页直接进入。管理员入口也会根据你的权限自动显示。"
+        },
+        {
+          "className": "inline-flex rounded-full border border-[#e6edf8] bg-white/78 px-3 py-1 text-xs tracking-[0.18em] text-[#5e6c82]",
+          "rect": {
+            "h": 26,
+            "w": 68,
+            "x": -225,
+            "y": 217
+          },
+          "tag": "div",
+          "text": "工作台"
+        },
+        {
+          "className": "mt-5 max-w-2xl text-3xl font-semibold leading-tight text-slate-900 md:text-5xl",
+          "rect": {
+            "h": 113,
+            "w": 243,
+            "x": -225,
+            "y": 263
+          },
+          "tag": "h1",
+          "text": "商品、订单和股票工作台入口，按使用频率整理在首页"
+        },
+        {
+          "className": "mt-5 max-w-2xl text-base leading-8 text-slate-600",
+          "rect": {
+            "h": 96,
+            "w": 243,
+            "x": -225,
+            "y": 396
+          },
+          "tag": "p",
+          "text": "如果要查看商品、订单或行情工作台，可以从首页直接进入。管理员入口也会根据你的权限自动显示。"
+        }
+      ]
+    }
+  },
+  {
+    "routeName": "about",
+    "routePath": "/about",
+    "viewportName": "mobile",
+    "metrics": {
+      "clientWidth": 375,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/about",
+      "scrollWidth": 375,
+      "url": "http://127.0.0.1:5191/about",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "downloads",
+    "routePath": "/downloads",
+    "viewportName": "mobile",
+    "metrics": {
+      "clientWidth": 375,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/downloads",
+      "scrollWidth": 375,
+      "url": "http://127.0.0.1:5191/downloads",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "products",
+    "routePath": "/products",
+    "viewportName": "mobile",
+    "metrics": {
+      "clientWidth": 375,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/products",
+      "scrollWidth": 375,
+      "url": "http://127.0.0.1:5191/products",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "orders",
+    "routePath": "/orders",
+    "viewportName": "mobile",
+    "metrics": {
+      "clientWidth": 375,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/orders",
+      "scrollWidth": 375,
+      "url": "http://127.0.0.1:5191/orders",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "tools",
+    "routePath": "/tools",
+    "viewportName": "mobile",
+    "metrics": {
+      "clientWidth": 375,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/tools",
+      "scrollWidth": 375,
+      "url": "http://127.0.0.1:5191/tools",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "mailcode",
+    "routePath": "/mailcode",
+    "viewportName": "mobile",
+    "metrics": {
+      "clientWidth": 375,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/mailcode",
+      "scrollWidth": 375,
+      "url": "http://127.0.0.1:5191/mailcode",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "randomtalk",
+    "routePath": "/randomtalk",
+    "viewportName": "mobile",
+    "metrics": {
+      "clientWidth": 375,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/randomtalk",
+      "scrollWidth": 375,
+      "url": "http://127.0.0.1:5191/randomtalk",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "chat",
+    "routePath": "/chat",
+    "viewportName": "mobile",
+    "metrics": {
+      "clientWidth": 375,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/chat",
+      "scrollWidth": 375,
+      "url": "http://127.0.0.1:5191/chat",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "stock",
+    "routePath": "/stock",
+    "viewportName": "mobile",
+    "metrics": {
+      "clientWidth": 375,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/stock",
+      "scrollWidth": 375,
+      "url": "http://127.0.0.1:5191/stock",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "forum",
+    "routePath": "/forum",
+    "viewportName": "mobile",
+    "metrics": {
+      "clientWidth": 375,
+      "clippedCandidates": [
+        {
+          "className": "mb-4 flex gap-1 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          "clientWidth": 343,
+          "scrollWidth": 358,
+          "tag": "div",
+          "text": "最新热门置顶收藏我的我的帖子全部"
+        }
+      ],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/forum",
+      "scrollWidth": 375,
+      "url": "http://127.0.0.1:5191/forum",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "profile",
+    "routePath": "/profile",
+    "viewportName": "mobile",
+    "metrics": {
+      "clientWidth": 375,
+      "clippedCandidates": [
+        {
+          "className": "ant-progress-bg ant-progress-bg-outer",
+          "clientWidth": 194,
+          "scrollWidth": 258,
+          "tag": "div",
+          "text": ""
+        },
+        {
+          "className": "ant-avatar ant-avatar-circle ant-avatar-icon css-dev-only-do-not-override-1odpy5d",
+          "clientWidth": 30,
+          "scrollWidth": 33,
+          "tag": "span",
+          "text": ""
+        }
+      ],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/profile",
+      "scrollWidth": 375,
+      "url": "http://127.0.0.1:5191/profile",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "admin",
+    "routePath": "/admin",
+    "viewportName": "mobile",
+    "metrics": {
+      "clientWidth": 375,
+      "clippedCandidates": [
+        {
+          "className": "ant-progress-bg ant-progress-bg-outer",
+          "clientWidth": 277,
+          "scrollWidth": 283,
+          "tag": "div",
+          "text": ""
+        }
+      ],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/admin",
+      "scrollWidth": 375,
+      "url": "http://127.0.0.1:5191/admin",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "admin-preview",
+    "routePath": "/admin-preview",
+    "viewportName": "mobile",
+    "metrics": {
+      "clientWidth": 375,
+      "clippedCandidates": [
+        {
+          "className": "ant-progress-bg ant-progress-bg-outer",
+          "clientWidth": 277,
+          "scrollWidth": 283,
+          "tag": "div",
+          "text": ""
+        }
+      ],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/admin-preview",
+      "scrollWidth": 375,
+      "url": "http://127.0.0.1:5191/admin-preview",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "admin-demos",
+    "routePath": "/admin/demos",
+    "viewportName": "mobile",
+    "metrics": {
+      "clientWidth": 375,
+      "clippedCandidates": [
+        {
+          "className": "grid min-h-[720px] grid-cols-1 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm lg:grid-cols-[236px",
+          "clientWidth": 341,
+          "scrollWidth": 770,
+          "tag": "div",
+          "text": "CTT AdminEnterprise Console总览用户商品优惠码支付日志系统健康98%稳定运营总览商品、订单、用户、内容审核集中到一个控制台搜索通知处理"
+        },
+        {
+          "className": "ant-progress-bg ant-progress-bg-outer",
+          "clientWidth": 277,
+          "scrollWidth": 283,
+          "tag": "div",
+          "text": ""
+        }
+      ],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/admin/demos",
+      "scrollWidth": 375,
+      "url": "http://127.0.0.1:5191/admin/demos",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "admin-enterprise-demo",
+    "routePath": "/admin/demos/enterprise",
+    "viewportName": "mobile",
+    "metrics": {
+      "clientWidth": 375,
+      "clippedCandidates": [
+        {
+          "className": "ant-progress-bg ant-progress-bg-outer",
+          "clientWidth": 277,
+          "scrollWidth": 283,
+          "tag": "div",
+          "text": ""
+        },
+        {
+          "className": "overflow-x-auto rounded-2xl border border-slate-100",
+          "clientWidth": 299,
+          "scrollWidth": 1080,
+          "tag": "div",
+          "text": "编号模块对象用户金额/数量状态负责人更新操作ORD-0819支付订单高级策略包Chen¥199待发货发货池09:48查看USR-4421用户管理管理员申请Mik"
+        }
+      ],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/admin/demos/enterprise",
+      "scrollWidth": 375,
+      "url": "http://127.0.0.1:5191/admin/demos/enterprise",
+      "visibleOutOfViewport": []
+    }
+  },
+  {
+    "routeName": "admin-qrcodes",
+    "routePath": "/admin/qrcodes",
+    "viewportName": "mobile",
+    "metrics": {
+      "clientWidth": 375,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/admin/qrcodes",
+      "scrollWidth": 375,
+      "url": "http://127.0.0.1:5191/admin/qrcodes",
+      "visibleOutOfViewport": [
+        {
+          "className": "",
+          "rect": {
+            "h": 249,
+            "w": 960,
+            "x": 41,
+            "y": 760
+          },
+          "tag": "table",
+          "text": "二维码权限统计操作二维码权限统计操作/q/download启用中公开访问总扫码：12今日扫码：0最近：-预览编辑记录复制短链删除/q/forum已停用公开访问总"
+        },
+        {
+          "className": "",
+          "rect": {
+            "h": 55,
+            "w": 960,
+            "x": 41,
+            "y": 760
+          },
+          "tag": "tr",
+          "text": "二维码权限统计操作"
+        },
+        {
+          "className": "text-sm text-slate-600",
+          "rect": {
+            "h": 60,
+            "w": 88,
+            "x": 486,
+            "y": 833
+          },
+          "tag": "div",
+          "text": "总扫码：12今日扫码：0最近：-"
+        },
+        {
+          "className": "",
+          "rect": {
+            "h": 20,
+            "w": 88,
+            "x": 486,
+            "y": 833
+          },
+          "tag": "div",
+          "text": "总扫码：12"
+        }
+      ]
+    }
+  },
+  {
+    "routeName": "not-found",
+    "routePath": "/definitely-not-found",
+    "viewportName": "mobile",
+    "metrics": {
+      "clientWidth": 390,
+      "clippedCandidates": [],
+      "horizontalOverflow": false,
+      "oddVerticalText": [],
+      "path": "/definitely-not-found",
+      "scrollWidth": 390,
+      "url": "http://127.0.0.1:5191/definitely-not-found",
+      "visibleOutOfViewport": []
+    }
+  }
+]

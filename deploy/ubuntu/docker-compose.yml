@@ -1,0 +1,151 @@
+name: ${COMPOSE_PROJECT_NAME:-cttpro}
+
+services:
+  frontend:
+    image: ${FRONTEND_IMAGE:-cttpro-frontend:latest}
+    build:
+      context: ../..
+      dockerfile: deploy/ubuntu/frontend.Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+        VITE_API_TIMEOUT_MS: ${VITE_API_TIMEOUT_MS:-15000}
+        VITE_IDLE_LOGOUT_MINUTES: ${VITE_IDLE_LOGOUT_MINUTES:-120}
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    depends_on:
+      java-backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/healthz >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  java-backend:
+    image: ${JAVA_BACKEND_IMAGE:-cttpro-java-backend:latest}
+    build:
+      context: ../../java-backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    expose:
+      - "9091"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-idncar}?useSSL=false&serverTimezone=Asia/Shanghai
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ""
+      PYTHON_SERVICE_URL: http://python-service:8735
+      JWT_SECRET: ${JWT_SECRET}
+      APP_HOTMAIL_ENCRYPTION_SECRET: ${APP_HOTMAIL_ENCRYPTION_SECRET:-${JWT_SECRET}}
+      APP_SITE_BASE_URL: ${APP_SITE_BASE_URL:-https://idncar.com}
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-smtp.163.com}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-465}
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-pppopidc@163.com}
+      APP_MAIL_FROM: ${APP_MAIL_FROM:-pppopidc@163.com}
+      APP_MAIL_LOGO_URL: ${APP_MAIL_LOGO_URL:-}
+      SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:-change-me-mail-authorization-code}
+      SPRING_MAIL_SMTP_AUTH: ${SPRING_MAIL_SMTP_AUTH:-true}
+      SPRING_MAIL_STARTTLS_ENABLE: ${SPRING_MAIL_STARTTLS_ENABLE:-false}
+      SPRING_MAIL_SMTP_SSL_ENABLE: ${SPRING_MAIL_SMTP_SSL_ENABLE:-true}
+      APP_MAIL_MOCK_ENABLED: ${APP_MAIL_MOCK_ENABLED:-false}
+      APP_UPLOAD_BASE_DIR: /app/uploads
+      APP_UPLOAD_PRODUCT_IMAGE_SUBDIR: product-images
+      APP_PAYMENT_MANUAL_CONFIRM_ENABLED: ${APP_PAYMENT_MANUAL_CONFIRM_ENABLED:-true}
+      APP_PAYMENT_MANUAL_CONFIRM_RECIPIENTS: ${APP_PAYMENT_MANUAL_CONFIRM_RECIPIENTS:-}
+      APP_PAYMENT_ALIPAY_ENABLED: ${APP_PAYMENT_ALIPAY_ENABLED:-false}
+      APP_PAYMENT_ALIPAY_APP_ID: ${APP_PAYMENT_ALIPAY_APP_ID:-}
+      APP_PAYMENT_ALIPAY_PRIVATE_KEY: ${APP_PAYMENT_ALIPAY_PRIVATE_KEY:-}
+      APP_PAYMENT_ALIPAY_ALIPAY_PUBLIC_KEY: ${APP_PAYMENT_ALIPAY_ALIPAY_PUBLIC_KEY:-}
+      APP_PAYMENT_ALIPAY_NOTIFY_URL: ${APP_PAYMENT_ALIPAY_NOTIFY_URL:-}
+      APP_PAYMENT_ALIPAY_GATEWAY_URL: ${APP_PAYMENT_ALIPAY_GATEWAY_URL:-https://openapi.alipay.com/gateway.do}
+      APP_PAYMENT_ALIPAY_ENCRYPT_ENABLED: ${APP_PAYMENT_ALIPAY_ENCRYPT_ENABLED:-true}
+      APP_PAYMENT_ALIPAY_ENCRYPT_TYPE: ${APP_PAYMENT_ALIPAY_ENCRYPT_TYPE:-AES}
+      APP_PAYMENT_ALIPAY_ENCRYPT_KEY: ${APP_PAYMENT_ALIPAY_ENCRYPT_KEY:-}
+    volumes:
+      - java-uploads:/app/uploads
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:9091/actuator/health >/dev/null",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 45s
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      python-service:
+        condition: service_healthy
+
+  python-service:
+    image: ${PYTHON_SERVICE_IMAGE:-cttpro-python-service:latest}
+    build:
+      context: ../../python-quant
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    expose:
+      - "8735"
+    environment:
+      STOCK_DB_HOST: mysql
+      STOCK_DB_PORT: 3306
+      STOCK_DB_USER: root
+      STOCK_DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      STOCK_DB_NAME: ${MYSQL_DATABASE:-idncar}
+      QUANT_SERVICE_PORT: 8735
+      TUSHARE_TOKEN: ${TUSHARE_TOKEN:-}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8735/health', timeout=3).read()",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-idncar}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    image: redis:7.0
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+volumes:
+  mysql-data:
+  java-uploads:

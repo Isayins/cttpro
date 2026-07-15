@@ -1,0 +1,8 @@
+.idea/
+.m2/
+target/
+uploads/
+*.log
+*.tmp
+Dockerfile
+README*

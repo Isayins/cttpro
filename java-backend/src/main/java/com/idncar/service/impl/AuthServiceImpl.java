@@ -19,14 +19,16 @@ import com.idncar.model.entity.LoginRecord;
 import com.idncar.model.entity.User;
 import com.idncar.service.AuthService;
 import com.idncar.service.UserAccessService;
+import com.idncar.util.ImageUploadHelper;
 import com.idncar.util.JwtUtil;
-import jakarta.annotation.Resource;
 import jakarta.mail.internet.MimeMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.mail.SimpleMailMessage;
+import org.springframework.http.HttpStatus;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -35,15 +37,14 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
+import java.time.Year;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
-import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -51,14 +52,13 @@ import java.util.stream.Collectors;
 @Service
 public class AuthServiceImpl implements AuthService {
 
+    private static final Logger log = LoggerFactory.getLogger(AuthServiceImpl.class);
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
     private static final Pattern PASSWORD_PATTERN = Pattern.compile("^(?=.*[A-Za-z])(?=.*\\d).{6,}$");
+    private static final long MAX_AVATAR_SIZE_BYTES = 5L * 1024 * 1024;
 
     @Autowired
     private UserMapper userMapper;
-
-    @Resource
-    private  JavaMailSender mailSender;
 
     @Autowired
     private InviteCodeMapper inviteCodeMapper;
@@ -78,6 +78,9 @@ public class AuthServiceImpl implements AuthService {
     @Autowired
     private ObjectProvider<JavaMailSender> mailSenderProvider;
 
+    @Autowired
+    private MailBrandTemplateHelper mailBrandTemplateHelper;
+
     @Value("${app.auth.email-code-expire-minutes:10}")
     private long emailCodeExpireMinutes;
 
@@ -86,6 +89,9 @@ public class AuthServiceImpl implements AuthService {
 
     @Value("${app.mail.from:}")
     private String mailFrom;
+
+    @Value("${spring.mail.username:}")
+    private String springMailUsername;
 
     @Value("${app.mail.mock-enabled:false}")
     private boolean mailMockEnabled;
@@ -98,13 +104,6 @@ public class AuthServiceImpl implements AuthService {
 
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final Random random = new Random();
-    private static final long MAX_AVATAR_SIZE_BYTES = 5L * 1024 * 1024;
-    private static final Set<String> ALLOWED_AVATAR_CONTENT_TYPES = Set.of(
-            "image/jpeg",
-            "image/png",
-            "image/webp",
-            "image/gif"
-    );
 
     @Override
     public AuthResponse login(LoginRequest request, String ipAddress, String userAgent) {
@@ -161,24 +160,42 @@ public class AuthServiceImpl implements AuthService {
         }
 
         String code = String.format("%06d", random.nextInt(1_000_000));
-        redisTemplate.opsForValue().set(registerCodeKey(email), code, emailCodeExpireMinutes, TimeUnit.MINUTES);
+        String registerCodeKey = registerCodeKey(email);
+        redisTemplate.opsForValue().set(registerCodeKey, code, emailCodeExpireMinutes, TimeUnit.MINUTES);
         redisTemplate.opsForValue().set(cooldownKey, "1", emailCodeCooldownSeconds, TimeUnit.SECONDS);
 
         JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
-        if (mailSender == null || mailMockEnabled || mailFrom == null || mailFrom.isBlank()) {
-            return new SendEmailCodeResponse("验证码已生成，当前为调试模式", code);
-        }
-        try{ MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true);
-            helper.setFrom(mailFrom, "IDNCAR");
-            helper.setTo(email);
-            helper.setSubject("IDNCAR 注册验证码");
-            helper.setText("您的验证码为 " + code + "，" + emailCodeExpireMinutes + " 分钟内有效。");
-            mailSender.send(message);
-        }catch(Exception e){
-            System.err.println("邮件发送失败 , error: " + e.getMessage());
+        if (mailSender == null) {
+            clearRegisterEmailState(registerCodeKey, cooldownKey);
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "邮件服务未配置完成，暂时无法发送验证码");
         }
 
+        if (mailMockEnabled) {
+            clearRegisterEmailState(registerCodeKey, cooldownKey);
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "当前环境仍处于 mock 发信模式，请关闭 APP_MAIL_MOCK_ENABLED");
+        }
+
+        String senderAddress = resolveMailFromAddress();
+        if (senderAddress == null) {
+            clearRegisterEmailState(registerCodeKey, cooldownKey);
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "发件邮箱未配置，请设置 APP_MAIL_FROM 或 SPRING_MAIL_USERNAME");
+        }
+
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(senderAddress, "IDNCAR");
+            helper.setTo(email);
+            helper.setSubject("IDNCAR 注册验证码");
+            helper.setText(buildRegisterEmailHtml(code), true);
+            mailBrandTemplateHelper.addInlineLogoIfNeeded(helper);
+            mailSender.send(message);
+        } catch (Exception e) {
+            log.warn("Register verification email failed: email={}, sender={}, error={}",
+                    email, senderAddress, e.getMessage(), e);
+            clearRegisterEmailState(registerCodeKey, cooldownKey);
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "验证码邮件发送失败，请稍后重试");
+        }
 
         return new SendEmailCodeResponse("邮件发送成功，请查收邮箱验证码", null);
     }
@@ -238,6 +255,8 @@ public class AuthServiceImpl implements AuthService {
         user.setStatus("ACTIVE");
         user.setChatVisibility("ONLINE");
         user.setAvatarUrl(defaultAvatar(nickname));
+        user.setExperience(0);
+        user.setLevel(1);
         user.setBio("这个用户还没有填写个人简介。");
         userMapper.insert(user);
 
@@ -308,49 +327,27 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public UserDto uploadAvatar(Long userId, MultipartFile file) {
         User user = userAccessService.requireActiveUser(userId);
-        if (file == null || file.isEmpty()) {
-            throw ApiException.badRequest("请选择要上传的头像图片");
-        }
-        if (file.getSize() > MAX_AVATAR_SIZE_BYTES) {
-            throw ApiException.badRequest("头像图片不能超过 5MB");
-        }
+        String previousAvatarUrl = user.getAvatarUrl();
+        Path uploadDir = ImageUploadHelper.resolveUploadDir(uploadBaseDir, uploadAvatarSubDir, "头像");
+        Map<String, String> uploaded = ImageUploadHelper.saveImage(
+                file,
+                userId,
+                uploadBaseDir,
+                uploadAvatarSubDir,
+                "user",
+                "头像",
+                MAX_AVATAR_SIZE_BYTES
+        );
+        String uploadedAvatarUrl = uploaded.get("url");
 
-        String contentType = normalizeNullableText(file.getContentType());
-        if (contentType == null || !ALLOWED_AVATAR_CONTENT_TYPES.contains(contentType.toLowerCase())) {
-            throw ApiException.badRequest("仅支持 JPG、PNG、WEBP、GIF 图片");
-        }
-
-        Path uploadDir = Paths.get(uploadBaseDir).toAbsolutePath().normalize().resolve(uploadAvatarSubDir).normalize();
+        user.setAvatarUrl(uploadedAvatarUrl);
         try {
-            Files.createDirectories(uploadDir);
-        } catch (IOException e) {
-            throw new ApiException(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR, "创建头像目录失败");
+            userMapper.updateById(user);
+        } catch (RuntimeException e) {
+            deletePreviousUploadedAvatar(uploadedAvatarUrl, uploadDir);
+            throw e;
         }
-
-        String extension = switch (contentType.toLowerCase()) {
-            case "image/jpeg" -> ".jpg";
-            case "image/png" -> ".png";
-            case "image/webp" -> ".webp";
-            case "image/gif" -> ".gif";
-            default -> throw ApiException.badRequest("仅支持 JPG、PNG、WEBP、GIF 图片");
-        };
-
-        deletePreviousUploadedAvatar(user.getAvatarUrl(), uploadDir);
-
-        String fileName = "user-" + userId + "-" + UUID.randomUUID().toString().replace("-", "") + extension;
-        Path targetPath = uploadDir.resolve(fileName).normalize();
-        if (!targetPath.startsWith(uploadDir)) {
-            throw ApiException.badRequest("非法文件名");
-        }
-
-        try {
-            Files.copy(file.getInputStream(), targetPath, StandardCopyOption.REPLACE_EXISTING);
-        } catch (IOException e) {
-            throw new ApiException(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR, "保存头像失败");
-        }
-
-        user.setAvatarUrl("/uploads/" + uploadAvatarSubDir + "/" + fileName);
-        userMapper.updateById(user);
+        deletePreviousUploadedAvatar(previousAvatarUrl, uploadDir);
         return UserDto.fromEntity(userMapper.selectById(userId));
     }
 
@@ -474,12 +471,11 @@ public class AuthServiceImpl implements AuthService {
             return;
         }
 
-        String prefix = "/uploads/" + uploadAvatarSubDir + "/";
-        if (!normalizedAvatarUrl.startsWith(prefix)) {
+        String fileName = extractUploadedAvatarFileName(normalizedAvatarUrl);
+        if (fileName == null) {
             return;
         }
 
-        String fileName = normalizedAvatarUrl.substring(prefix.length());
         if (fileName.isBlank() || fileName.contains("/") || fileName.contains("\\")) {
             return;
         }
@@ -496,10 +492,137 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
+    private String extractUploadedAvatarFileName(String avatarUrl) {
+        String path = extractUrlPath(avatarUrl);
+        if (path == null) {
+            return null;
+        }
+
+        List<String> prefixes = List.of(
+                "/api/uploads/" + uploadAvatarSubDir + "/",
+                "/uploads/" + uploadAvatarSubDir + "/"
+        );
+
+        for (String prefix : prefixes) {
+            if (path.startsWith(prefix)) {
+                return path.substring(prefix.length());
+            }
+        }
+        return null;
+    }
+
+    private String extractUrlPath(String url) {
+        if (url.startsWith("http://") || url.startsWith("https://")) {
+            try {
+                String path = URI.create(url).getPath();
+                return path == null || path.isBlank() ? null : path;
+            } catch (Exception ignored) {
+                return null;
+            }
+        }
+        return url;
+    }
+
     private String limitText(String value, int maxLength) {
         if (value == null || value.length() <= maxLength) {
             return value;
         }
         return value.substring(0, maxLength);
+    }
+
+    private void clearRegisterEmailState(String registerCodeKey, String cooldownKey) {
+        redisTemplate.delete(registerCodeKey);
+        redisTemplate.delete(cooldownKey);
+    }
+
+    private String resolveMailFromAddress() {
+        String configuredFrom = normalizeNullableText(mailFrom);
+        if (configuredFrom != null) {
+            return configuredFrom;
+        }
+        return normalizeNullableText(springMailUsername);
+    }
+
+    private String buildRegisterEmailHtml(String code) {
+        String brandMark = mailBrandTemplateHelper.buildBrandMarkHtml();
+        String siteUrl = mailBrandTemplateHelper.escapeHtml(mailBrandTemplateHelper.siteUrl());
+        String loginUrl = mailBrandTemplateHelper.escapeHtml(mailBrandTemplateHelper.sitePath("/login"));
+        int currentYear = Year.now().getValue();
+        return """
+                <!DOCTYPE html>
+                <html lang="zh-CN">
+                <head>
+                  <meta charset="UTF-8" />
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                  <title>IDNCAR 注册验证码</title>
+                </head>
+                <body style="margin:0;padding:0;background:#eef3f8;font-family:'Segoe UI','PingFang SC','Microsoft YaHei',Arial,sans-serif;color:#102033;">
+                  <div style="display:none;max-height:0;overflow:hidden;color:transparent;">您的 IDNCAR 注册验证码是 %s，%d 分钟内有效。</div>
+                  <table role="presentation" cellpadding="0" cellspacing="0" width="100%%" style="background:#eef3f8;padding:32px 12px;">
+                    <tr>
+                      <td align="center">
+                        <table role="presentation" cellpadding="0" cellspacing="0" width="100%%" style="max-width:640px;background:#ffffff;border-radius:8px;overflow:hidden;border:1px solid #d9e2ec;box-shadow:0 18px 48px rgba(16,32,51,0.12);">
+                          <tr>
+                            <td style="padding:28px 32px;background:#102033;color:#ffffff;">
+                              <table role="presentation" cellpadding="0" cellspacing="0" width="100%%">
+                                <tr>
+                                  <td style="vertical-align:middle;">%s</td>
+                                  <td align="right" style="vertical-align:middle;font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:#a9b8c9;">Account Verify</td>
+                                </tr>
+                              </table>
+                              <div style="margin-top:28px;font-size:13px;line-height:1.7;color:#b8c7d8;">IDNCAR 账号安全</div>
+                              <div style="margin-top:8px;font-size:28px;font-weight:800;line-height:1.32;color:#ffffff;">注册验证码</div>
+                              <div style="margin-top:12px;font-size:14px;line-height:1.8;color:#d9e2ec;">请使用下方验证码完成邮箱验证。</div>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding:34px 32px 30px;">
+                              <div style="font-size:15px;line-height:1.9;color:#475569;">
+                                这是一封系统自动发送的验证邮件，请勿将验证码泄露给他人。
+                              </div>
+                              <div style="margin:26px 0;padding:24px;border-radius:8px;background:#f8fbff;border:1px solid #cfe0f5;text-align:center;">
+                                <div style="font-size:12px;letter-spacing:0.20em;text-transform:uppercase;color:#58708d;">Verification Code</div>
+                                <div style="margin-top:14px;font-size:34px;font-weight:900;letter-spacing:0.30em;color:#102033;">%s</div>
+                              </div>
+                              <table role="presentation" cellpadding="0" cellspacing="0" width="100%%" style="margin-top:22px;">
+                                <tr>
+                                  <td style="padding:16px 18px;border-radius:8px;background:#f9fafb;border:1px solid #e2e8f0;">
+                                    <div style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:0.14em;">有效期</div>
+                                    <div style="margin-top:8px;font-size:16px;font-weight:800;color:#102033;">%d 分钟</div>
+                                  </td>
+                                  <td width="12"></td>
+                                  <td style="padding:16px 18px;border-radius:8px;background:#f9fafb;border:1px solid #e2e8f0;">
+                                    <div style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:0.14em;">安全提示</div>
+                                    <div style="margin-top:8px;font-size:16px;font-weight:800;color:#102033;">仅用于本次注册</div>
+                                  </td>
+                                </tr>
+                              </table>
+                              <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:26px;">
+                                <tr>
+                                  <td style="border-radius:6px;background:#1d4ed8;">
+                                    <a href="%s" target="_blank" style="display:inline-block;padding:12px 18px;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;">打开 IDNCAR</a>
+                                  </td>
+                                  <td style="padding-left:14px;font-size:13px;line-height:1.8;color:#64748b;">
+                                    官网：<a href="%s" target="_blank" style="color:#1d4ed8;text-decoration:none;">%s</a>
+                                  </td>
+                                </tr>
+                              </table>
+                              <div style="margin-top:28px;padding-top:22px;border-top:1px solid #e2e8f0;font-size:13px;line-height:1.9;color:#64748b;">
+                                如果这不是您的操作，可以直接忽略此邮件。为了账号安全，请不要把验证码提供给任何人。
+                              </div>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding:20px 32px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;font-size:12px;line-height:1.8;color:#8291a3;text-align:center;">
+                              © %d IDNCAR. 这是一封系统自动发送的验证邮件，请勿直接回复。
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </body>
+                </html>
+                """.formatted(code, emailCodeExpireMinutes, brandMark, code, emailCodeExpireMinutes, loginUrl, siteUrl, siteUrl, currentYear);
     }
 }

@@ -1,0 +1,101 @@
+{
+  "jobId": "20260428-104045-76b35b38",
+  "mode": "daily",
+  "startedAt": "2026-04-28 10:40:45",
+  "config": {
+    "dbHost": "127.0.0.1",
+    "dbPort": 3306,
+    "dbName": "quant",
+    "httpUrl": "http://tsy.xiaodefa.cn",
+    "pauseMs": 400,
+    "fullStartDate": "20000101"
+  },
+  "steps": {
+    "reference": {
+      "stockBasic": {
+        "ok": true,
+        "count": 5835,
+        "affectedRows": 11670
+      },
+      "tradeCalSSE": {
+        "ok": true,
+        "count": 0,
+        "affectedRows": 0
+      },
+      "tradeCalSZSE": {
+        "ok": true,
+        "count": 0,
+        "affectedRows": 0
+      }
+    },
+    "marketTradeDates": {
+      "dateCount": 0,
+      "recordCount": {
+        "daily": 0,
+        "adj_factor": 0,
+        "daily_basic": 0,
+        "moneyflow": 0,
+        "bak_daily": 0,
+        "cyq_perf": 0,
+        "stk_nineturn": 0,
+        "stk_limit": 0,
+        "suspend_d": 0,
+        "stk_auction_o": 0,
+        "stk_auction_c": 0,
+        "top_list": 0,
+        "top_inst": 0,
+        "margin": 0,
+        "margin_detail": 0,
+        "margin_secs": 0,
+        "hk_hold": 0,
+        "hsgt_top10_sh": 0,
+        "hsgt_top10_sz": 0
+      },
+      "affectedRows": 0,
+      "errorCount": 0,
+      "startDate": null,
+      "endDate": null
+    },
+    "announcementDates": {
+      "dateCount": 0,
+      "recordCount": {
+        "forecast": 0,
+        "express": 0,
+        "dividend": 0,
+        "stk_holdernumber": 0,
+        "top10_holders": 0,
+        "top10_floatholders": 0,
+        "stk_holdertrade": 0
+      },
+      "affectedRows": 0,
+      "errorCount": 0,
+      "startDate": null,
+      "endDate": null
+    },
+    "contentDates": {
+      "dateCount": 0,
+      "recordCount": {
+        "cctv_news": 0,
+        "index_global": 0
+      },
+      "affectedRows": 0,
+      "errorCount": 0,
+      "startDate": null,
+      "endDate": null
+    },
+    "rangeDatasets": {
+      "startDate": "20260425",
+      "endDate": "20260413",
+      "recordCount": {
+        "report_rc": 0,
+        "moneyflow_hsgt": 0,
+        "block_trade": 0,
+        "repurchase": 0
+      },
+      "affectedRows": 0,
+      "errorCount": 0
+    }
+  },
+  "finishedAt": "2026-04-28 10:42:40",
+  "status": "completed"
+}

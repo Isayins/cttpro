@@ -12,6 +12,7 @@ import com.idncar.model.entity.DownloadResource;
 import com.idncar.service.DownloadService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -35,9 +36,11 @@ public class DownloadServiceImpl implements DownloadService {
     private static final long CAPTCHA_TTL_MINUTES = 5L;
     private static final long DOWNLOAD_TOKEN_TTL_MINUTES = 10L;
     private static final String TOKEN_VALUE_SEPARATOR = "||__FILENAME__||";
+    private static final String RESOURCE_IDENTIFIER_PREFIX = "download-resource:";
 
     private final Map<String, LocalCacheEntry> localCaptchaStore = new ConcurrentHashMap<>();
     private final Map<String, LocalCacheEntry> localTokenStore = new ConcurrentHashMap<>();
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Autowired
     private DownloadResourceMapper downloadResourceMapper;
@@ -52,7 +55,7 @@ public class DownloadServiceImpl implements DownloadService {
                                 .orderByAsc("sort_order")
                                 .orderByDesc("create_time")
                 ).stream()
-                .map(DownloadResourceDto::fromEntity)
+                .map(DownloadResourceDto::fromPublicEntity)
                 .collect(Collectors.toList());
     }
 
@@ -60,7 +63,7 @@ public class DownloadServiceImpl implements DownloadService {
     public void trackDownload(Long downloadId) {
         DownloadResource resource = downloadResourceMapper.selectById(downloadId);
         if (resource == null) {
-            throw ApiException.notFound("涓嬭浇璧勬簮涓嶅瓨鍦?);
+            throw ApiException.notFound("下载资源不存在");
         }
         downloadResourceMapper.incrementDownloadCount(downloadId);
     }
@@ -77,17 +80,35 @@ public class DownloadServiceImpl implements DownloadService {
 
     @Override
     public VerifyDownloadCaptchaResponse verifyCaptcha(VerifyDownloadCaptchaRequest request) {
-        String captchaId = requireText(request.captchaId(), "Captcha id is required");
-        String answer = requireText(request.answer(), "Captcha answer is required");
-        String resource = requireText(request.resource(), "Download resource is required");
+        if (request == null) {
+            throw ApiException.badRequest("缺少下载验证参数");
+        }
+        String resource = requireText(request.resource(), "下载资源不能为空");
 
-        String cachedAnswer = consumeWithFallback(captchaKey(captchaId), localCaptchaStore, captchaId);
-        if (cachedAnswer == null || !answer.equalsIgnoreCase(String.valueOf(cachedAnswer))) {
-            return new VerifyDownloadCaptchaResponse(false, null, "楠岃瘉鐮侀敊璇?);
+        DownloadResource matchedResource = findDownloadResource(resource);
+        if (matchedResource == null) {
+            throw ApiException.notFound("下载资源不存在");
+        }
+        String normalizedResourceUrl = normalizeDownloadUrl(matchedResource.getUrl());
+
+        String captchaId = null;
+        if (Boolean.TRUE.equals(matchedResource.getLocked())) {
+            captchaId = requireText(request.captchaId(), "验证码编号不能为空");
+            String answer = requireText(request.answer(), "验证码答案不能为空");
+            String cachedAnswer = readWithFallback(captchaKey(captchaId), localCaptchaStore, captchaId);
+            deleteStoredValue(captchaKey(captchaId), localCaptchaStore, captchaId);
+            if (cachedAnswer == null || !answer.equalsIgnoreCase(cachedAnswer)) {
+                return new VerifyDownloadCaptchaResponse(false, null, "验证码错误或已过期");
+            }
         }
 
-        String normalizedResourceUrl = normalizeDownloadUrl(resource);
-        DownloadResource matchedResource = findDownloadResourceByUrl(resource, normalizedResourceUrl);
+        if (hasDownloadPassword(matchedResource)) {
+            String password = normalizeNullableText(request.password());
+            if (password == null || !passwordEncoder.matches(password, matchedResource.getDownloadPasswordHash())) {
+                return new VerifyDownloadCaptchaResponse(false, null, "下载密码错误");
+            }
+        }
+
         String resolvedFileName = resolveDownloadFileName(request.fileName(), matchedResource, normalizedResourceUrl);
 
         String downloadToken = UUID.randomUUID().toString();
@@ -99,15 +120,15 @@ public class DownloadServiceImpl implements DownloadService {
                 downloadToken
         );
 
-        return new VerifyDownloadCaptchaResponse(true, downloadToken, "楠岃瘉閫氳繃");
+        return new VerifyDownloadCaptchaResponse(true, downloadToken, "下载验证通过");
     }
 
     @Override
     public DownloadTargetDto consumeDownloadToken(String token) {
-        String normalizedToken = requireText(token, "Download token is required");
+        String normalizedToken = requireText(token, "下载令牌不能为空");
         String tokenValue = consumeWithFallback(downloadTokenKey(normalizedToken), localTokenStore, normalizedToken);
         if (tokenValue == null) {
-            throw ApiException.badRequest("涓嬭浇浠ょ墝鏃犳晥鎴栧凡杩囨湡");
+            throw ApiException.badRequest("下载令牌无效或已过期");
         }
         return unpackTokenValue(tokenValue);
     }
@@ -125,7 +146,7 @@ public class DownloadServiceImpl implements DownloadService {
     }
 
     private String normalizeDownloadUrl(String resource) {
-        String normalized = requireText(resource, "Download resource is required");
+        String normalized = requireText(resource, "下载资源不能为空");
         if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
             return normalized;
         }
@@ -154,7 +175,46 @@ public class DownloadServiceImpl implements DownloadService {
 
         QueryWrapper<DownloadResource> query = new QueryWrapper<>();
         query.in("url", new ArrayList<>(candidates)).last("LIMIT 1");
-        return downloadResourceMapper.selectOne(query);
+        DownloadResource exactMatch = downloadResourceMapper.selectOne(query);
+        if (exactMatch != null) {
+            return exactMatch;
+        }
+
+        String uploadRelativePath = extractLocalUploadRelativePath(normalizedUrl);
+        if (uploadRelativePath == null) {
+            uploadRelativePath = extractLocalUploadRelativePath(originalUrl);
+        }
+        if (uploadRelativePath == null) {
+            return null;
+        }
+
+        String matchedUploadRelativePath = uploadRelativePath;
+        return downloadResourceMapper.selectList(new QueryWrapper<DownloadResource>())
+                .stream()
+                .filter(resource -> matchedUploadRelativePath.equals(extractLocalUploadRelativePath(resource.getUrl())))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private DownloadResource findDownloadResource(String resource) {
+        Long resourceId = parseResourceIdentifier(resource);
+        if (resourceId != null) {
+            return downloadResourceMapper.selectById(resourceId);
+        }
+        String normalizedUrl = normalizeDownloadUrl(resource);
+        return findDownloadResourceByUrl(resource, normalizedUrl);
+    }
+
+    private Long parseResourceIdentifier(String resource) {
+        if (resource == null || !resource.startsWith(RESOURCE_IDENTIFIER_PREFIX)) {
+            return null;
+        }
+        try {
+            long id = Long.parseLong(resource.substring(RESOURCE_IDENTIFIER_PREFIX.length()));
+            return id > 0 ? id : null;
+        } catch (NumberFormatException ignored) {
+            throw ApiException.badRequest("下载资源标识不正确");
+        }
     }
 
     private void addCandidate(Set<String> candidates, String value) {
@@ -173,6 +233,32 @@ public class DownloadServiceImpl implements DownloadService {
         }
         if (url.startsWith("/uploads/")) {
             return "/api" + url;
+        }
+        return null;
+    }
+
+    private String extractPath(String url) {
+        if (url == null || url.isBlank()) {
+            return null;
+        }
+        try {
+            String path = URI.create(url).getPath();
+            return path == null || path.isBlank() ? null : path;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private String extractLocalUploadRelativePath(String url) {
+        String path = extractPath(url);
+        if (path == null) {
+            return null;
+        }
+        if (path.startsWith("/api/uploads/")) {
+            return path.substring("/api/uploads/".length());
+        }
+        if (path.startsWith("/uploads/")) {
+            return path.substring("/uploads/".length());
         }
         return null;
     }
@@ -307,6 +393,19 @@ public class DownloadServiceImpl implements DownloadService {
         return value.trim();
     }
 
+    private String normalizeNullableText(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private boolean hasDownloadPassword(DownloadResource resource) {
+        return resource != null
+                && resource.getDownloadPasswordHash() != null
+                && !resource.getDownloadPasswordHash().isBlank();
+    }
+
     private String captchaKey(String captchaId) {
         return "download:captcha:" + captchaId;
     }
@@ -316,25 +415,61 @@ public class DownloadServiceImpl implements DownloadService {
     }
 
     private void storeWithFallback(String redisKey, String value, long ttlMinutes, Map<String, LocalCacheEntry> fallbackStore, String fallbackKey) {
+        fallbackStore.put(fallbackKey,
+                new LocalCacheEntry(value, System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(ttlMinutes)));
         try {
             redisTemplate.opsForValue().set(redisKey, value, ttlMinutes, TimeUnit.MINUTES);
         } catch (Exception ignored) {
-            fallbackStore.put(fallbackKey, new LocalCacheEntry(value, System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(ttlMinutes)));
+            // The in-memory copy above keeps verification available while Redis is unavailable.
+        }
+    }
+
+    private String readWithFallback(String redisKey, Map<String, LocalCacheEntry> fallbackStore, String fallbackKey) {
+        try {
+            Object redisValue = redisTemplate.opsForValue().get(redisKey);
+            if (redisValue != null) {
+                return String.valueOf(redisValue);
+            }
+        } catch (Exception ignored) {
+            // Read the local backup below.
+        }
+
+        LocalCacheEntry entry = fallbackStore.get(fallbackKey);
+        if (entry == null) {
+            return null;
+        }
+        if (entry.expireAtMillis() < System.currentTimeMillis()) {
+            fallbackStore.remove(fallbackKey, entry);
+            return null;
+        }
+        return entry.value();
+    }
+
+    private void deleteStoredValue(String redisKey, Map<String, LocalCacheEntry> fallbackStore, String fallbackKey) {
+        fallbackStore.remove(fallbackKey);
+        try {
+            redisTemplate.delete(redisKey);
+        } catch (Exception ignored) {
+            // The local copy has already been removed.
         }
     }
 
     private String consumeWithFallback(String redisKey, Map<String, LocalCacheEntry> fallbackStore, String fallbackKey) {
+        String value = null;
         try {
             Object redisValue = redisTemplate.opsForValue().get(redisKey);
             redisTemplate.delete(redisKey);
             if (redisValue != null) {
-                return String.valueOf(redisValue);
+                value = String.valueOf(redisValue);
             }
         } catch (Exception ignored) {
             // Redis unavailable, fallback to in-memory temporary store.
         }
 
         LocalCacheEntry entry = fallbackStore.remove(fallbackKey);
+        if (value != null) {
+            return value;
+        }
         if (entry == null || entry.expireAtMillis() < System.currentTimeMillis()) {
             return null;
         }

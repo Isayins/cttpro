@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="IDNCAR">
+  <defs>
+    <linearGradient id="bg" x1="8%" y1="8%" x2="92%" y2="92%">
+      <stop offset="0%" stop-color="#1d4ed8" />
+      <stop offset="100%" stop-color="#2563eb" />
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="16" fill="url(#bg)" />
+  <path d="M16 19h5v26h-5z" fill="#fff" />
+  <path d="M26 19h8.5c6.7 0 11.5 4.5 11.5 13s-4.8 13-11.5 13H26zm5 4.5v17h3.1c4.2 0 6.8-2.8 6.8-8.5s-2.6-8.5-6.8-8.5z" fill="#fff" />
+  <path d="M49 21.5c0-1.4-1.1-2.5-2.5-2.5S44 20.1 44 21.5 45.1 24 46.5 24 49 22.9 49 21.5zm-5 8.5h5v15h-5z" fill="#fff" />
+</svg>
