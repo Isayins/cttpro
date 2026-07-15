@@ -56,7 +56,7 @@ import { productApi } from "../services/api/product";
 import type { Product } from "../types/app";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PRODUCT_STOCK_REFRESH_MS = 10000;
+const PRODUCT_STOCK_REFRESH_MS = 30000;
 
 export default function Products() {
   const navigate = useNavigate();
@@ -111,6 +111,9 @@ export default function Products() {
 
   useEffect(() => {
     const timerId = window.setInterval(() => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
       void loadProducts({ silent: true });
     }, PRODUCT_STOCK_REFRESH_MS);
     return () => window.clearInterval(timerId);
