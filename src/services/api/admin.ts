@@ -10,6 +10,7 @@ import type {
   AdminProductDeliveryCodeStats,
   AdminProductStats,
   AdminSiteNoticeStats,
+  AdminSystemHealth,
   AdminUpdateUserPayload,
   AdminUserStats,
   CreateProductCouponCodesPayload,
@@ -376,6 +377,10 @@ export const adminApi = {
   },
   getPaymentOrderStats: () =>
     apiRequest<AdminPaymentOrderStats>("/api/admin/payment-orders/stats", {
+      authMode: "required",
+    }),
+  getSystemHealth: () =>
+    apiRequest<AdminSystemHealth>("/api/admin/system-health", {
       authMode: "required",
     }),
   syncPaymentOrder: (outTradeNo: string) =>

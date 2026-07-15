@@ -397,6 +397,23 @@ export interface AdminPaymentOrderStats {
   errors: number;
 }
 
+export interface AdminSystemHealthItem {
+  key: string;
+  title: string;
+  status: "OK" | "WARNING" | "ERROR" | string;
+  summary: string;
+  detail?: string | null;
+  actionLabel?: string | null;
+  targetSection?: string | null;
+}
+
+export interface AdminSystemHealth {
+  status: "OK" | "WARNING" | "ERROR" | string;
+  score: number;
+  checkedAt?: string | null;
+  items: AdminSystemHealthItem[];
+}
+
 export interface VmqPaymentSettings {
   id: number;
   enabled: boolean;

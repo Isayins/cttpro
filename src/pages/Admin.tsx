@@ -30,6 +30,7 @@ import {
   DeleteOutlined,
   DownloadOutlined,
   GiftOutlined,
+  HeartOutlined,
   KeyOutlined,
   MailOutlined,
   NotificationOutlined,
@@ -81,6 +82,7 @@ import type {
   AdminProductDeliveryCodeStats,
   AdminProductStats,
   AdminSiteNoticeStats,
+  AdminSystemHealth,
   AdminUpdateUserPayload,
   AdminUserStats,
   CreateProductCouponCodesPayload,
@@ -336,6 +338,18 @@ const vmqMonitorStatusColor = (status?: string) => {
   return "default";
 };
 
+const systemHealthStatusLabel = (status?: string) => {
+  if (status === "OK") return "正常";
+  if (status === "ERROR") return "异常";
+  return "关注";
+};
+
+const systemHealthStatusColor = (status?: string) => {
+  if (status === "OK") return "green";
+  if (status === "ERROR") return "red";
+  return "orange";
+};
+
 const formatAdminRefreshTime = (date: Date) =>
   new Intl.DateTimeFormat("zh-CN", {
     month: "2-digit",
@@ -355,6 +369,7 @@ const sectionItems = [
   { id: "mail-logs", label: "邮件记录", icon: <MailOutlined /> },
   { id: "vmq-payment", label: "V免签配置", icon: <QrcodeOutlined /> },
   { id: "downloads", label: "下载管理", icon: <DownloadOutlined /> },
+  { id: "system-health", label: "系统状态", icon: <HeartOutlined /> },
   { id: "notices", label: "公告管理", icon: <NotificationOutlined /> },
   { id: "reports", label: "举报处理", icon: <SafetyOutlined /> },
   { id: "logs", label: "操作日志", icon: <AuditOutlined /> },
@@ -543,6 +558,9 @@ export default function Admin({ preview = false }: AdminProps) {
     failed: 0,
     errors: 0,
   });
+  const [systemHealth, setSystemHealth] = useState<AdminSystemHealth | null>(
+    null,
+  );
   const [vmqSettings, setVmqSettings] = useState<VmqPaymentSettings | null>(
     null,
   );
@@ -915,6 +933,12 @@ export default function Admin({ preview = false }: AdminProps) {
           label: "支付订单统计",
           run: adminApi.getPaymentOrderStats,
           apply: (value) => setPaymentStats(value as AdminPaymentOrderStats),
+        },
+        {
+          key: "systemHealth",
+          label: "系统状态",
+          run: adminApi.getSystemHealth,
+          apply: (value) => setSystemHealth(value as AdminSystemHealth),
         },
         {
           key: "vmqPayment",
@@ -3883,12 +3907,13 @@ export default function Admin({ preview = false }: AdminProps) {
     [dailyVisits],
   );
 
-  const pendingTaskCount =
+  const attentionCount =
     paymentSummary.errors +
     reportSummary.pending +
     lowDeliveryCodeProducts.length;
   const systemHealthPercent =
-    sectionErrorItems.length > 0 ? 86 : paymentSummary.errors > 0 ? 92 : 98;
+    systemHealth?.score ??
+    (sectionErrorItems.length > 0 ? 86 : paymentSummary.errors > 0 ? 92 : 98);
   const moduleCountById = useMemo<Record<string, string>>(
     () => ({
       overview: "总览",
@@ -3901,6 +3926,7 @@ export default function Admin({ preview = false }: AdminProps) {
       "mail-logs": mailLogTotal > 0 ? `${mailLogTotal}` : "邮件",
       "vmq-payment": vmqSettings?.enabled ? "启用" : "配置",
       downloads: `${downloadSummary.total}`,
+      "system-health": systemHealthStatusLabel(systemHealth?.status),
       notices: `${noticeSummary.total}`,
       reports: `${reportSummary.pending}`,
       logs: logTotal > 0 ? `${logTotal}` : "今日",
@@ -3917,6 +3943,7 @@ export default function Admin({ preview = false }: AdminProps) {
       productSummary.total,
       reportSummary.pending,
       summary.total,
+      systemHealth?.status,
       vmqSettings?.enabled,
     ],
   );
@@ -4899,7 +4926,7 @@ export default function Admin({ preview = false }: AdminProps) {
                   )
                 }
               >
-                处理待办
+                处理异常
               </Button>
             </div>
           </div>
@@ -4973,8 +5000,20 @@ export default function Admin({ preview = false }: AdminProps) {
                   <span className="text-xs font-bold text-slate-500">
                     系统健康
                   </span>
-                  <Tag color={systemHealthPercent >= 95 ? "green" : "orange"}>
-                    {systemHealthPercent >= 95 ? "稳定" : "关注"}
+                  <Tag
+                    color={
+                      systemHealth
+                        ? systemHealthStatusColor(systemHealth.status)
+                        : systemHealthPercent >= 95
+                          ? "green"
+                          : "orange"
+                    }
+                  >
+                    {systemHealth
+                      ? systemHealthStatusLabel(systemHealth.status)
+                      : systemHealthPercent >= 95
+                        ? "稳定"
+                        : "关注"}
                   </Tag>
                 </div>
                 <div className="mt-3 text-2xl font-extrabold text-slate-950">
@@ -4986,7 +5025,7 @@ export default function Admin({ preview = false }: AdminProps) {
                   strokeColor="#c4362d"
                 />
                 <div className="mt-3 text-xs leading-5 text-slate-500">
-                  待办 {pendingTaskCount} 项，异常模块{" "}
+                  需关注 {attentionCount} 项，异常模块{" "}
                   {sectionErrorItems.length} 个
                 </div>
               </div>
@@ -7144,6 +7183,118 @@ export default function Admin({ preview = false }: AdminProps) {
                             }}
                           />
                         </Card>
+                      </Col>
+                    </Row>
+                  </section>
+
+                  <section
+                    id="system-health"
+                    className={sectionPanelClassName("system-health")}
+                  >
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <div className="text-xl font-semibold text-slate-900">
+                          系统状态
+                        </div>
+                        <div className="mt-1 text-sm text-slate-500">
+                          检查邮件、支付、发货、下载这些最容易影响成交的配置。
+                        </div>
+                      </div>
+                      <Space wrap>
+                        <Tag color={systemHealthStatusColor(systemHealth?.status)}>
+                          {systemHealthStatusLabel(systemHealth?.status)}
+                        </Tag>
+                        <Button
+                          icon={<HeartOutlined />}
+                          loading={loading}
+                          onClick={() => void loadAll(reportStatus)}
+                        >
+                          重新检查
+                        </Button>
+                      </Space>
+                    </div>
+
+                    <Row gutter={[20, 20]}>
+                      <Col xs={24} lg={8}>
+                        <Card className="rounded-[28px] border-slate-100 shadow-sm">
+                          <div className="text-sm font-bold text-slate-500">
+                            健康评分
+                          </div>
+                          <div className="mt-3 text-5xl font-extrabold text-slate-950">
+                            {systemHealthPercent}%
+                          </div>
+                          <Progress
+                            className="mt-3"
+                            percent={systemHealthPercent}
+                            showInfo={false}
+                            strokeColor={
+                              systemHealth?.status === "ERROR"
+                                ? "#dc2626"
+                                : systemHealth?.status === "WARNING"
+                                  ? "#d97706"
+                                  : "#16a34a"
+                            }
+                          />
+                          <div className="mt-4 text-sm leading-6 text-slate-500">
+                            {systemHealth?.checkedAt
+                              ? `${systemHealth.checkedAt} 检查`
+                              : "等待检查结果"}
+                          </div>
+                        </Card>
+                      </Col>
+                      <Col xs={24} lg={16}>
+                        <div className="grid gap-4 md:grid-cols-2">
+                          {(systemHealth?.items ?? []).map((item) => (
+                            <Card
+                              key={item.key}
+                              className="rounded-[24px] border-slate-100 shadow-sm"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <div className="text-base font-semibold text-slate-950">
+                                    {item.title}
+                                  </div>
+                                  <div className="mt-1 text-sm font-medium text-slate-700">
+                                    {item.summary}
+                                  </div>
+                                </div>
+                                <Tag color={systemHealthStatusColor(item.status)}>
+                                  {systemHealthStatusLabel(item.status)}
+                                </Tag>
+                              </div>
+                              <div className="mt-3 min-h-10 text-sm leading-6 text-slate-500">
+                                {item.detail || "暂无详情"}
+                              </div>
+                              {item.targetSection ? (
+                                <Button
+                                  className="mt-4"
+                                  size="small"
+                                  onClick={() => {
+                                    if (
+                                      sectionItems.some(
+                                        (section) =>
+                                          section.id === item.targetSection,
+                                      )
+                                    ) {
+                                      switchSection(
+                                        item.targetSection as AdminSectionId,
+                                      );
+                                    }
+                                  }}
+                                >
+                                  {item.actionLabel || "去处理"}
+                                </Button>
+                              ) : null}
+                            </Card>
+                          ))}
+                          {!systemHealth?.items?.length ? (
+                            <Card className="rounded-[24px] border-slate-100 shadow-sm">
+                              <div className="text-sm text-slate-500">
+                                暂无检查结果，请点击重新检查。
+                              </div>
+                            </Card>
+                          ) : null}
+                        </div>
                       </Col>
                     </Row>
                   </section>
