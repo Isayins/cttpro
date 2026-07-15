@@ -56,6 +56,7 @@ import { productApi } from "../services/api/product";
 import type { Product } from "../types/app";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PRODUCT_STOCK_REFRESH_MS = 10000;
 
 export default function Products() {
   const navigate = useNavigate();
@@ -78,13 +79,15 @@ export default function Products() {
   const loadProductsRequestRef = useRef(0);
   const paymentNoticeOrderNoRef = useRef<string | null>(null);
 
-  const loadProducts = useCallback(async () => {
+  const loadProducts = useCallback(async (options?: { silent?: boolean }) => {
     const requestId = loadProductsRequestRef.current + 1;
     loadProductsRequestRef.current = requestId;
     const isLatestRequest = () => loadProductsRequestRef.current === requestId;
 
-    setLoading(true);
-    setError(null);
+    if (!options?.silent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const nextProducts = await productApi.getProducts();
       if (!isLatestRequest()) {
@@ -92,11 +95,11 @@ export default function Products() {
       }
       setProducts(nextProducts);
     } catch (error) {
-      if (isLatestRequest()) {
+      if (isLatestRequest() && !options?.silent) {
         setError(getErrorMessage(error, "商品加载失败，请稍后重试"));
       }
     } finally {
-      if (isLatestRequest()) {
+      if (isLatestRequest() && !options?.silent) {
         setLoading(false);
       }
     }
@@ -104,6 +107,13 @@ export default function Products() {
 
   useEffect(() => {
     void loadProducts();
+  }, [loadProducts]);
+
+  useEffect(() => {
+    const timerId = window.setInterval(() => {
+      void loadProducts({ silent: true });
+    }, PRODUCT_STOCK_REFRESH_MS);
+    return () => window.clearInterval(timerId);
   }, [loadProducts]);
 
   const notifyCompletedOrder = useCallback(
@@ -210,7 +220,7 @@ export default function Products() {
     ];
   }, [filteredProducts.length, keyword, loading, products]);
 
-  function startPayment(product: Product) {
+  async function startPayment(product: Product) {
     if (!isAuthenticated) {
       message.warning(
         isFreeProduct(product)
@@ -222,12 +232,25 @@ export default function Products() {
       });
       return;
     }
-    if (!hasAvailableStock(product)) {
+    let latestProduct = product;
+    try {
+      latestProduct = await productApi.getProduct(product.id);
+      setProducts((current) =>
+        current.map((item) => (item.id === latestProduct.id ? latestProduct : item)),
+      );
+      setSelectedProduct((current) =>
+        current?.id === latestProduct.id ? latestProduct : current,
+      );
+    } catch (error) {
+      message.error(getErrorMessage(error, "刷新商品库存失败，请稍后重试"));
+      return;
+    }
+    if (!hasAvailableStock(latestProduct)) {
       message.warning("这个商品暂时没有库存");
       return;
     }
 
-    setBuyingProduct(product);
+    setBuyingProduct(latestProduct);
     setPaymentOrder(null);
     paymentNoticeOrderNoRef.current = null;
     setCouponCode("");
