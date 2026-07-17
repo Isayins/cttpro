@@ -110,6 +110,8 @@ bash deploy/ubuntu/java-backend-nohup.sh start
 
 配置中的 `/api/` 和 `/uploads/` 使用 `^~` 前缀，避免 JPG、PNG 等静态
 文件正则抢占上传文件请求；同时兼容数据库中历史 `/uploads/` 地址。
+公开认证接口使用 Nginx 原生限流：登录、注册和密码重置每 IP 每分钟 10 次，
+邮箱验证码发送每 IP 每分钟 5 次；超限返回 HTTP 429，其他 API 不计入该限流。
 
 更新生产配置时应先备份原文件，使用 `nginx -t` 校验成功后再执行
 `systemctl reload nginx`。不要使用全局 `error_page 404 /index.html`，SPA

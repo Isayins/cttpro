@@ -34,6 +34,12 @@ jobs:
       - name: Run frontend checks
         run: npm run check
 
+      - name: Validate container Nginx config
+        run: >-
+          docker run --rm --add-host java-backend:127.0.0.1
+          -v "$PWD/deploy/ubuntu/nginx.conf:/etc/nginx/conf.d/default.conf:ro"
+          nginx:1.27-alpine nginx -t
+
       - name: Upload frontend build
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
