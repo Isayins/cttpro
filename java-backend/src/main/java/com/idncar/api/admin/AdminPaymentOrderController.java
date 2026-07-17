@@ -3,6 +3,7 @@ package com.idncar.api.admin;
 import com.idncar.model.dto.AdminPaymentOrderDto;
 import com.idncar.model.dto.AdminPaymentOrderStatsDto;
 import com.idncar.model.dto.PageResultDto;
+import com.idncar.model.dto.OrderSupportRequest;
 import com.idncar.model.dto.ResolvePaymentOrderRequest;
 import com.idncar.service.AlipayFaceToFacePaymentService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -64,6 +65,13 @@ public class AdminPaymentOrderController {
     public ResponseEntity<AdminPaymentOrderDto> resendPaymentOrderDelivery(@RequestAttribute("userId") Long userId,
                                                                            @PathVariable String outTradeNo) {
         return ResponseEntity.ok(alipayFaceToFacePaymentService.adminResendDelivery(userId, outTradeNo));
+    }
+
+    @PostMapping("/{outTradeNo}/support/reply")
+    public ResponseEntity<AdminPaymentOrderDto> replySupport(@RequestAttribute("userId") Long userId,
+                                                              @PathVariable String outTradeNo,
+                                                              @RequestBody OrderSupportRequest request) {
+        return ResponseEntity.ok(alipayFaceToFacePaymentService.adminReplySupport(userId, outTradeNo, request));
     }
 
     @PostMapping("/{outTradeNo}/resolve")

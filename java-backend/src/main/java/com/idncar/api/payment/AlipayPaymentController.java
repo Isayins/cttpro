@@ -2,6 +2,7 @@ package com.idncar.api.payment;
 
 import com.idncar.model.dto.AlipayFaceToFacePrecreateRequest;
 import com.idncar.model.dto.PageResultDto;
+import com.idncar.model.dto.OrderSupportRequest;
 import com.idncar.model.dto.PaymentOrderDto;
 import com.idncar.model.dto.PreviewProductCouponCodeRequest;
 import com.idncar.model.dto.ProductCouponPreviewDto;
@@ -77,6 +78,13 @@ public class AlipayPaymentController {
     public ResponseEntity<PaymentOrderDto> resendDelivery(@RequestAttribute("userId") Long userId,
                                                            @PathVariable String outTradeNo) {
         return ResponseEntity.ok(alipayFaceToFacePaymentService.resendDelivery(userId, outTradeNo));
+    }
+
+    @PostMapping("/face-to-face/orders/{outTradeNo}/support")
+    public ResponseEntity<PaymentOrderDto> submitSupport(@RequestAttribute("userId") Long userId,
+                                                          @PathVariable String outTradeNo,
+                                                          @RequestBody OrderSupportRequest request) {
+        return ResponseEntity.ok(alipayFaceToFacePaymentService.submitSupport(userId, outTradeNo, request));
     }
 
     @PostMapping(value = "/notify", produces = MediaType.TEXT_PLAIN_VALUE)

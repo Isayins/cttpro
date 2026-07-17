@@ -383,6 +383,10 @@ export interface AdminPaymentOrder {
   closedTime?: string | null;
   paidHandled?: boolean | null;
   lastError?: string | null;
+  supportStatus?: "OPEN" | "RESOLVED" | string | null;
+  supportMessage?: string | null;
+  supportReply?: string | null;
+  supportUpdatedAt?: string | null;
   createTime?: string | null;
   updateTime?: string | null;
 }

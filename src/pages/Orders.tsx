@@ -234,6 +234,9 @@ export default function Orders() {
   const [pageSize, setPageSize] = useState(DEFAULT_ORDER_PAGE_SIZE);
   const [total, setTotal] = useState(0);
   const [selectedOrder, setSelectedOrder] = useState<PaymentOrder | null>(null);
+  const [supportOrder, setSupportOrder] = useState<PaymentOrder | null>(null);
+  const [supportMessage, setSupportMessage] = useState("");
+  const [supportSubmitting, setSupportSubmitting] = useState(false);
   const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([]);
   const loadOrdersRequestRef = useRef(0);
   const completedNoticeOrderNosRef = useRef<Set<string>>(new Set());
@@ -456,6 +459,29 @@ export default function Orders() {
       message.error(getErrorMessage(error, "发货邮件补发失败"));
     } finally {
       setActionLoading(null);
+    }
+  }
+
+  async function submitSupport() {
+    const content = supportMessage.trim();
+    if (!supportOrder || !content) {
+      message.warning("请描述需要处理的问题");
+      return;
+    }
+    setSupportSubmitting(true);
+    try {
+      const updated = await paymentApi.submitSupport(
+        supportOrder.outTradeNo,
+        content,
+      );
+      updateOrder(updated);
+      setSupportOrder(null);
+      setSupportMessage("");
+      message.success("售后问题已提交，请等待管理员回复");
+    } catch (error) {
+      message.error(getErrorMessage(error, "售后问题提交失败"));
+    } finally {
+      setSupportSubmitting(false);
     }
   }
 
@@ -1165,6 +1191,28 @@ export default function Orders() {
                 }
               />
 
+              {selectedOrder.supportStatus ? (
+                <Alert
+                  showIcon
+                  type={
+                    selectedOrder.supportStatus === "OPEN" ? "warning" : "info"
+                  }
+                  message={
+                    selectedOrder.supportStatus === "OPEN"
+                      ? "售后处理中"
+                      : "售后已回复"
+                  }
+                  description={
+                    <div className="space-y-1">
+                      <div>你的问题：{selectedOrder.supportMessage}</div>
+                      {selectedOrder.supportReply ? (
+                        <div>管理员回复：{selectedOrder.supportReply}</div>
+                      ) : null}
+                    </div>
+                  }
+                />
+              ) : null}
+
               {PAYING_STATUSES.has(selectedOrder.status) ? (
                 <Space wrap>
                   <Button
@@ -1198,6 +1246,17 @@ export default function Orders() {
                   <Button onClick={() => navigate(routePaths.chat)}>
                     联系管理员
                   </Button>
+                  <Button
+                    disabled={selectedOrder.supportStatus === "OPEN"}
+                    onClick={() => {
+                      setSupportOrder(selectedOrder);
+                      setSupportMessage("");
+                    }}
+                  >
+                    {selectedOrder.supportStatus === "OPEN"
+                      ? "售后处理中"
+                      : "提交售后"}
+                  </Button>
                   <Button onClick={() => setSelectedOrder(null)}>
                     关闭详情
                   </Button>
@@ -1227,6 +1286,19 @@ export default function Orders() {
                   <Button onClick={() => navigate(routePaths.chat)}>
                     联系管理员
                   </Button>
+                  <Button
+                    disabled={selectedOrder.supportStatus === "OPEN"}
+                    onClick={() => {
+                      setSupportOrder(selectedOrder);
+                      setSupportMessage("");
+                    }}
+                  >
+                    {selectedOrder.supportStatus === "OPEN"
+                      ? "售后处理中"
+                      : selectedOrder.supportStatus === "RESOLVED"
+                        ? "再次提交售后"
+                        : "提交售后"}
+                  </Button>
                   <Button onClick={() => setSelectedOrder(null)}>
                     关闭详情
                   </Button>
@@ -1234,6 +1306,24 @@ export default function Orders() {
               )}
             </div>
           ) : null}
+        </Modal>
+        <Modal
+          title={supportOrder ? `提交售后：${supportOrder.subject}` : "提交售后"}
+          open={Boolean(supportOrder)}
+          okText="提交"
+          cancelText="取消"
+          confirmLoading={supportSubmitting}
+          onOk={() => void submitSupport()}
+          onCancel={() => setSupportOrder(null)}
+        >
+          <Input.TextArea
+            value={supportMessage}
+            maxLength={500}
+            showCount
+            rows={5}
+            placeholder="请描述订单或发货遇到的问题"
+            onChange={(event) => setSupportMessage(event.target.value)}
+          />
         </Modal>
       </div>
     </MainLayout>

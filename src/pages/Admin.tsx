@@ -2129,6 +2129,51 @@ export default function Admin() {
     }
   }
 
+  function openPaymentSupportReply(record: AdminPaymentOrder) {
+    let reply = "";
+    Modal.confirm({
+      title: `回复订单售后：${record.outTradeNo}`,
+      okText: "回复并关闭",
+      cancelText: "取消",
+      content: (
+        <div className="mt-4 space-y-3">
+          <Alert type="warning" showIcon message={record.supportMessage} />
+          <Input.TextArea
+            rows={4}
+            maxLength={500}
+            showCount
+            placeholder="请输入处理结果或解决办法"
+            onChange={(event) => {
+              reply = event.target.value;
+            }}
+          />
+        </div>
+      ),
+      async onOk() {
+        const content = reply.trim();
+        if (!content) {
+          message.warning("请输入售后回复");
+          throw new Error("售后回复不能为空");
+        }
+        setPaymentActionLoading(record.outTradeNo);
+        try {
+          const updated = await adminApi.replyPaymentOrderSupport(
+            record.outTradeNo,
+            content,
+          );
+          const nextPage = getPaymentRefreshPage(updated);
+          message.success("售后已回复并关闭");
+          await Promise.all([refreshPaymentOrders(nextPage), refreshLogs()]);
+        } catch (error) {
+          message.error(textError(error, "售后回复失败"));
+          throw error;
+        } finally {
+          setPaymentActionLoading(null);
+        }
+      },
+    });
+  }
+
   function openPaymentResolveModal(record: AdminPaymentOrder) {
     setResolvingPaymentOrder(record);
     paymentResolveForm.setFieldsValue({ note: "" });
@@ -4484,11 +4529,33 @@ export default function Admin() {
       ),
     },
     {
+      title: "售后",
+      key: "support",
+      render: (_, record) =>
+        record.supportStatus ? (
+          <div className="max-w-[220px]">
+            <Tag color={record.supportStatus === "OPEN" ? "orange" : "green"}>
+              {record.supportStatus === "OPEN" ? "待回复" : "已回复"}
+            </Tag>
+            <div className="mt-1 truncate text-xs text-slate-500">
+              {record.supportMessage}
+            </div>
+            {record.supportReply ? (
+              <div className="mt-1 truncate text-xs text-green-600">
+                回复：{record.supportReply}
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          "-"
+        ),
+    },
+    {
       title: "操作",
       key: "action",
       fixed: "right",
       render: (_, record) => (
-        <Space size={4}>
+        <Space size={4} wrap>
           <Button
             type="link"
             loading={paymentActionLoading === record.outTradeNo}
@@ -4547,6 +4614,15 @@ export default function Admin() {
           {record.lastError ? (
             <Button type="link" onClick={() => openPaymentResolveModal(record)}>
               处理
+            </Button>
+          ) : null}
+          {record.supportStatus === "OPEN" ? (
+            <Button
+              type="link"
+              loading={paymentActionLoading === record.outTradeNo}
+              onClick={() => openPaymentSupportReply(record)}
+            >
+              回复售后
             </Button>
           ) : null}
           <Button

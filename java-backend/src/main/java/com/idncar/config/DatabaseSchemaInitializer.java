@@ -486,6 +486,10 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
                     paid_handled TINYINT(1) NOT NULL DEFAULT 0,
                     notify_payload TEXT NULL,
                     last_error VARCHAR(500) NULL,
+                    support_status VARCHAR(20) NULL,
+                    support_message VARCHAR(500) NULL,
+                    support_reply VARCHAR(500) NULL,
+                    support_updated_at DATETIME NULL,
                     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
                     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                     UNIQUE KEY uk_payment_orders_out_trade_no (out_trade_no)
@@ -639,6 +643,10 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
         ensureColumn("payment_orders", "paid_handled", "paid_handled TINYINT(1) NOT NULL DEFAULT 0");
         ensureColumn("payment_orders", "notify_payload", "notify_payload TEXT NULL");
         ensureColumn("payment_orders", "last_error", "last_error VARCHAR(500) NULL");
+        ensureColumn("payment_orders", "support_status", "support_status VARCHAR(20) NULL");
+        ensureColumn("payment_orders", "support_message", "support_message VARCHAR(500) NULL");
+        ensureColumn("payment_orders", "support_reply", "support_reply VARCHAR(500) NULL");
+        ensureColumn("payment_orders", "support_updated_at", "support_updated_at DATETIME NULL");
         jdbcTemplate.execute("UPDATE payment_orders SET original_amount = total_amount WHERE original_amount IS NULL");
         jdbcTemplate.execute("UPDATE payment_orders SET discount_amount = 0 WHERE discount_amount IS NULL");
         jdbcTemplate.execute("UPDATE payment_orders SET paid_handled = 0 WHERE paid_handled IS NULL");

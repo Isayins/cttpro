@@ -4,9 +4,13 @@ import com.idncar.exception.ApiException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.idncar.mapper.PaymentOrderMapper;
 import com.idncar.mapper.PaymentVmqEventMapper;
+import com.idncar.mapper.AdminOperationLogMapper;
+import com.idncar.mapper.UserMapper;
+import com.idncar.model.dto.OrderSupportRequest;
 import com.idncar.model.entity.Product;
 import com.idncar.model.entity.PaymentOrder;
 import com.idncar.model.entity.PaymentVmqEvent;
+import com.idncar.model.entity.User;
 import com.idncar.service.InternalVmqPaymentService;
 import com.idncar.service.AlipayFaceToFacePaymentService;
 import org.junit.jupiter.api.Test;
@@ -25,6 +29,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -132,6 +137,50 @@ class AlipayFaceToFacePaymentServiceTest {
                 "DELIVERY_RESENT",
                 "发货邮件已重新发送",
                 "订单 202607180001 的发货邮件已重新发送，请查收邮箱和垃圾箱。",
+                "/orders"
+        );
+    }
+
+    @Test
+    void orderSupportCanBeSubmittedAndResolved() throws Exception {
+        PaymentOrderMapper orderMapper = mock(PaymentOrderMapper.class);
+        AdminOperationLogMapper operationLogMapper = mock(AdminOperationLogMapper.class);
+        UserMapper userMapper = mock(UserMapper.class);
+        NotificationService notificationService = mock(NotificationService.class);
+        UserAccessService userAccessService = mock(UserAccessService.class);
+        PaymentOrder order = new PaymentOrder();
+        order.setId(12L);
+        order.setOutTradeNo("202607180002");
+        order.setPayerUserId(7L);
+        when(orderMapper.selectOne(any())).thenReturn(order);
+        when(orderMapper.selectById(12L)).thenReturn(order);
+        User admin = new User();
+        admin.setId(1L);
+        admin.setNickname("管理员");
+        when(userAccessService.requireAdmin(1L)).thenReturn(admin);
+        setField("paymentOrderMapper", orderMapper);
+        setField("adminOperationLogMapper", operationLogMapper);
+        setField("userMapper", userMapper);
+        setField("notificationService", notificationService);
+        setField("userAccessService", userAccessService);
+
+        OrderSupportRequest issue = new OrderSupportRequest();
+        issue.setMessage("没有收到发货邮件");
+        service.submitSupport(7L, order.getOutTradeNo(), issue);
+        assertThat(order.getSupportStatus()).isEqualTo("OPEN");
+        assertThat(order.getSupportMessage()).isEqualTo("没有收到发货邮件");
+
+        OrderSupportRequest reply = new OrderSupportRequest();
+        reply.setMessage("已补发，请检查垃圾箱");
+        service.adminReplySupport(1L, order.getOutTradeNo(), reply);
+        assertThat(order.getSupportStatus()).isEqualTo("RESOLVED");
+        assertThat(order.getSupportReply()).isEqualTo("已补发，请检查垃圾箱");
+        verify(orderMapper, times(2)).updateById(order);
+        verify(notificationService).createNotification(
+                7L,
+                "ORDER_SUPPORT_REPLIED",
+                "订单售后已回复",
+                "订单 202607180002：已补发，请检查垃圾箱",
                 "/orders"
         );
     }

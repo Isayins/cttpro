@@ -31,6 +31,7 @@ import com.idncar.model.dto.AdminPaymentOrderDto;
 import com.idncar.model.dto.AdminPaymentOrderStatsDto;
 import com.idncar.model.dto.AlipayFaceToFacePrecreateRequest;
 import com.idncar.model.dto.PageResultDto;
+import com.idncar.model.dto.OrderSupportRequest;
 import com.idncar.model.dto.PaymentOrderDto;
 import com.idncar.model.dto.ResolvePaymentOrderRequest;
 import com.idncar.model.entity.AdminOperationLog;
@@ -345,6 +346,22 @@ public class AlipayFaceToFacePaymentService {
         return PaymentOrderDto.fromEntity(paymentOrderMapper.selectById(order.getId()));
     }
 
+    public PaymentOrderDto submitSupport(Long userId, String outTradeNo, OrderSupportRequest request) {
+        userAccessService.requireActiveUser(userId);
+        PaymentOrder order = requireOwnedOrder(userId, outTradeNo);
+        if ("OPEN".equalsIgnoreCase(order.getSupportStatus())) {
+            throw ApiException.badRequest("该订单已有待处理售后，请等待管理员回复");
+        }
+
+        order.setSupportStatus("OPEN");
+        order.setSupportMessage(limitText(requireText(
+                request == null ? null : request.getMessage(), "请输入售后问题"), 500));
+        order.setSupportReply(null);
+        order.setSupportUpdatedAt(new Date());
+        paymentOrderMapper.updateById(order);
+        return PaymentOrderDto.fromEntity(paymentOrderMapper.selectById(order.getId()));
+    }
+
     public PageResultDto<PaymentOrderDto> getUserOrders(Long userId, Integer page, Integer size, String status, String keyword) {
         userAccessService.requireActiveUser(userId);
         int safePage = page == null ? 1 : Math.max(1, page);
@@ -450,6 +467,35 @@ public class AlipayFaceToFacePaymentService {
         PaymentOrder saved = paymentOrderMapper.selectById(order.getId());
         logAdminPaymentOperation(operator, "PAYMENT_ORDER_DELIVERY_RESENT", saved,
                 "重新发送商品发货邮件到：" + firstText(saved.getDeliveryEmail(), "订单用户邮箱"));
+        return toAdminPaymentOrderDto(saved);
+    }
+
+    public AdminPaymentOrderDto adminReplySupport(Long adminUserId, String outTradeNo, OrderSupportRequest request) {
+        User operator = userAccessService.requireAdmin(adminUserId);
+        PaymentOrder order = requireOrder(outTradeNo);
+        if (!"OPEN".equalsIgnoreCase(order.getSupportStatus())) {
+            throw ApiException.badRequest("当前订单没有待处理售后");
+        }
+
+        String reply = limitText(requireText(
+                request == null ? null : request.getMessage(), "请输入售后回复"), 500);
+        order.setSupportStatus("RESOLVED");
+        order.setSupportReply(reply);
+        order.setSupportUpdatedAt(new Date());
+        paymentOrderMapper.updateById(order);
+
+        if (order.getPayerUserId() != null) {
+            notificationService.createNotification(
+                    order.getPayerUserId(),
+                    "ORDER_SUPPORT_REPLIED",
+                    "订单售后已回复",
+                    "订单 " + order.getOutTradeNo() + "：" + reply,
+                    "/orders"
+            );
+        }
+        PaymentOrder saved = paymentOrderMapper.selectById(order.getId());
+        logAdminPaymentOperation(operator, "PAYMENT_ORDER_SUPPORT_REPLIED", saved,
+                "回复并关闭订单售后：" + limitText(reply, 180));
         return toAdminPaymentOrderDto(saved);
     }
 

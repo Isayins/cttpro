@@ -404,6 +404,12 @@ export const adminApi = {
       method: "POST",
       authMode: "required",
     }),
+  replyPaymentOrderSupport: (outTradeNo: string, message: string) =>
+    apiRequest<AdminPaymentOrder>(`/api/admin/payment-orders/${encodeURIComponent(outTradeNo)}/support/reply`, {
+      method: "POST",
+      authMode: "required",
+      body: { message },
+    }),
   resolvePaymentOrder: (outTradeNo: string, payload: { note?: string }) =>
     apiRequest<AdminPaymentOrder>(`/api/admin/payment-orders/${encodeURIComponent(outTradeNo)}/resolve`, {
       method: "POST",

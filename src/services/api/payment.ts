@@ -46,6 +46,10 @@ export interface PaymentOrder {
   closedTime?: string | null;
   paidHandled?: boolean | null;
   lastError?: string | null;
+  supportStatus?: "OPEN" | "RESOLVED" | string | null;
+  supportMessage?: string | null;
+  supportReply?: string | null;
+  supportUpdatedAt?: string | null;
   createTime?: string | null;
   updateTime?: string | null;
 }
@@ -111,6 +115,15 @@ export const paymentApi = {
       {
         method: "POST",
         authMode: "required",
+      },
+    ),
+  submitSupport: (outTradeNo: string, message: string) =>
+    apiRequest<PaymentOrder>(
+      `/api/payments/alipay/face-to-face/orders/${encodeURIComponent(outTradeNo)}/support`,
+      {
+        method: "POST",
+        authMode: "required",
+        body: { message },
       },
     ),
 };

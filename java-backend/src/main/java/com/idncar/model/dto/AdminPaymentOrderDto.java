@@ -34,6 +34,10 @@ public class AdminPaymentOrderDto {
     private String closedTime;
     private Boolean paidHandled;
     private String lastError;
+    private String supportStatus;
+    private String supportMessage;
+    private String supportReply;
+    private String supportUpdatedAt;
     private String createTime;
     private String updateTime;
 
@@ -63,6 +67,10 @@ public class AdminPaymentOrderDto {
         dto.setClosedTime(formatDate(entity.getClosedTime()));
         dto.setPaidHandled(entity.getPaidHandled());
         dto.setLastError(entity.getLastError());
+        dto.setSupportStatus(entity.getSupportStatus());
+        dto.setSupportMessage(entity.getSupportMessage());
+        dto.setSupportReply(entity.getSupportReply());
+        dto.setSupportUpdatedAt(formatDate(entity.getSupportUpdatedAt()));
         dto.setCreateTime(formatDate(entity.getCreateTime()));
         dto.setUpdateTime(formatDate(entity.getUpdateTime()));
         return dto;

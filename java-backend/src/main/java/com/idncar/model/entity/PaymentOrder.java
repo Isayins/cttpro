@@ -38,6 +38,11 @@ public class PaymentOrder {
     private Boolean paidHandled;
     private String notifyPayload;
     private String lastError;
+    // ponytail: one active support case per order; split tables only when multi-round history is required.
+    private String supportStatus;
+    private String supportMessage;
+    private String supportReply;
+    private Date supportUpdatedAt;
     private Date createTime;
     private Date updateTime;
 }
