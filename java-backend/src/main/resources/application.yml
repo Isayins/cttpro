@@ -9,8 +9,8 @@
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
-      port: ${SPRING_DATA_REDIS_PORT:6387}
-      password: ${SPRING_DATA_REDIS_PASSWORD:change-me}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
     time-zone: Asia/Shanghai
@@ -54,7 +54,7 @@ management:
       show-details: when_authorized
 
 jwt:
-  secret: ${JWT_SECRET:change-me-base64-secret}
+  secret: ${JWT_SECRET}
   expiration: 86400000
 
 app:
@@ -77,7 +77,7 @@ app:
     download-subdir: ${APP_UPLOAD_DOWNLOAD_SUBDIR:downloads}
     download-max-size-bytes: ${APP_UPLOAD_DOWNLOAD_MAX_SIZE_BYTES:1073741824}
   hotmail:
-    encryption-secret: ${APP_HOTMAIL_ENCRYPTION_SECRET:${JWT_SECRET:change-me-base64-secret}}
+    encryption-secret: ${APP_HOTMAIL_ENCRYPTION_SECRET:${JWT_SECRET}}
     code-recent-minutes: ${APP_HOTMAIL_CODE_RECENT_MINUTES:30}
     public-code-fetch-cooldown-seconds: ${APP_HOTMAIL_PUBLIC_CODE_FETCH_COOLDOWN_SECONDS:20}
     public-code-access-touch-interval-seconds: ${APP_HOTMAIL_PUBLIC_CODE_ACCESS_TOUCH_INTERVAL_SECONDS:60}

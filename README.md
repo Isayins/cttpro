@@ -54,8 +54,10 @@ SPRING_DATASOURCE_USERNAME=root
 SPRING_DATASOURCE_PASSWORD=change-me
 SPRING_DATA_REDIS_HOST=localhost
 SPRING_DATA_REDIS_PORT=6379
-JWT_SECRET=change-me-base64-secret
+JWT_SECRET=
 ```
+
+`JWT_SECRET` 必须配置为至少 32 字节随机数据的 Base64 编码；本地 Compose 只监听 `127.0.0.1`，不会把数据库和 Redis 暴露到局域网。
 
 支付相关配置支持官方支付宝和内置 V免签两种通道。官方支付宝通过 `APP_PAYMENT_ALIPAY_*` 注入；接口内容加密默认开启，需要在支付宝开放平台配置 AES 接口内容加密，并将密钥填入 `APP_PAYMENT_ALIPAY_ENCRYPT_KEY`。V免签不需要单独部署 PHP 后台，启动后进入后台管理的「V免签配置」，系统会自动生成通讯密钥；保存收款码内容并启用后，监听端使用站点根路径的 `/getState`、`/appHeart`、`/appPush` 接口和后台显示的通讯密钥即可推送收款。生产环境不要使用仓库中的示例默认值。
 
