@@ -92,6 +92,14 @@ function buildSupportText(order: PaymentOrder) {
   ].join("\n");
 }
 
+function canResendDelivery(order: PaymentOrder) {
+  return (
+    PAID_STATUSES.has(order.status) &&
+    order.resourceType === "PRODUCT" &&
+    Boolean(order.deliveryEmail)
+  );
+}
+
 type OrderMobileCardProps = {
   order: PaymentOrder;
   actionLoading: string | null;
@@ -100,6 +108,7 @@ type OrderMobileCardProps = {
   onView: (order: PaymentOrder) => void;
   onQuery: (order: PaymentOrder) => void;
   onClose: (order: PaymentOrder) => void;
+  onResendDelivery: (order: PaymentOrder) => void;
 };
 
 function OrderMobileCard({
@@ -110,6 +119,7 @@ function OrderMobileCard({
   onView,
   onQuery,
   onClose,
+  onResendDelivery,
 }: OrderMobileCardProps) {
   const paying = PAYING_STATUSES.has(order.status);
   const canContinuePay = paying && Boolean(order.qrCode);
@@ -196,6 +206,15 @@ function OrderMobileCard({
               </Button>
             </Popconfirm>
           </>
+        ) : null}
+        {canResendDelivery(order) ? (
+          <Button
+            icon={<MailOutlined />}
+            loading={actionLoading === order.outTradeNo}
+            onClick={() => onResendDelivery(order)}
+          >
+            补发邮件
+          </Button>
         ) : null}
       </div>
     </div>
@@ -422,6 +441,19 @@ export default function Orders() {
       message.success("订单已关闭");
     } catch (error) {
       message.error(getErrorMessage(error, "关闭订单失败"));
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function resendDelivery(order: PaymentOrder) {
+    setActionLoading(order.outTradeNo);
+    try {
+      const updated = await paymentApi.resendDelivery(order.outTradeNo);
+      updateOrder(updated);
+      message.success("发货邮件已重新发送，请查收邮箱和垃圾箱");
+    } catch (error) {
+      message.error(getErrorMessage(error, "发货邮件补发失败"));
     } finally {
       setActionLoading(null);
     }
@@ -677,6 +709,16 @@ export default function Orders() {
               </Popconfirm>
             </>
           ) : null}
+          {canResendDelivery(record) ? (
+            <Button
+              type="link"
+              icon={<MailOutlined />}
+              loading={actionLoading === record.outTradeNo}
+              onClick={() => void resendDelivery(record)}
+            >
+              补发邮件
+            </Button>
+          ) : null}
         </Space>
       ),
     },
@@ -879,6 +921,7 @@ export default function Orders() {
                     onView={setSelectedOrder}
                     onQuery={(item) => void queryOrder(item)}
                     onClose={(item) => void closeOrder(item)}
+                    onResendDelivery={(item) => void resendDelivery(item)}
                   />
                 ))}
               </div>
@@ -1161,6 +1204,15 @@ export default function Orders() {
                 </Space>
               ) : (
                 <Space wrap>
+                  {canResendDelivery(selectedOrder) ? (
+                    <Button
+                      icon={<MailOutlined />}
+                      loading={actionLoading === selectedOrder.outTradeNo}
+                      onClick={() => void resendDelivery(selectedOrder)}
+                    >
+                      重新发送发货邮件
+                    </Button>
+                  ) : null}
                   <Button
                     icon={<CopyOutlined />}
                     onClick={() =>

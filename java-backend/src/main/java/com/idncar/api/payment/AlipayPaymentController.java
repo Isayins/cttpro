@@ -73,6 +73,12 @@ public class AlipayPaymentController {
         return ResponseEntity.ok(alipayFaceToFacePaymentService.close(userId, outTradeNo));
     }
 
+    @PostMapping("/face-to-face/orders/{outTradeNo}/resend-delivery")
+    public ResponseEntity<PaymentOrderDto> resendDelivery(@RequestAttribute("userId") Long userId,
+                                                           @PathVariable String outTradeNo) {
+        return ResponseEntity.ok(alipayFaceToFacePaymentService.resendDelivery(userId, outTradeNo));
+    }
+
     @PostMapping(value = "/notify", produces = MediaType.TEXT_PLAIN_VALUE)
     public ResponseEntity<String> notify(HttpServletRequest request) {
         Map<String, String> params = extractRequestParams(request);

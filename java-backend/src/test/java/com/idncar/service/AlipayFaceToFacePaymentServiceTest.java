@@ -5,16 +5,20 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.idncar.mapper.PaymentOrderMapper;
 import com.idncar.mapper.PaymentVmqEventMapper;
 import com.idncar.model.entity.Product;
+import com.idncar.model.entity.PaymentOrder;
 import com.idncar.model.entity.PaymentVmqEvent;
 import com.idncar.service.InternalVmqPaymentService;
 import com.idncar.service.AlipayFaceToFacePaymentService;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -87,6 +91,49 @@ class AlipayFaceToFacePaymentServiceTest {
         verify(eventMapper).updateById(any(PaymentVmqEvent.class));
         verify(vmqPaymentService, never()).recordAppPush();
         verify(orderMapper, never()).selectList(any());
+    }
+
+    @Test
+    void userCanResendDeliveryForOwnedPaidOrderWithCooldown() throws Exception {
+        PaymentOrderMapper orderMapper = mock(PaymentOrderMapper.class);
+        ProductDeliveryCodeService deliveryCodeService = mock(ProductDeliveryCodeService.class);
+        NotificationService notificationService = mock(NotificationService.class);
+        UserAccessService userAccessService = mock(UserAccessService.class);
+        @SuppressWarnings("unchecked")
+        RedisTemplate<String, Object> redisTemplate = mock(RedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, Object> values = mock(ValueOperations.class);
+
+        PaymentOrder order = new PaymentOrder();
+        order.setId(11L);
+        order.setOutTradeNo("202607180001");
+        order.setPayerUserId(7L);
+        order.setResourceType("PRODUCT");
+        order.setResourceId(3L);
+        order.setStatus("TRADE_SUCCESS");
+        order.setDeliveryEmail("buyer@example.com");
+        when(orderMapper.selectOne(any())).thenReturn(order);
+        when(orderMapper.selectById(11L)).thenReturn(order);
+        when(redisTemplate.opsForValue()).thenReturn(values);
+        when(values.setIfAbsent(
+                "payment:delivery-resend:cooldown:11", "1", 60L, TimeUnit.SECONDS
+        )).thenReturn(true);
+        setField("paymentOrderMapper", orderMapper);
+        setField("productDeliveryCodeService", deliveryCodeService);
+        setField("notificationService", notificationService);
+        setField("userAccessService", userAccessService);
+        setField("redisTemplate", redisTemplate);
+
+        assertThat(service.resendDelivery(7L, order.getOutTradeNo()).getOutTradeNo())
+                .isEqualTo(order.getOutTradeNo());
+        verify(deliveryCodeService).resendPaidOrder(order);
+        verify(notificationService).createNotification(
+                7L,
+                "DELIVERY_RESENT",
+                "发货邮件已重新发送",
+                "订单 202607180001 的发货邮件已重新发送，请查收邮箱和垃圾箱。",
+                "/orders"
+        );
     }
 
     private String resolveDeliveryEmail(Product product, String deliveryEmail) throws Throwable {

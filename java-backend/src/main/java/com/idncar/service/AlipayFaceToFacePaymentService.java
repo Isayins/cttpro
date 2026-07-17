@@ -43,6 +43,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -58,6 +59,7 @@ import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -82,6 +84,7 @@ public class AlipayFaceToFacePaymentService {
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}$", Pattern.CASE_INSENSITIVE);
     private static final Pattern VMQ_EVENT_ID_PATTERN = Pattern.compile("^[a-fA-F0-9]{64}$");
     private static final long VMQ_EVENT_ORDER_CLOCK_SKEW_MILLIS = 10_000L;
+    private static final long DELIVERY_RESEND_COOLDOWN_SECONDS = 60L;
     private static final DateTimeFormatter OUT_TRADE_NO_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     @Autowired
@@ -113,6 +116,12 @@ public class AlipayFaceToFacePaymentService {
 
     @Autowired
     private ProductDeliveryCodeService productDeliveryCodeService;
+
+    @Autowired
+    private NotificationService notificationService;
+
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
 
     @Autowired
     private ManualPaymentConfirmationMailService manualPaymentConfirmationMailService;
@@ -254,6 +263,7 @@ public class AlipayFaceToFacePaymentService {
             order.setPaidTime(new Date());
             order.setPaidHandled(Boolean.TRUE);
             paymentOrderMapper.updateById(order);
+            notifyPaidOrder(order, deliveryError);
             return PaymentOrderDto.fromEntity(paymentOrderMapper.selectById(order.getId()));
         });
     }
@@ -305,6 +315,34 @@ public class AlipayFaceToFacePaymentService {
     public PaymentOrderDto close(Long userId, String outTradeNo) {
         PaymentOrder order = requireOwnedOrder(userId, outTradeNo);
         return PaymentOrderDto.fromEntity(closePaymentOrder(order));
+    }
+
+    public PaymentOrderDto resendDelivery(Long userId, String outTradeNo) {
+        userAccessService.requireActiveUser(userId);
+        PaymentOrder order = requireOwnedOrder(userId, outTradeNo);
+        if (!"PRODUCT".equalsIgnoreCase(order.getResourceType()) || order.getResourceId() == null) {
+            throw ApiException.badRequest("只有商品订单可以重新发货");
+        }
+        if (!isPaidStatus(order.getStatus())) {
+            throw ApiException.badRequest("只有已支付或已领取成功的订单可以重新发货");
+        }
+
+        String cooldownKey = "payment:delivery-resend:cooldown:" + order.getId();
+        Boolean acquired = redisTemplate.opsForValue().setIfAbsent(
+                cooldownKey, "1", DELIVERY_RESEND_COOLDOWN_SECONDS, TimeUnit.SECONDS);
+        if (!Boolean.TRUE.equals(acquired)) {
+            throw ApiException.badRequest("发货邮件刚刚已发送，请稍后再试");
+        }
+
+        productDeliveryCodeService.resendPaidOrder(order);
+        notificationService.createNotification(
+                userId,
+                "DELIVERY_RESENT",
+                "发货邮件已重新发送",
+                "订单 " + order.getOutTradeNo() + " 的发货邮件已重新发送，请查收邮箱和垃圾箱。",
+                "/orders"
+        );
+        return PaymentOrderDto.fromEntity(paymentOrderMapper.selectById(order.getId()));
     }
 
     public PageResultDto<PaymentOrderDto> getUserOrders(Long userId, Integer page, Integer size, String status, String keyword) {
@@ -848,6 +886,7 @@ public class AlipayFaceToFacePaymentService {
                 && "PRODUCT".equalsIgnoreCase(order.getResourceType())
                 && order.getResourceId() != null) {
             if (paymentOrderMapper.markPaidHandledIfNeeded(order.getId()) > 0) {
+                String deliveryError = null;
                 if (order.getCouponCodeId() != null && productCouponCodeService.markCouponUsedForOrder(order) <= 0) {
                     order.setLastError(appendError(order.getLastError(), "优惠码状态更新失败，支付成功后需要人工处理"));
                     log.warn("Paid product order coupon mark-used failed: outTradeNo={}, couponCodeId={}",
@@ -855,20 +894,45 @@ public class AlipayFaceToFacePaymentService {
                 }
                 if (productMapper.markPaid(order.getResourceId()) <= 0) {
                     String message = "商品库存不足或商品不存在，支付成功后需要人工处理";
+                    deliveryError = message;
                     order.setLastError(appendError(order.getLastError(), message));
                     log.warn("Paid product order requires manual settlement: outTradeNo={}, productId={}",
                             order.getOutTradeNo(), order.getResourceId());
                 } else {
-                    String deliveryError = productDeliveryCodeService.fulfillPaidOrder(order);
+                    deliveryError = productDeliveryCodeService.fulfillPaidOrder(order);
                     if (deliveryError != null) {
                         order.setLastError(appendError(order.getLastError(), deliveryError));
                         log.warn("Paid product order delivery requires manual handling: outTradeNo={}, productId={}, error={}",
                                 order.getOutTradeNo(), order.getResourceId(), deliveryError);
                     }
                 }
+                notifyPaidOrder(order, deliveryError);
             }
             order.setPaidHandled(Boolean.TRUE);
         }
+    }
+
+    private void notifyPaidOrder(PaymentOrder order, String deliveryError) {
+        if (order.getPayerUserId() == null) {
+            return;
+        }
+        boolean freeOrder = order.getTotalAmount() != null && order.getTotalAmount().signum() == 0;
+        notificationService.createNotification(
+                order.getPayerUserId(),
+                "PAYMENT_SUCCESS",
+                freeOrder ? "商品领取成功" : "订单支付成功",
+                "订单 " + order.getOutTradeNo() + (freeOrder ? " 已领取成功。" : " 已支付成功。"),
+                "/orders"
+        );
+        notificationService.createNotification(
+                order.getPayerUserId(),
+                deliveryError == null ? "DELIVERY_SUCCESS" : "DELIVERY_FAILED",
+                deliveryError == null ? "商品发货成功" : "商品发货待处理",
+                deliveryError == null
+                        ? "订单 " + order.getOutTradeNo() + " 的发货邮件已发送，请查收邮箱和垃圾箱。"
+                        : "订单 " + order.getOutTradeNo() + " 发货未完成：" + deliveryError,
+                "/orders"
+        );
     }
 
     private void handleClosedTransition(PaymentOrder order, String oldStatus) {

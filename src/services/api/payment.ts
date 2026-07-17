@@ -105,4 +105,12 @@ export const paymentApi = {
         authMode: "required",
       },
     ),
+  resendDelivery: (outTradeNo: string) =>
+    apiRequest<PaymentOrder>(
+      `/api/payments/alipay/face-to-face/orders/${encodeURIComponent(outTradeNo)}/resend-delivery`,
+      {
+        method: "POST",
+        authMode: "required",
+      },
+    ),
 };
