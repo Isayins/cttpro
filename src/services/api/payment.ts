@@ -2,14 +2,9 @@ import { apiRequest } from "./client";
 import type { PageResult } from "../../types/app";
 
 export interface AlipayFaceToFacePrecreatePayload {
-  subject?: string;
-  totalAmount?: string | number;
-  body?: string;
-  productId?: number;
+  productId: number;
   couponCode?: string;
   deliveryEmail?: string;
-  resourceType?: string;
-  resourceId?: number;
 }
 
 export interface ProductCouponPreview {

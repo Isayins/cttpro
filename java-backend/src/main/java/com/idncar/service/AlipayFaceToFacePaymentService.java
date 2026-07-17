@@ -138,15 +138,15 @@ public class AlipayFaceToFacePaymentService {
 
     public PaymentOrderDto precreate(Long userId, AlipayFaceToFacePrecreateRequest request) {
         AlipayFaceToFacePrecreateRequest safeRequest = request == null ? new AlipayFaceToFacePrecreateRequest() : request;
-        Product product = resolveProduct(safeRequest);
+        if (safeRequest.getProductId() == null) {
+            throw ApiException.badRequest("请选择要购买的商品");
+        }
+        Product product = productService.requirePurchasableProduct(safeRequest.getProductId());
         productDeliveryCodeService.requireAvailableDeliveryCode(product);
         String deliveryEmail = resolveDeliveryEmail(product, safeRequest.getDeliveryEmail());
         String normalizedCouponCode = normalizeCouponCode(safeRequest.getCouponCode());
-        if (product == null && normalizedCouponCode != null) {
-            throw ApiException.badRequest("优惠码只能用于商品订单");
-        }
-        BigDecimal originalAmount = product == null ? normalizeAmount(safeRequest.getTotalAmount()) : normalizeProductOrderAmount(product.getPrice());
-        if (product != null && originalAmount.compareTo(BigDecimal.ZERO) == 0) {
+        BigDecimal originalAmount = normalizeProductOrderAmount(product.getPrice());
+        if (originalAmount.compareTo(BigDecimal.ZERO) == 0) {
             if (normalizedCouponCode != null) {
                 throw ApiException.badRequest("免费商品无需使用优惠码");
             }
@@ -160,7 +160,7 @@ public class AlipayFaceToFacePaymentService {
             return PaymentOrderDto.fromEntity(reusableOrder);
         }
 
-        ProductCouponCode couponCode = product == null || normalizedCouponCode == null
+        ProductCouponCode couponCode = normalizedCouponCode == null
                 ? null
                 : productCouponCodeService.requireUsableCoupon(product, normalizedCouponCode);
         BigDecimal discountAmount = couponCode == null
@@ -171,12 +171,8 @@ public class AlipayFaceToFacePaymentService {
             amount = MIN_AMOUNT;
             discountAmount = originalAmount.subtract(amount).setScale(2, RoundingMode.HALF_UP);
         }
-        String subject = product == null
-                ? limitText(requireText(safeRequest.getSubject(), "请输入订单标题"), 256)
-                : limitText(product.getTitle(), 256);
-        String body = product == null
-                ? limitText(normalizeNullableText(safeRequest.getBody()), 500)
-                : limitText(firstText(product.getSubtitle(), product.getDescription()), 500);
+        String subject = limitText(product.getTitle(), 256);
+        String body = limitText(firstText(product.getSubtitle(), product.getDescription()), 500);
 
         PaymentOrder order = new PaymentOrder();
         order.setChannel(resolvePaymentChannel());
@@ -189,8 +185,8 @@ public class AlipayFaceToFacePaymentService {
         order.setCouponCodeId(couponCode == null ? null : couponCode.getId());
         order.setTotalAmount(amount);
         order.setStatus(STATUS_CREATED);
-        order.setResourceType(product == null ? limitText(normalizeResourceType(safeRequest.getResourceType()), 60) : "PRODUCT");
-        order.setResourceId(product == null ? safeRequest.getResourceId() : product.getId());
+        order.setResourceType("PRODUCT");
+        order.setResourceId(product.getId());
         order.setPayerUserId(userId);
         order.setDeliveryEmail(deliveryEmail);
         order.setExpireTime(resolvePaymentExpireTime());
@@ -831,19 +827,6 @@ public class AlipayFaceToFacePaymentService {
         return true;
     }
 
-    private Product resolveProduct(AlipayFaceToFacePrecreateRequest request) {
-        Long productId = request.getProductId();
-        if (productId == null
-                && "PRODUCT".equalsIgnoreCase(normalizeNullableText(request.getResourceType()))
-                && request.getResourceId() != null) {
-            productId = request.getResourceId();
-        }
-        if (productId == null) {
-            return null;
-        }
-        return productService.requirePurchasableProduct(productId);
-    }
-
     private PaymentOrder findReusableProductOrder(Long userId, Product product, String couponCode, String deliveryEmail) {
         if (userId == null || product == null) {
             return null;
@@ -1306,24 +1289,6 @@ public class AlipayFaceToFacePaymentService {
         paymentOrderMapper.updateById(order);
     }
 
-    private BigDecimal normalizeAmount(BigDecimal amount) {
-        if (amount == null) {
-            throw ApiException.badRequest("请输入支付金额");
-        }
-        try {
-            BigDecimal normalized = amount.setScale(2, RoundingMode.UNNECESSARY);
-            if (normalized.compareTo(BigDecimal.ZERO) <= 0) {
-                throw ApiException.badRequest("支付金额必须大于 0");
-            }
-            if (normalized.compareTo(MAX_AMOUNT) > 0) {
-                throw ApiException.badRequest("支付金额超出支持范围");
-            }
-            return normalized;
-        } catch (ArithmeticException exception) {
-            throw ApiException.badRequest("支付金额最多支持两位小数");
-        }
-    }
-
     private BigDecimal normalizeProductOrderAmount(BigDecimal amount) {
         if (amount == null) {
             throw ApiException.badRequest("商品价格配置不正确");
@@ -1408,11 +1373,6 @@ public class AlipayFaceToFacePaymentService {
 
     private String safeAlipayMessage(String preferred, String fallback) {
         return firstText(preferred, fallback, "支付宝接口返回失败");
-    }
-
-    private String normalizeResourceType(String value) {
-        String normalized = normalizeNullableText(value);
-        return normalized == null ? null : normalized.toUpperCase(Locale.ROOT);
     }
 
     private String normalizeCouponCode(String value) {

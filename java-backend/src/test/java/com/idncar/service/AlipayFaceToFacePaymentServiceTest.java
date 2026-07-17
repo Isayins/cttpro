@@ -7,6 +7,7 @@ import com.idncar.mapper.PaymentVmqEventMapper;
 import com.idncar.mapper.AdminOperationLogMapper;
 import com.idncar.mapper.UserMapper;
 import com.idncar.model.dto.OrderSupportRequest;
+import com.idncar.model.dto.AlipayFaceToFacePrecreateRequest;
 import com.idncar.model.entity.Product;
 import com.idncar.model.entity.PaymentOrder;
 import com.idncar.model.entity.PaymentVmqEvent;
@@ -37,6 +38,13 @@ import static org.mockito.Mockito.when;
 class AlipayFaceToFacePaymentServiceTest {
 
     private final AlipayFaceToFacePaymentService service = new AlipayFaceToFacePaymentService();
+
+    @Test
+    void paymentOrderRequiresAProduct() {
+        assertThatThrownBy(() -> service.precreate(7L, new AlipayFaceToFacePrecreateRequest()))
+                .isInstanceOf(ApiException.class)
+                .hasMessage("请选择要购买的商品");
+    }
 
     @Test
     void productOrderRequiresDeliveryEmailForNormalProduct() {
