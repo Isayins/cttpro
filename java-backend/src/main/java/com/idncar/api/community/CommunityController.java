@@ -51,8 +51,9 @@ public class CommunityController {
     }
 
     @PostMapping({"/chat/messages", "/chat/messages/"})
-    public ResponseEntity<ChatRoomMessageDto> createChatMessage(@RequestBody CreateChatMessageRequest request) {
-        return ResponseEntity.ok(communityService.createChatMessage(request));
+    public ResponseEntity<ChatRoomMessageDto> createChatMessage(@RequestAttribute("userId") Long userId,
+                                                                 @RequestBody CreateChatMessageRequest request) {
+        return ResponseEntity.ok(communityService.createChatMessage(userId, request));
     }
 
     @PostMapping(value = {"/chat/images", "/chat/images/"}, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -62,8 +63,9 @@ public class CommunityController {
     }
 
     @DeleteMapping({"/chat/rooms/{roomId}/messages", "/chat/rooms/{roomId}/messages/"})
-    public ResponseEntity<Void> clearChatMessages(@PathVariable String roomId) {
-        communityService.clearChatMessages(roomId);
+    public ResponseEntity<Void> clearChatMessages(@RequestAttribute("userId") Long userId,
+                                                   @PathVariable String roomId) {
+        communityService.clearChatMessages(userId, roomId);
         return ResponseEntity.ok().build();
     }
 
@@ -101,26 +103,29 @@ public class CommunityController {
     }
 
     @PostMapping({"/talk/posts", "/talk/posts/"})
-    public ResponseEntity<CommunityTalkPostDto> createTalkPost(@RequestBody CreateCommunityTalkPostRequest request) {
-        return ResponseEntity.ok(communityService.createTalkPost(request));
+    public ResponseEntity<CommunityTalkPostDto> createTalkPost(@RequestAttribute("userId") Long userId,
+                                                               @RequestBody CreateCommunityTalkPostRequest request) {
+        return ResponseEntity.ok(communityService.createTalkPost(userId, request));
     }
 
     @PostMapping({"/talk/posts/{postId}/like", "/talk/posts/{postId}/like/"})
-    public ResponseEntity<CommunityTalkPostDto> likeTalkPost(@PathVariable Long postId) {
-        return ResponseEntity.ok(communityService.likeTalkPost(postId));
+    public ResponseEntity<CommunityTalkPostDto> likeTalkPost(@RequestAttribute("userId") Long userId,
+                                                             @PathVariable Long postId) {
+        return ResponseEntity.ok(communityService.likeTalkPost(userId, postId));
     }
 
     @DeleteMapping({"/talk/posts/{postId}", "/talk/posts/{postId}/"})
-    public ResponseEntity<Void> deleteTalkPost(@PathVariable Long postId,
-                                               @RequestParam String author) {
-        communityService.deleteTalkPost(postId, author);
+    public ResponseEntity<Void> deleteTalkPost(@RequestAttribute("userId") Long userId,
+                                               @PathVariable Long postId) {
+        communityService.deleteTalkPost(userId, postId);
         return ResponseEntity.ok().build();
     }
 
     @PostMapping({"/talk/posts/{postId}/comments", "/talk/posts/{postId}/comments/"})
-    public ResponseEntity<CommunityTalkCommentDto> createTalkComment(@PathVariable Long postId,
+    public ResponseEntity<CommunityTalkCommentDto> createTalkComment(@RequestAttribute("userId") Long userId,
+                                                                     @PathVariable Long postId,
                                                                      @RequestBody CreateCommunityTalkCommentRequest request) {
-        return ResponseEntity.ok(communityService.createTalkComment(postId, request));
+        return ResponseEntity.ok(communityService.createTalkComment(userId, postId, request));
     }
 
 }

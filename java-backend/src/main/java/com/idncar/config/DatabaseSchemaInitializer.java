@@ -395,6 +395,7 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
     }
 
     private void ensureCommunityTalkPostColumns() {
+        ensureColumn("community_talk_posts", "author_id", "author_id BIGINT NULL");
         ensureColumn("community_talk_posts", "author", "author VARCHAR(40) NOT NULL DEFAULT 'Anonymous'");
         ensureColumn("community_talk_posts", "avatar_seed", "avatar_seed VARCHAR(60) NULL");
         ensureColumn("community_talk_posts", "content", "content TEXT NOT NULL");
@@ -406,6 +407,7 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
         jdbcTemplate.execute("UPDATE community_talk_posts SET pinned = 0 WHERE pinned IS NULL");
         ensureIndex("community_talk_posts", "idx_community_talk_posts_create_time", "CREATE INDEX idx_community_talk_posts_create_time ON community_talk_posts(create_time)");
         ensureIndex("community_talk_posts", "idx_community_talk_posts_category", "CREATE INDEX idx_community_talk_posts_category ON community_talk_posts(category)");
+        ensureIndex("community_talk_posts", "idx_community_talk_posts_author_id", "CREATE INDEX idx_community_talk_posts_author_id ON community_talk_posts(author_id)");
     }
 
     private void ensureCommunityTalkCommentsTable() {

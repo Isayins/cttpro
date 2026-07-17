@@ -40,8 +40,6 @@ import java.util.stream.Collectors;
 @Service
 public class CommunityService {
 
-    private static final String DEFAULT_CHAT_AUTHOR = "匿名用户";
-    private static final String DEFAULT_TALK_AUTHOR = "匿名用户";
     private static final String DEFAULT_TALK_CATEGORY = "闲聊";
     private static final String VISIBILITY_ONLINE = "ONLINE";
     private static final String VISIBILITY_INVISIBLE = "INVISIBLE";
@@ -111,10 +109,11 @@ public class CommunityService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public ChatRoomMessageDto createChatMessage(CreateChatMessageRequest request) {
+    public ChatRoomMessageDto createChatMessage(Long currentUserId, CreateChatMessageRequest request) {
+        User currentUser = userAccessService.requireActiveUser(currentUserId);
         String roomId = requireRoomId(request.roomId());
-        String author = limitText(defaultIfBlank(normalizeNullableText(request.author()), DEFAULT_CHAT_AUTHOR), 40);
-        String avatarSeed = limitText(defaultIfBlank(normalizeNullableText(request.avatarSeed()), author), 60);
+        String author = displayName(currentUser);
+        String avatarSeed = author;
         String content = RichContentValidator.requireSafeImageMarkupUrls(limitText(requireText(request.content(), "消息内容不能为空"), 500));
         Date now = Date.from(Instant.now());
 
@@ -134,7 +133,8 @@ public class CommunityService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public void clearChatMessages(String roomId) {
+    public void clearChatMessages(Long currentUserId, String roomId) {
+        userAccessService.requireAdmin(currentUserId);
         jdbcTemplate.update(
                 "DELETE FROM community_chat_messages WHERE room_id = ?",
                 requireRoomId(roomId)
@@ -273,18 +273,20 @@ public class CommunityService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public CommunityTalkPostDto createTalkPost(CreateCommunityTalkPostRequest request) {
-        String author = limitText(defaultIfBlank(normalizeNullableText(request.author()), DEFAULT_TALK_AUTHOR), 40);
-        String avatarSeed = limitText(defaultIfBlank(normalizeNullableText(request.avatarSeed()), author), 60);
+    public CommunityTalkPostDto createTalkPost(Long currentUserId, CreateCommunityTalkPostRequest request) {
+        User currentUser = userAccessService.requireActiveUser(currentUserId);
+        String author = displayName(currentUser);
+        String avatarSeed = author;
         String content = limitText(requireText(request.content(), "帖子内容不能为空"), 500);
         String category = limitText(defaultIfBlank(normalizeNullableText(request.category()), DEFAULT_TALK_CATEGORY), 40);
         Date now = Date.from(Instant.now());
 
         long id = insertAndReturnKey(
                 """
-                INSERT INTO community_talk_posts (author, avatar_seed, content, category, likes, pinned, create_time, update_time)
-                VALUES (?, ?, ?, ?, 0, 0, ?, ?)
+                INSERT INTO community_talk_posts (author_id, author, avatar_seed, content, category, likes, pinned, create_time, update_time)
+                VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?)
                 """,
+                currentUser.getId(),
                 author,
                 avatarSeed,
                 content,
@@ -297,7 +299,8 @@ public class CommunityService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public CommunityTalkPostDto likeTalkPost(Long postId) {
+    public CommunityTalkPostDto likeTalkPost(Long currentUserId, Long postId) {
+        userAccessService.requireActiveUser(currentUserId);
         requireTalkPost(postId);
         jdbcTemplate.update(
                 """
@@ -312,10 +315,15 @@ public class CommunityService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public void deleteTalkPost(Long postId, String author) {
-        CommunityTalkPostDto post = requireTalkPost(postId);
-        String normalizedAuthor = requireText(author, "作者不能为空");
-        if (!Objects.equals(post.author(), normalizedAuthor)) {
+    public void deleteTalkPost(Long currentUserId, Long postId) {
+        User currentUser = userAccessService.requireActiveUser(currentUserId);
+        requireTalkPost(postId);
+        Long authorId = jdbcTemplate.query(
+                "SELECT author_id FROM community_talk_posts WHERE id = ?",
+                (rs, rowNum) -> rs.getObject("author_id", Long.class),
+                postId
+        ).stream().findFirst().orElse(null);
+        if (!Objects.equals(authorId, currentUser.getId()) && !userAccessService.isAdminRole(currentUser.getRole())) {
             throw ApiException.forbidden("只能删除自己发布的帖子");
         }
 
@@ -324,9 +332,10 @@ public class CommunityService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public CommunityTalkCommentDto createTalkComment(Long postId, CreateCommunityTalkCommentRequest request) {
+    public CommunityTalkCommentDto createTalkComment(Long currentUserId, Long postId, CreateCommunityTalkCommentRequest request) {
+        User currentUser = userAccessService.requireActiveUser(currentUserId);
         requireTalkPost(postId);
-        String author = limitText(defaultIfBlank(normalizeNullableText(request.author()), DEFAULT_TALK_AUTHOR), 40);
+        String author = displayName(currentUser);
         String content = limitText(requireText(request.content(), "评论内容不能为空"), 300);
         Date now = Date.from(Instant.now());
 
@@ -469,6 +478,10 @@ public class CommunityService {
 
     private String defaultIfBlank(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private String displayName(User user) {
+        return limitText(defaultIfBlank(normalizeNullableText(user.getNickname()), user.getUsername()), 40);
     }
 
     private String limitText(String value, int maxLength) {

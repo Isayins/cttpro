@@ -176,6 +176,7 @@ CREATE TABLE IF NOT EXISTS private_chat_messages (
 
 CREATE TABLE IF NOT EXISTS community_talk_posts (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    author_id BIGINT NULL,
     author VARCHAR(40) NOT NULL,
     avatar_seed VARCHAR(60) NULL,
     content TEXT NOT NULL,
@@ -183,7 +184,8 @@ CREATE TABLE IF NOT EXISTS community_talk_posts (
     likes INT NOT NULL DEFAULT 0,
     pinned TINYINT(1) NOT NULL DEFAULT 0,
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_community_talk_posts_author_id (author_id)
 );
 
 CREATE TABLE IF NOT EXISTS community_talk_comments (

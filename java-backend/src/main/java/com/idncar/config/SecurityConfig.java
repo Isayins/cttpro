@@ -85,8 +85,7 @@ public class SecurityConfig {
                         "/api/uploads/" + normalizePathSegment(uploadProductImageSubDir) + "/**").permitAll()
                 .requestMatchers("/api/auth/**").authenticated()
                 .requestMatchers("/api/admin/**").authenticated()
-                .requestMatchers(HttpMethod.POST, "/api/community/chat/images", "/api/community/chat/images/").authenticated()
-                .requestMatchers("/api/community/private/**").authenticated()
+                .requestMatchers("/api/community/**").authenticated()
                 .requestMatchers(HttpMethod.GET,
                         "/api/forum/sign-in/status",
                         "/api/forum/sign-in/status/",

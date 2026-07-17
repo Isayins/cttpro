@@ -65,7 +65,7 @@ type CommunityRequestOptions = Omit<RequestOptions, "authMode">;
 
 function request<T>(path: string, options: CommunityRequestOptions = {}): Promise<T> {
   return apiRequest<T>(path, {
-    authMode: "optional",
+    authMode: "required",
     ...options,
   });
 }
@@ -137,8 +137,6 @@ export async function fetchChatMessages(roomId: string): Promise<ChatMessage[]> 
 
 export async function sendChatMessage(payload: {
   roomId: string;
-  author: string;
-  avatarSeed?: string;
   content: string;
 }): Promise<ChatMessage> {
   const item = await request<ChatMessageResponse>("/api/community/chat/messages", {
@@ -206,8 +204,6 @@ export async function fetchTalkPosts(): Promise<TalkPost[]> {
 }
 
 export async function publishTalkPost(payload: {
-  author: string;
-  avatarSeed?: string;
   content: string;
   category: string;
 }): Promise<TalkPost> {
@@ -225,9 +221,8 @@ export async function likeTalkPost(postId: string | number): Promise<TalkPost> {
   return mapTalkPost(item);
 }
 
-export async function deleteTalkPost(postId: string | number, author: string): Promise<void> {
-  const params = new URLSearchParams({ author });
-  await request<void>(`/api/community/talk/posts/${encodeURIComponent(String(postId))}?${params.toString()}`, {
+export async function deleteTalkPost(postId: string | number): Promise<void> {
+  await request<void>(`/api/community/talk/posts/${encodeURIComponent(String(postId))}`, {
     method: "DELETE",
   });
 }
@@ -235,7 +230,6 @@ export async function deleteTalkPost(postId: string | number, author: string): P
 export async function addTalkComment(
   postId: string | number,
   payload: {
-    author: string;
     content: string;
   },
 ): Promise<TalkComment> {

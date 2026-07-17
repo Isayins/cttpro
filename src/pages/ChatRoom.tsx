@@ -31,7 +31,7 @@ import {
 import MainLayout from "../layouts/MainLayout";
 import StatusState from "../components/StatusState";
 import { useAuth } from "../context/useAuth";
-import { chatRooms, readChatProfile, type ChatMessage } from "../lib/community";
+import { chatRooms, type ChatMessage } from "../lib/community";
 import { getErrorMessage } from "../lib/errorMessage";
 import { resolveAssetUrl } from "../lib/media";
 import {
@@ -130,16 +130,7 @@ export default function ChatRoom() {
   const groupImageUploadInFlightRef = useRef(false);
   const groupMessagesRequestRef = useRef(0);
 
-  const chatProfile = useMemo(() => readChatProfile(), []);
-  const currentAuthor = useMemo(
-    () => user?.nickname?.trim() || chatProfile.nickname?.trim() || "匿名游客",
-    [chatProfile.nickname, user?.nickname],
-  );
-  const currentAvatarSeed = useMemo(
-    () =>
-      user?.nickname?.trim() || chatProfile.avatarSeed?.trim() || currentAuthor,
-    [chatProfile.avatarSeed, currentAuthor, user?.nickname],
-  );
+  const currentAuthor = user?.nickname?.trim() || user?.username || "用户";
 
   const activeUser = useMemo(
     () => users.find((item) => item.id === activeUserId) ?? null,
@@ -477,8 +468,6 @@ export default function ChatRoom() {
     try {
       const sent = await sendChatMessage({
         roomId: activeGroupRoom.id,
-        author: currentAuthor,
-        avatarSeed: currentAvatarSeed,
         content,
       });
       setGroupMessages((current) => [...current, sent]);
@@ -521,8 +510,6 @@ export default function ChatRoom() {
       const uploaded = await uploadChatImage(file);
       const sent = await sendChatMessage({
         roomId: activeGroupRoom.id,
-        author: currentAuthor,
-        avatarSeed: currentAvatarSeed,
         content: buildImageMarkup(uploaded.url),
       });
       setGroupMessages((current) => [...current, sent]);

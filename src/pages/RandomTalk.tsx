@@ -13,14 +13,13 @@ import {
 
 import MainLayout from "../layouts/MainLayout";
 import StatusState from "../components/StatusState";
+import { useAuth } from "../context/useAuth";
 import {
   formatTime,
-  readChatProfile,
   talkCategories,
   type TalkCategory,
   type TalkComment,
   type TalkPost,
-  writeChatProfile,
 } from "../lib/community";
 import { getErrorMessage } from "../lib/errorMessage";
 import { addTalkComment, deleteTalkPost, fetchTalkPosts, likeTalkPost, publishTalkPost } from "../services/communityService";
@@ -32,16 +31,15 @@ type SortMode = "latest" | "hot" | "commented";
 const categoryOptions: Array<TalkCategory> = ["全部", ...talkCategories];
 const TALK_CONTENT_MAX_LENGTH = 500;
 const TALK_COMMENT_MAX_LENGTH = 300;
-const TALK_NICKNAME_MAX_LENGTH = 20;
 
 function getAvatarLabel(name: string) {
   return (name || "ID")[0]?.toUpperCase() || "I";
 }
 
 export default function RandomTalk() {
-  const initialProfile = readChatProfile();
+  const { user, isAdmin } = useAuth();
+  const currentAuthor = user?.nickname?.trim() || user?.username || "用户";
   const [posts, setPosts] = useState<TalkPost[]>([]);
-  const [nickname, setNickname] = useState(initialProfile.nickname);
   const [category, setCategory] = useState<TalkCategory>("全部");
   const [publishCategory, setPublishCategory] = useState<Exclude<TalkCategory, "全部">>("闲聊摸鱼");
   const [sortMode, setSortMode] = useState<SortMode>("latest");
@@ -51,23 +49,6 @@ export default function RandomTalk() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [commentInput, setCommentInput] = useState("");
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const profileName = nickname.trim() || "匿名游客";
-    writeChatProfile({ nickname: profileName, avatarSeed: profileName });
-  }, [nickname]);
-
-  useEffect(() => {
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === "idncar.chat.profile.v1") {
-        const profile = readChatProfile();
-        setNickname(profile.nickname);
-      }
-    };
-
-    window.addEventListener("storage", handleStorage);
-    return () => window.removeEventListener("storage", handleStorage);
-  }, []);
 
   useEffect(() => {
     let active = true;
@@ -161,7 +142,6 @@ export default function RandomTalk() {
 
   async function handlePublish() {
     const messageText = content.trim();
-    const author = nickname.trim() || "匿名游客";
 
     if (!messageText) {
       message.warning("请输入内容");
@@ -170,8 +150,6 @@ export default function RandomTalk() {
 
     try {
       const nextPost = await publishTalkPost({
-        author,
-        avatarSeed: author,
         content: messageText,
         category: publishCategory,
       });
@@ -200,13 +178,13 @@ export default function RandomTalk() {
       return;
     }
 
-    if (target.author !== (nickname.trim() || "匿名游客")) {
+    if (target.author !== currentAuthor && !isAdmin) {
       message.warning("只能删除自己发布的内容");
       return;
     }
 
     try {
-      await deleteTalkPost(postId, target.author);
+      await deleteTalkPost(postId);
       setPosts((current) => current.filter((post) => post.id !== postId));
       if (activePost?.id === postId) {
         setDetailOpen(false);
@@ -230,7 +208,6 @@ export default function RandomTalk() {
     }
 
     const commentText = commentInput.trim();
-    const author = nickname.trim() || "匿名游客";
     if (!commentText) {
       message.warning("请输入回复内容");
       return;
@@ -238,7 +215,6 @@ export default function RandomTalk() {
 
     try {
       const nextComment: TalkComment = await addTalkComment(activePost.id, {
-        author,
         content: commentText,
       });
 
@@ -284,13 +260,12 @@ export default function RandomTalk() {
             <Card className="rounded-[28px] border-slate-100 bg-white/90 shadow-sm">
               <div className="space-y-4">
                 <div className="text-lg font-semibold text-slate-900">你的身份</div>
-                <Input value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder="输入你的昵称" maxLength={TALK_NICKNAME_MAX_LENGTH} showCount />
                 <div className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600">
                   <div className="flex items-center gap-3">
-                    <Avatar className="bg-[#2a6df4]">{getAvatarLabel(nickname.trim() || "匿名游客")}</Avatar>
+                    <Avatar className="bg-[#2a6df4]">{getAvatarLabel(currentAuthor)}</Avatar>
                     <div>
-                      <div className="font-medium text-slate-900">{nickname.trim() || "匿名游客"}</div>
-                      <div className="text-xs text-slate-500">会同步到聊天室</div>
+                      <div className="font-medium text-slate-900">{currentAuthor}</div>
+                      <div className="text-xs text-slate-500">身份来自当前登录账号</div>
                     </div>
                   </div>
                 </div>
@@ -467,7 +442,7 @@ export default function RandomTalk() {
                       <Button icon={<HeartOutlined />} onClick={() => void handleLike(post.id)}>
                         点赞 {post.likes}
                       </Button>
-                      {post.author === (nickname.trim() || "匿名游客") ? (
+                      {post.author === currentAuthor || isAdmin ? (
                         <Button danger icon={<DeleteOutlined />} onClick={() => void handleDelete(post.id)}>
                           删除
                         </Button>
