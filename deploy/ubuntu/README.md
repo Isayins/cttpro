@@ -4,7 +4,6 @@
 
 - `frontend`：Nginx 静态站点，反代 `/api/` 和 WebSocket 到 Java 后端
 - `java-backend`：Spring Boot API
-- `python-service`：FastAPI 量化服务
 - `mysql`：MySQL 8
 - `redis`：Redis 7
 
@@ -21,7 +20,7 @@ bash deploy/ubuntu/deploy.sh
 - 创建 `deploy/ubuntu/.env`
 - 为 MySQL、JWT、Hotmail 加密生成随机生产密钥
 - 检测并安装 Docker Engine / Docker Compose Plugin
-- 构建前端、Java 后端、Python 服务镜像
+- 构建前端和 Java 后端镜像
 - 启动全部服务并显示状态
 
 部署完成后访问：
@@ -43,7 +42,6 @@ nano deploy/ubuntu/.env
 ```bash
 HTTP_PORT=80
 MYSQL_DATABASE=idncar
-TUSHARE_TOKEN=
 APP_PAYMENT_ALIPAY_ENABLED=false
 APP_PAYMENT_ALIPAY_APP_ID=
 APP_PAYMENT_ALIPAY_PRIVATE_KEY=

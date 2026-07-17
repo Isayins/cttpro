@@ -53,10 +53,6 @@ management:
     health:
       show-details: when_authorized
 
-python:
-  service:
-    url: ${PYTHON_SERVICE_URL:http://localhost:8735}
-
 jwt:
   secret: ${JWT_SECRET:change-me-base64-secret}
   expiration: 86400000

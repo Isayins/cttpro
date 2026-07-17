@@ -20,9 +20,4 @@ java-backend/target
 java-backend/.m2
 java-backend/uploads
 java-backend/*.log
-
-python-quant/.venv
-python-quant/__pycache__
-python-quant/**/__pycache__
-python-quant/state
-python-quant/logs
+python-quant/

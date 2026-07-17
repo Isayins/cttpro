@@ -30,11 +30,8 @@ coverage/
 *.njsproj
 *.sln
 *.sw?
-python-quant/.env
-python-quant/.venv/
-python-quant/state/
-python-quant/logs/
 java-backend/uploads/
+python-quant/
 **/__pycache__/
 
 *storybook.log

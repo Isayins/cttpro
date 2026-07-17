@@ -96,7 +96,6 @@ public class SecurityConfig {
                         "/api/forum/board-owner-applications/mine/").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/forum/**").permitAll()
                 .requestMatchers("/api/forum/**").authenticated()
-                .requestMatchers("/api/quant/**").authenticated()
                 .requestMatchers("/api/tools/**").authenticated()
                 .requestMatchers("/api/payments/**").authenticated()
                 .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()

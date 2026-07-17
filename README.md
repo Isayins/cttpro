@@ -1,6 +1,6 @@
 # cttpro
 
-cttpro 是一个前后端一体的业务项目，包含 React 前台、Spring Boot API 服务和 Python 量化数据服务。当前功能覆盖官网内容、论坛、下载资源、商品与支付宝当面付订单、后台运营管理、二维码和邮件验证码等模块。
+cttpro 是一个前后端一体的业务项目，包含 React 前台和 Spring Boot API 服务。当前功能覆盖官网内容、论坛、下载资源、商品与支付宝当面付订单、后台运营管理、二维码和邮件验证码等模块。
 
 ## 项目结构
 
@@ -8,7 +8,6 @@ cttpro 是一个前后端一体的业务项目，包含 React 前台、Spring Bo
 .
 ├── src/                 # React + TypeScript 前端
 ├── java-backend/        # Spring Boot 3 后端 API
-├── python-quant/        # FastAPI 量化/行情服务
 ├── public/              # 前端静态资源
 ├── .github/workflows/   # GitHub Actions 部署流程
 └── docker-compose.yml   # 本地/服务器容器编排
@@ -30,7 +29,6 @@ npm run check
 
 ```bash
 VITE_API_BASE_URL=http://localhost:9091
-VITE_STOCK_API_BASE_URL=http://localhost:8735
 VITE_API_TIMEOUT_MS=15000
 VITE_IDLE_LOGOUT_MINUTES=120
 ```
@@ -57,7 +55,6 @@ SPRING_DATASOURCE_PASSWORD=change-me
 SPRING_DATA_REDIS_HOST=localhost
 SPRING_DATA_REDIS_PORT=6379
 JWT_SECRET=change-me-base64-secret
-PYTHON_SERVICE_URL=http://localhost:8735
 ```
 
 支付相关配置支持官方支付宝和内置 V免签两种通道。官方支付宝通过 `APP_PAYMENT_ALIPAY_*` 注入；接口内容加密默认开启，需要在支付宝开放平台配置 AES 接口内容加密，并将密钥填入 `APP_PAYMENT_ALIPAY_ENCRYPT_KEY`。V免签不需要单独部署 PHP 后台，启动后进入后台管理的「V免签配置」，系统会自动生成通讯密钥；保存收款码内容并启用后，监听端使用站点根路径的 `/getState`、`/appHeart`、`/appPush` 接口和后台显示的通讯密钥即可推送收款。生产环境不要使用仓库中的示例默认值。
@@ -70,29 +67,6 @@ V免签使用“精确实付金额”区分同时创建的订单：当同一通�
 
 - 后台「系统状态」会集中检查邮件发送、V免签支付、异常订单、商品发货库存和下载中心资源，给出正常/关注/异常状态和跳转处理入口。
 - 后台涉及新增功能、页面或用户可见流程时，需要同步更新相关 Markdown 说明，并在交付前提交 Git。
-
-## Python 量化服务
-
-```bash
-cd python-quant
-cp .env.example .env
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn src.main:app --host 0.0.0.0 --port 8735
-```
-
-主要环境变量：
-
-```bash
-STOCK_DB_HOST=localhost
-STOCK_DB_PORT=3306
-STOCK_DB_USER=root
-STOCK_DB_PASSWORD=change-me
-STOCK_DB_NAME=idncar
-QUANT_SERVICE_PORT=8735
-TUSHARE_TOKEN=your-token
-```
 
 ## Docker
 
@@ -113,11 +87,10 @@ bash deploy/ubuntu/deploy.sh
 
 - 前端本地开发：`5173`
 - Java 后端：`9091`
-- Python 量化服务：`8735`
 - MySQL：`3306`
 - Redis：`6379`
 
-Compose 已配置 MySQL、Redis、Python 量化服务和 Java 后端健康检查；Java 后端会等待依赖服务健康后再启动。
+Compose 已配置 MySQL、Redis 和 Java 后端健康检查；Java 后端会等待依赖服务健康后再启动。
 
 ## 验证清单
 
@@ -141,4 +114,4 @@ cp .env.example .env
 
 - `artifacts/`、`dist/`、`storybook-static/`、`java-backend/uploads/`、`*.tsbuildinfo` 属于生成物或运行时数据，不应提交。
 - 生产密钥、数据库密码、Redis 密码、邮箱授权码、支付宝私钥和支付宝接口内容加密密钥都应通过环境变量或密钥管理系统注入。
-- GitHub Actions 流程位于 `.github/workflows/deploy.yml`：PR 会校验前端、Java 后端和 Python 服务，`main` 分支校验通过后才上传 Vite 的 `dist/*` 到服务器目录。
+- GitHub Actions 流程位于 `.github/workflows/deploy.yml`：PR 会校验前端和 Java 后端，`main` 分支校验通过后才上传 Vite 的 `dist/*` 到服务器目录。

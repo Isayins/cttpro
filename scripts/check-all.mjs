@@ -6,8 +6,6 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..");
 const isWindows = process.platform === "win32";
 const javaBackendDir = join(repoRoot, "java-backend");
-const pythonQuantDir = join(repoRoot, "python-quant");
-const pythonCommand = process.env.PYTHON ?? "python";
 
 const steps = [
   {
@@ -52,21 +50,6 @@ const steps = [
       ? ["/d", "/s", "/c", "mvnw.cmd -B -ntp -DskipTests compile"]
       : ["-B", "-ntp", "-DskipTests", "compile"],
     cwd: javaBackendDir,
-  },
-  {
-    name: "Python quant compile",
-    command: pythonCommand,
-    args: ["-m", "compileall", "-q", "src"],
-    cwd: pythonQuantDir,
-  },
-  {
-    name: "Python quant FastAPI import",
-    command: pythonCommand,
-    args: [
-      "-c",
-      "import src.main as main; assert getattr(main, 'app', None) is not None; print(type(main.app).__name__)",
-    ],
-    cwd: pythonQuantDir,
   },
 ];
 

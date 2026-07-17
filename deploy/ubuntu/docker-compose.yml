@@ -38,7 +38,6 @@ services:
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_DATA_REDIS_PASSWORD: ""
-      PYTHON_SERVICE_URL: http://python-service:8735
       JWT_SECRET: ${JWT_SECRET}
       APP_HOTMAIL_ENCRYPTION_SECRET: ${APP_HOTMAIL_ENCRYPTION_SECRET:-${JWT_SECRET}}
       APP_SITE_BASE_URL: ${APP_SITE_BASE_URL:-https://idncar.com}
@@ -81,40 +80,6 @@ services:
       mysql:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      python-service:
-        condition: service_healthy
-
-  python-service:
-    image: ${PYTHON_SERVICE_IMAGE:-cttpro-python-service:latest}
-    build:
-      context: ../../python-quant
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    expose:
-      - "8735"
-    environment:
-      STOCK_DB_HOST: mysql
-      STOCK_DB_PORT: 3306
-      STOCK_DB_USER: root
-      STOCK_DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      STOCK_DB_NAME: ${MYSQL_DATABASE:-idncar}
-      QUANT_SERVICE_PORT: 8735
-      TUSHARE_TOKEN: ${TUSHARE_TOKEN:-}
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8735/health', timeout=3).read()",
-        ]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-    depends_on:
-      mysql:
         condition: service_healthy
 
   mysql:
