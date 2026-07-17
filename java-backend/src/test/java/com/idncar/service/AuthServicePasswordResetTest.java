@@ -15,6 +15,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -78,7 +79,32 @@ class AuthServicePasswordResetTest {
         verify(userMapper).updateById(user);
         verify(redisTemplate).delete("email:password-reset:code:user@example.com");
         verify(redisTemplate).delete("email:password-reset:cooldown:user@example.com");
+        verify(redisTemplate).delete("email:password-reset:attempts:user@example.com");
         verify(values).set("token:blacklist:old-token", "1", 60_000L, TimeUnit.MILLISECONDS);
         verify(redisTemplate).delete("token:7");
+    }
+
+    @Test
+    void fifthInvalidCodeAttemptInvalidatesTheCode() {
+        AuthService service = new AuthService();
+        UserMapper userMapper = mock(UserMapper.class);
+        @SuppressWarnings("unchecked")
+        RedisTemplate<String, Object> redisTemplate = mock(RedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, Object> values = mock(ValueOperations.class);
+        ReflectionTestUtils.setField(service, "userMapper", userMapper);
+        ReflectionTestUtils.setField(service, "redisTemplate", redisTemplate);
+
+        User user = new User();
+        user.setStatus("ACTIVE");
+        when(userMapper.selectByEmail("user@example.com")).thenReturn(user);
+        when(redisTemplate.opsForValue()).thenReturn(values);
+        when(values.get("email:password-reset:code:user@example.com")).thenReturn("123456");
+        when(values.increment("email:password-reset:attempts:user@example.com")).thenReturn(5L);
+
+        assertThatThrownBy(() -> service.resetPassword(
+                new ResetPasswordRequest("user@example.com", "654321", "new123", "new123")
+        )).isInstanceOf(RuntimeException.class).hasMessage("邮箱验证码错误或已过期");
+        verify(redisTemplate).delete("email:password-reset:code:user@example.com");
     }
 }

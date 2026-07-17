@@ -52,6 +52,9 @@ import java.util.stream.Collectors;
 @Service
 public class AuthService {
 
+    private static final String PASSWORD_RESET_CODE_SENT_MESSAGE =
+            "如果该邮箱已注册，验证码邮件将发送到该邮箱";
+
     private static final Logger log = LoggerFactory.getLogger(AuthService.class);
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
     private static final Pattern PASSWORD_PATTERN = Pattern.compile("^(?=.*[A-Za-z])(?=.*\\d).{6,}$");
@@ -164,10 +167,12 @@ public class AuthService {
 
         if (userMapper.selectByEmail(email) == null) {
             redisTemplate.opsForValue().set(cooldownKey, "1", emailCodeCooldownSeconds, TimeUnit.SECONDS);
-            return new SendEmailCodeResponse("如果该邮箱已注册，验证码邮件将发送到该邮箱", null);
+            return new SendEmailCodeResponse(PASSWORD_RESET_CODE_SENT_MESSAGE, null);
         }
 
-        return sendVerificationEmail(email, passwordResetCodeKey(email), cooldownKey, true);
+        sendVerificationEmail(email, passwordResetCodeKey(email), cooldownKey, true);
+        redisTemplate.delete(passwordResetAttemptsKey(email));
+        return new SendEmailCodeResponse(PASSWORD_RESET_CODE_SENT_MESSAGE, null);
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -180,6 +185,14 @@ public class AuthService {
         Object storedCode = redisTemplate.opsForValue().get(passwordResetCodeKey(email));
 
         if (user == null || storedCode == null || !emailCode.equals(String.valueOf(storedCode))) {
+            Long failedAttempts = redisTemplate.opsForValue().increment(passwordResetAttemptsKey(email));
+            if (failedAttempts != null && failedAttempts == 1L) {
+                redisTemplate.expire(
+                        passwordResetAttemptsKey(email), emailCodeExpireMinutes, TimeUnit.MINUTES);
+            }
+            if (failedAttempts != null && failedAttempts >= 5L) {
+                redisTemplate.delete(passwordResetCodeKey(email));
+            }
             throw ApiException.badRequest("邮箱验证码错误或已过期");
         }
         if (!"ACTIVE".equalsIgnoreCase(user.getStatus())) {
@@ -196,6 +209,7 @@ public class AuthService {
         userMapper.updateById(user);
         redisTemplate.delete(passwordResetCodeKey(email));
         redisTemplate.delete(passwordResetCooldownKey(email));
+        redisTemplate.delete(passwordResetAttemptsKey(email));
         invalidateCurrentSession(user.getId());
     }
 
@@ -455,6 +469,10 @@ public class AuthService {
 
     private String passwordResetCooldownKey(String email) {
         return "email:password-reset:cooldown:" + email.toLowerCase();
+    }
+
+    private String passwordResetAttemptsKey(String email) {
+        return "email:password-reset:attempts:" + email.toLowerCase();
     }
 
     private int nextUsageCount(Integer usageCount) {
