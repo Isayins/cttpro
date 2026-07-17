@@ -31,6 +31,7 @@ coverage/
 *.sln
 *.sw?
 java-backend/uploads/
+deploy/ubuntu/backups/
 python-quant/
 **/__pycache__/
 

@@ -40,6 +40,9 @@ jobs:
           -v "$PWD/deploy/ubuntu/nginx.conf:/etc/nginx/conf.d/default.conf:ro"
           nginx:1.27-alpine nginx -t
 
+      - name: Validate deployment scripts
+        run: bash -n deploy/ubuntu/backup.sh deploy/ubuntu/restore.sh
+
       - name: Upload frontend build
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4

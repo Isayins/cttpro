@@ -79,6 +79,37 @@ docker compose --env-file deploy/ubuntu/.env -f deploy/ubuntu/docker-compose.yml
 
 保留数据库和上传文件的持久化卷；如需清空数据，需额外删除 Docker volumes。
 
+## 数据备份与恢复
+
+备份运行中的 MySQL 和上传文件，默认写入 `deploy/ubuntu/backups/<时间>/`，
+并生成 SHA-256 校验文件；默认删除超过 14 天的本机备份：
+
+```bash
+bash deploy/ubuntu/backup.sh
+```
+
+可通过环境变量调整位置和保留天数：
+
+```bash
+BACKUP_ROOT=/srv/cttpro-backups BACKUP_RETENTION_DAYS=30 \
+  bash deploy/ubuntu/backup.sh
+```
+
+本机备份仍可能随磁盘一起丢失，备份完成后应同步到独立服务器或对象存储。
+每天凌晨 3 点执行的 cron 示例：
+
+```cron
+0 3 * * * BACKUP_ROOT=/srv/cttpro-backups BACKUP_RETENTION_DAYS=30 /bin/bash /opt/cttpro/deploy/ubuntu/backup.sh >> /var/log/cttpro-backup.log 2>&1
+```
+
+恢复会校验归档、停止 Java 后端、重建数据库与上传目录、清理 Redis 会话，
+必须显式确认。失败时后端保持停止，先检查数据后再手动启动：
+
+```bash
+RESTORE_CONFIRM=RESTORE \
+  bash deploy/ubuntu/restore.sh /srv/cttpro-backups/20260718-030000
+```
+
 ## Nohup 单独启动 Java 后端
 
 如果只部署 Java 后端 JAR，可以使用：
