@@ -5,6 +5,7 @@ import com.idncar.model.dto.ChangePasswordRequest;
 import com.idncar.model.dto.LoginRecordDto;
 import com.idncar.model.dto.LoginRequest;
 import com.idncar.model.dto.RegisterRequest;
+import com.idncar.model.dto.ResetPasswordRequest;
 import com.idncar.model.dto.SendEmailCodeRequest;
 import com.idncar.model.dto.SendEmailCodeResponse;
 import com.idncar.model.dto.UpdateProfileRequest;
@@ -47,6 +48,17 @@ public class AuthController {
     @PostMapping("/email-code")
     public ResponseEntity<SendEmailCodeResponse> sendEmailCode(@RequestBody SendEmailCodeRequest request) {
         return ResponseEntity.ok(authService.sendRegisterEmailCode(request));
+    }
+
+    @PostMapping("/password-reset-code")
+    public ResponseEntity<SendEmailCodeResponse> sendPasswordResetCode(@RequestBody SendEmailCodeRequest request) {
+        return ResponseEntity.ok(authService.sendPasswordResetEmailCode(request));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Void> resetPassword(@RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/register")

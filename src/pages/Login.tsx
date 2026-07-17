@@ -35,6 +35,13 @@ interface RegisterFormValues {
   confirmPassword: string;
 }
 
+interface ResetPasswordFormValues {
+  email: string;
+  emailCode: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
 type PasswordStrengthLevel = "弱" | "中" | "强";
 
 function getPasswordStrength(password: string): { score: number; label: PasswordStrengthLevel; color: string } {
@@ -126,8 +133,13 @@ export default function Login() {
   const [sendingCode, setSendingCode] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [passwordValue, setPasswordValue] = useState("");
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [resetSubmitting, setResetSubmitting] = useState(false);
+  const [sendingResetCode, setSendingResetCode] = useState(false);
+  const [resetCountdown, setResetCountdown] = useState(0);
   const [loginForm] = Form.useForm<LoginFormValues>();
   const [registerForm] = Form.useForm<RegisterFormValues>();
+  const [resetPasswordForm] = Form.useForm<ResetPasswordFormValues>();
   const loginPasswordInputRef = useRef<InputRef>(null);
 
   const targetPath = useMemo(
@@ -167,6 +179,14 @@ export default function Login() {
     const timer = window.setTimeout(() => setCountdown((value) => value - 1), 1000);
     return () => window.clearTimeout(timer);
   }, [countdown]);
+
+  useEffect(() => {
+    if (resetCountdown <= 0) {
+      return;
+    }
+    const timer = window.setTimeout(() => setResetCountdown((value) => value - 1), 1000);
+    return () => window.clearTimeout(timer);
+  }, [resetCountdown]);
 
   function clearFeedback() {
     setError(null);
@@ -319,6 +339,47 @@ export default function Login() {
     }
   }
 
+  async function handleSendPasswordResetCode() {
+    try {
+      await resetPasswordForm.validateFields(["email"]);
+    } catch {
+      message.warning("请先输入正确的邮箱");
+      return;
+    }
+
+    const email = String(normalizeEmailInput(resetPasswordForm.getFieldValue("email")) ?? "");
+    resetPasswordForm.setFieldsValue({ email });
+    setSendingResetCode(true);
+    try {
+      const response = await authApi.sendPasswordResetCode({ email });
+      message.success(response.message || "验证码已发送，请注意查收邮箱。");
+      setResetCountdown(60);
+    } catch (err) {
+      message.error(getFriendlyMessage(err, "验证码发送失败，请稍后重试"));
+    } finally {
+      setSendingResetCode(false);
+    }
+  }
+
+  async function handleResetPassword(values: ResetPasswordFormValues) {
+    setResetSubmitting(true);
+    try {
+      await authApi.resetPassword({
+        ...values,
+        email: String(normalizeEmailInput(values.email) ?? ""),
+        emailCode: String(normalizeEmailCodeInput(values.emailCode) ?? ""),
+      });
+      setResetModalOpen(false);
+      resetPasswordForm.resetFields();
+      setResetCountdown(0);
+      message.success("密码已重置，请使用新密码登录");
+    } catch (err) {
+      message.error(getFriendlyMessage(err, "密码重置失败，请稍后重试"));
+    } finally {
+      setResetSubmitting(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(220,234,255,0.75),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(255,239,214,0.62),transparent_24%),linear-gradient(180deg,#f8fbff_0%,#f3f6fb_100%)] px-4 py-4 text-slate-900 sm:py-6 md:px-6 lg:py-10">
       <div className="mx-auto grid w-full max-w-6xl items-start gap-4 sm:gap-6 lg:min-h-[calc(100vh-80px)] lg:grid-cols-[minmax(0,1fr)_440px] lg:items-center">
@@ -453,6 +514,9 @@ export default function Login() {
 
                     <Button type="primary" htmlType="submit" size="large" block loading={submitting}>
                       登录
+                    </Button>
+                    <Button type="link" block onClick={() => setResetModalOpen(true)}>
+                      忘记密码？
                     </Button>
                   </Form>
                 ),
@@ -618,6 +682,95 @@ export default function Login() {
         </Card>
         </div>
       </div>
+      <Modal
+        title="找回密码"
+        open={resetModalOpen}
+        okText="重置密码"
+        cancelText="取消"
+        confirmLoading={resetSubmitting}
+        onOk={() => resetPasswordForm.submit()}
+        onCancel={() => setResetModalOpen(false)}
+        destroyOnHidden
+      >
+        <Form<ResetPasswordFormValues>
+          form={resetPasswordForm}
+          layout="vertical"
+          onFinish={(values) => void handleResetPassword(values)}
+        >
+          <Form.Item
+            name="email"
+            label="注册邮箱"
+            normalize={normalizeEmailInput}
+            rules={[
+              { required: true, message: "请输入注册邮箱" },
+              { type: "email", message: "请输入正确的邮箱格式" },
+            ]}
+          >
+            <Input prefix={<MailOutlined />} type="email" autoComplete="email" placeholder="请输入注册邮箱" />
+          </Form.Item>
+          <Form.Item
+            name="emailCode"
+            label="邮箱验证码"
+            normalize={normalizeEmailCodeInput}
+            rules={[
+              { required: true, message: "请输入邮箱验证码" },
+              { len: 6, message: "请输入 6 位邮箱验证码" },
+            ]}
+          >
+            <Input
+              inputMode="numeric"
+              maxLength={6}
+              autoComplete="one-time-code"
+              placeholder="请输入邮箱验证码"
+              addonAfter={
+                <Button
+                  type="link"
+                  size="small"
+                  loading={sendingResetCode}
+                  disabled={sendingResetCode || resetCountdown > 0}
+                  onClick={() => void handleSendPasswordResetCode()}
+                >
+                  {resetCountdown > 0 ? `${resetCountdown}s` : "发送"}
+                </Button>
+              }
+            />
+          </Form.Item>
+          <Form.Item
+            name="newPassword"
+            label="新密码"
+            extra="密码至少 6 位，且必须同时包含字母和数字。"
+            rules={[
+              { required: true, message: "请输入新密码" },
+              {
+                validator(_, value) {
+                  return !value || validatePasswordRule(value)
+                    ? Promise.resolve()
+                    : Promise.reject(new Error("密码至少 6 位，且必须同时包含字母和数字"));
+                },
+              },
+            ]}
+          >
+            <Input.Password prefix={<LockOutlined />} autoComplete="new-password" placeholder="请输入新密码" />
+          </Form.Item>
+          <Form.Item
+            name="confirmPassword"
+            label="确认新密码"
+            dependencies={["newPassword"]}
+            rules={[
+              { required: true, message: "请再次输入新密码" },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  return !value || getFieldValue("newPassword") === value
+                    ? Promise.resolve()
+                    : Promise.reject(new Error("两次输入的新密码不一致"));
+                },
+              }),
+            ]}
+          >
+            <Input.Password prefix={<LockOutlined />} autoComplete="new-password" placeholder="请再次输入新密码" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }

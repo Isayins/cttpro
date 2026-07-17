@@ -10,6 +10,7 @@ import com.idncar.model.dto.ChangePasswordRequest;
 import com.idncar.model.dto.LoginRecordDto;
 import com.idncar.model.dto.LoginRequest;
 import com.idncar.model.dto.RegisterRequest;
+import com.idncar.model.dto.ResetPasswordRequest;
 import com.idncar.model.dto.SendEmailCodeRequest;
 import com.idncar.model.dto.SendEmailCodeResponse;
 import com.idncar.model.dto.UpdateProfileRequest;
@@ -151,50 +152,51 @@ public class AuthService {
             throw ApiException.badRequest("该邮箱已注册，请直接登录");
         }
 
-        String cooldownKey = registerCooldownKey(email);
+        return sendVerificationEmail(email, registerCodeKey(email), registerCooldownKey(email), false);
+    }
+
+    public SendEmailCodeResponse sendPasswordResetEmailCode(SendEmailCodeRequest request) {
+        String email = requireEmail(request.getEmail());
+        String cooldownKey = passwordResetCooldownKey(email);
         if (Boolean.TRUE.equals(redisTemplate.hasKey(cooldownKey))) {
             throw ApiException.badRequest("验证码发送过于频繁，请稍后再试");
         }
 
-        String code = String.format("%06d", random.nextInt(1_000_000));
-        String registerCodeKey = registerCodeKey(email);
-        redisTemplate.opsForValue().set(registerCodeKey, code, emailCodeExpireMinutes, TimeUnit.MINUTES);
-        redisTemplate.opsForValue().set(cooldownKey, "1", emailCodeCooldownSeconds, TimeUnit.SECONDS);
-
-        JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
-        if (mailSender == null) {
-            clearRegisterEmailState(registerCodeKey, cooldownKey);
-            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "邮件服务未配置完成，暂时无法发送验证码");
+        if (userMapper.selectByEmail(email) == null) {
+            redisTemplate.opsForValue().set(cooldownKey, "1", emailCodeCooldownSeconds, TimeUnit.SECONDS);
+            return new SendEmailCodeResponse("如果该邮箱已注册，验证码邮件将发送到该邮箱", null);
         }
 
-        if (mailMockEnabled) {
-            clearRegisterEmailState(registerCodeKey, cooldownKey);
-            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "当前环境仍处于 mock 发信模式，请关闭 APP_MAIL_MOCK_ENABLED");
+        return sendVerificationEmail(email, passwordResetCodeKey(email), cooldownKey, true);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void resetPassword(ResetPasswordRequest request) {
+        String email = requireEmail(request.email());
+        String emailCode = requireText(request.emailCode(), "请输入邮箱验证码");
+        String newPassword = requirePassword(request.newPassword());
+        String confirmPassword = requireText(request.confirmPassword(), "请再次输入新密码");
+        User user = userMapper.selectByEmail(email);
+        Object storedCode = redisTemplate.opsForValue().get(passwordResetCodeKey(email));
+
+        if (user == null || storedCode == null || !emailCode.equals(String.valueOf(storedCode))) {
+            throw ApiException.badRequest("邮箱验证码错误或已过期");
+        }
+        if (!"ACTIVE".equalsIgnoreCase(user.getStatus())) {
+            throw ApiException.forbidden("当前账号已被禁用");
+        }
+        if (!newPassword.equals(confirmPassword)) {
+            throw ApiException.badRequest("两次输入的新密码不一致");
+        }
+        if (passwordEncoder.matches(newPassword, user.getPassword())) {
+            throw ApiException.badRequest("新密码不能与当前密码相同");
         }
 
-        String senderAddress = resolveMailFromAddress();
-        if (senderAddress == null) {
-            clearRegisterEmailState(registerCodeKey, cooldownKey);
-            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "发件邮箱未配置，请设置 APP_MAIL_FROM 或 SPRING_MAIL_USERNAME");
-        }
-
-        try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-            helper.setFrom(senderAddress, "IDNCAR");
-            helper.setTo(email);
-            helper.setSubject("IDNCAR 注册验证码");
-            helper.setText(buildRegisterEmailHtml(code), true);
-            mailBrandTemplateHelper.addInlineLogoIfNeeded(helper);
-            mailSender.send(message);
-        } catch (Exception e) {
-            log.warn("Register verification email failed: email={}, sender={}, error={}",
-                    email, senderAddress, e.getMessage(), e);
-            clearRegisterEmailState(registerCodeKey, cooldownKey);
-            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "验证码邮件发送失败，请稍后重试");
-        }
-
-        return new SendEmailCodeResponse("邮件发送成功，请查收邮箱验证码", null);
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userMapper.updateById(user);
+        redisTemplate.delete(passwordResetCodeKey(email));
+        redisTemplate.delete(passwordResetCooldownKey(email));
+        invalidateCurrentSession(user.getId());
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -447,6 +449,14 @@ public class AuthService {
         return "email:register:cooldown:" + email.toLowerCase();
     }
 
+    private String passwordResetCodeKey(String email) {
+        return "email:password-reset:code:" + email.toLowerCase();
+    }
+
+    private String passwordResetCooldownKey(String email) {
+        return "email:password-reset:cooldown:" + email.toLowerCase();
+    }
+
     private int nextUsageCount(Integer usageCount) {
         return usageCount == null ? 1 : usageCount + 1;
     }
@@ -520,8 +530,65 @@ public class AuthService {
         return value.substring(0, maxLength);
     }
 
-    private void clearRegisterEmailState(String registerCodeKey, String cooldownKey) {
-        redisTemplate.delete(registerCodeKey);
+    private SendEmailCodeResponse sendVerificationEmail(String email, String codeKey, String cooldownKey, boolean passwordReset) {
+        if (Boolean.TRUE.equals(redisTemplate.hasKey(cooldownKey))) {
+            throw ApiException.badRequest("验证码发送过于频繁，请稍后再试");
+        }
+
+        String code = String.format("%06d", random.nextInt(1_000_000));
+        redisTemplate.opsForValue().set(codeKey, code, emailCodeExpireMinutes, TimeUnit.MINUTES);
+        redisTemplate.opsForValue().set(cooldownKey, "1", emailCodeCooldownSeconds, TimeUnit.SECONDS);
+
+        JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
+        if (mailSender == null) {
+            clearEmailState(codeKey, cooldownKey);
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "邮件服务未配置完成，暂时无法发送验证码");
+        }
+        if (mailMockEnabled) {
+            clearEmailState(codeKey, cooldownKey);
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "当前环境仍处于 mock 发信模式，请关闭 APP_MAIL_MOCK_ENABLED");
+        }
+
+        String senderAddress = resolveMailFromAddress();
+        if (senderAddress == null) {
+            clearEmailState(codeKey, cooldownKey);
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "发件邮箱未配置，请设置 APP_MAIL_FROM 或 SPRING_MAIL_USERNAME");
+        }
+
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(senderAddress, "IDNCAR");
+            helper.setTo(email);
+            helper.setSubject(passwordReset ? "IDNCAR 密码重置验证码" : "IDNCAR 注册验证码");
+            helper.setText(passwordReset ? buildPasswordResetEmailHtml(code) : buildRegisterEmailHtml(code), true);
+            mailBrandTemplateHelper.addInlineLogoIfNeeded(helper);
+            mailSender.send(message);
+        } catch (Exception e) {
+            log.warn("Verification email failed: purpose={}, email={}, sender={}, error={}",
+                    passwordReset ? "PASSWORD_RESET" : "REGISTER", email, senderAddress, e.getMessage(), e);
+            clearEmailState(codeKey, cooldownKey);
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "验证码邮件发送失败，请稍后重试");
+        }
+
+        return new SendEmailCodeResponse("邮件发送成功，请查收邮箱验证码", null);
+    }
+
+    private void invalidateCurrentSession(Long userId) {
+        Object currentToken = redisTemplate.opsForValue().get("token:" + userId);
+        if (currentToken != null) {
+            redisTemplate.opsForValue().set(
+                    "token:blacklist:" + currentToken,
+                    "1",
+                    jwtUtil.getExpirationTime(),
+                    TimeUnit.MILLISECONDS
+            );
+        }
+        redisTemplate.delete("token:" + userId);
+    }
+
+    private void clearEmailState(String codeKey, String cooldownKey) {
+        redisTemplate.delete(codeKey);
         redisTemplate.delete(cooldownKey);
     }
 
@@ -614,5 +681,12 @@ public class AuthService {
                 </body>
                 </html>
                 """.formatted(code, emailCodeExpireMinutes, brandMark, code, emailCodeExpireMinutes, loginUrl, siteUrl, siteUrl, currentYear);
+    }
+
+    private String buildPasswordResetEmailHtml(String code) {
+        return buildRegisterEmailHtml(code)
+                .replace("注册验证码", "密码重置验证码")
+                .replace("完成邮箱验证", "重置账号密码")
+                .replace("仅用于本次注册", "仅用于本次密码重置");
     }
 }

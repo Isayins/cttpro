@@ -54,7 +54,12 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(authorize -> authorize
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/api/auth/login", "/api/auth/register", "/api/auth/email-code").permitAll()
+                .requestMatchers(
+                        "/api/auth/login",
+                        "/api/auth/register",
+                        "/api/auth/email-code",
+                        "/api/auth/password-reset-code",
+                        "/api/auth/reset-password").permitAll()
                 .requestMatchers("/api/code/fetch", "/api/code/fetch/").permitAll()
                 .requestMatchers("/api/mail/get/**").permitAll()
                 .requestMatchers("/api/qr-codes/public/**").permitAll()

@@ -5,6 +5,7 @@ import type {
   LoginPayload,
   LoginRecord,
   RegisterPayload,
+  ResetPasswordPayload,
   UpdateProfilePayload,
   User,
 } from "../../types/app";
@@ -18,6 +19,16 @@ export const authApi = {
     }),
   sendEmailCode: (payload: { email: string }) =>
     apiRequest<EmailCodeResponse>("/api/auth/email-code", {
+      method: "POST",
+      body: payload,
+    }),
+  sendPasswordResetCode: (payload: { email: string }) =>
+    apiRequest<EmailCodeResponse>("/api/auth/password-reset-code", {
+      method: "POST",
+      body: payload,
+    }),
+  resetPassword: (payload: ResetPasswordPayload) =>
+    apiRequest<void>("/api/auth/reset-password", {
       method: "POST",
       body: payload,
     }),

@@ -530,6 +530,13 @@ export interface RegisterPayload {
   emailCode: string;
 }
 
+export interface ResetPasswordPayload {
+  email: string;
+  emailCode: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
 export interface UpdateProfilePayload {
   nickname: string;
   avatarUrl: string;
