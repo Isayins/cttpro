@@ -175,6 +175,63 @@ class ProductDeliveryCodeServiceTest {
         assertThat(extractText(mimeMessage)).contains("ORIGINAL-CDK-001");
     }
 
+    @Test
+    void cdkOrderResendAllocatesCodeAfterStockIsReplenished() throws Exception {
+        Product product = new Product();
+        product.setId(1L);
+        product.setTitle("会员兑换卡");
+        product.setDeliveryType("CDK_EMAIL");
+
+        PaymentOrder order = new PaymentOrder();
+        order.setResourceId(1L);
+        order.setOutTradeNo("PAID-ORDER-2");
+        order.setPayerUserId(9L);
+        order.setDeliveryEmail("buyer@example.com");
+
+        ProductDeliveryCode available = new ProductDeliveryCode();
+        available.setId(8L);
+        available.setProductId(1L);
+        available.setStatus("AVAILABLE");
+        ProductDeliveryCode locked = new ProductDeliveryCode();
+        locked.setId(8L);
+        locked.setProductId(1L);
+        locked.setOrderNo("PAID-ORDER-2");
+        locked.setCode("RESTOCKED-CDK-002");
+        locked.setStatus("LOCKED");
+
+        ProductMapper productMapper = mock(ProductMapper.class);
+        when(productMapper.selectById(1L)).thenReturn(product);
+        ProductDeliveryCodeMapper deliveryCodeMapper = mock(ProductDeliveryCodeMapper.class);
+        when(deliveryCodeMapper.selectOne(any())).thenReturn(null, available);
+        when(deliveryCodeMapper.selectById(8L)).thenReturn(locked);
+        when(deliveryCodeMapper.update(any(), any())).thenReturn(1);
+
+        JavaMailSender mailSender = mock(JavaMailSender.class);
+        MimeMessage mimeMessage = new MimeMessage(Session.getInstance(new Properties()));
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+        @SuppressWarnings("unchecked")
+        ObjectProvider<JavaMailSender> mailSenderProvider = mock(ObjectProvider.class);
+        when(mailSenderProvider.getIfAvailable()).thenReturn(mailSender);
+
+        ProductDeliveryCodeService service = new ProductDeliveryCodeService();
+        setField(service, "productMapper", productMapper);
+        setField(service, "userMapper", mock(UserMapper.class));
+        setField(service, "productDeliveryCodeMapper", deliveryCodeMapper);
+        setField(service, "mailSendLogMapper", mock(MailSendLogMapper.class));
+        setField(service, "mailSenderProvider", mailSenderProvider);
+        setField(service, "mailBrandTemplateHelper",
+                new MailBrandTemplateHelper("https://idncar.com", "https://idncar.com/logo.png"));
+        setField(service, "mailFrom", "sender@example.com");
+        setField(service, "springMailUsername", "sender@example.com");
+        setField(service, "mailMockEnabled", false);
+
+        service.resendPaidOrder(order);
+
+        verify(deliveryCodeMapper, times(2)).update(any(), any());
+        verify(mailSender).send(mimeMessage);
+        assertThat(extractText(mimeMessage)).contains("RESTOCKED-CDK-002");
+    }
+
     private void setField(Object target, String fieldName, Object value) throws Exception {
         Field field = target.getClass().getDeclaredField(fieldName);
         field.setAccessible(true);

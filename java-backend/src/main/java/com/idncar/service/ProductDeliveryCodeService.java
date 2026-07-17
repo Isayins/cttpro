@@ -277,7 +277,11 @@ public class ProductDeliveryCodeService {
 
         ProductDeliveryCode deliveryCode = findOrderDeliveryCode(product.getId(), order.getOutTradeNo());
         if (deliveryCode == null) {
-            throw ApiException.badRequest("该订单未绑定CDK，不能重新发货");
+            deliveryCode = lockAvailableDeliveryCode(
+                    product.getId(), order.getPayerUserId(), order.getOutTradeNo());
+        }
+        if (deliveryCode == null) {
+            throw ApiException.badRequest("CDK库存不足，请补充库存后重试");
         }
         if (!STATUS_LOCKED.equalsIgnoreCase(deliveryCode.getStatus())
                 && !STATUS_SENT.equalsIgnoreCase(deliveryCode.getStatus())) {
