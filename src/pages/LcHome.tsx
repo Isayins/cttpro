@@ -14,6 +14,7 @@ import {
 import MainLayout from "../layouts/MainLayout";
 import { useAuth } from "../context/useAuth";
 import { lcAnchors, routePaths } from "../router/routeAccess";
+import { resolveHomeData } from "../lib/homeData";
 import { downloadApi } from "../services/api/download";
 import { forumApi } from "../services/api/forum";
 import { siteNoticeApi } from "../services/api/siteNotice";
@@ -150,37 +151,20 @@ export default function LcHome() {
     let alive = true;
 
     async function loadHomeData() {
-      try {
-        const [noticeList, postList, downloadList] = await Promise.all([
-          siteNoticeApi.getSiteNotices(),
-          forumApi.getPosts(),
-          downloadApi.getDownloads(),
-        ]);
+      const results = await Promise.allSettled([
+        siteNoticeApi.getSiteNotices(),
+        forumApi.getPosts(),
+        downloadApi.getDownloads(),
+      ]);
 
-        if (!alive) {
-          return;
-        }
-
-        setNotices(noticeList);
-        setRecentPosts(postList.slice(0, 4));
-        setRecentDownloads(
-          [...downloadList]
-            .sort(
-              (left, right) =>
-                new Date(right.updateTime ?? right.createTime ?? 0).getTime() -
-                new Date(left.updateTime ?? left.createTime ?? 0).getTime(),
-            )
-            .slice(0, 4),
-        );
-      } catch {
-        if (!alive) {
-          return;
-        }
-
-        setNotices([]);
-        setRecentPosts([]);
-        setRecentDownloads([]);
+      if (!alive) {
+        return;
       }
+
+      const data = resolveHomeData(results);
+      setNotices(data.notices);
+      setRecentPosts(data.recentPosts);
+      setRecentDownloads(data.recentDownloads);
     }
 
     void loadHomeData();

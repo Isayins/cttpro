@@ -10,7 +10,7 @@
     "package:all": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-all.ps1",
     "typecheck": "tsc -b --noEmit",
     "lint": "eslint .",
-    "check": "npm run lint && npm run typecheck && npm run build",
+    "check": "npm test && npm run lint && npm run typecheck && npm run build",
     "check:all": "node scripts/check-all.mjs",
     "format": "prettier --write \"README.md\" \"docker-compose.yml\" \"deploy/ubuntu/**/*.yml\" \"deploy/ubuntu/**/*.md\" \".github/workflows/**/*.yml\" \"package.json\" \"scripts/**/*.mjs\" \"vite.config.ts\" \"eslint.config.js\"",
     "format:check": "prettier --check \"README.md\" \"docker-compose.yml\" \"deploy/ubuntu/**/*.yml\" \"deploy/ubuntu/**/*.md\" \".github/workflows/**/*.yml\" \"package.json\" \"scripts/**/*.mjs\" \"vite.config.ts\" \"eslint.config.js\"",
