@@ -10,7 +10,6 @@
 node_modules
 dist
 dist-ssr
-storybook-static
 coverage
 artifacts
 *.log

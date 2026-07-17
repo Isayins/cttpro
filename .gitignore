@@ -34,7 +34,7 @@ java-backend/uploads/
 python-quant/
 **/__pycache__/
 
-*storybook.log
-storybook-static
+screenshots/
+storybook-static/
 **/target/
 **/.m2/

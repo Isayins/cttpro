@@ -21,8 +21,6 @@ const redirectPageTitleMap: Record<string, string> = {
   [routePaths.forum]: "论坛交流",
   [routePaths.profile]: "个人资料",
   [routePaths.admin]: "管理后台",
-  [routePaths.adminDemos]: "管理演示",
-  [routePaths.adminEnterpriseDemo]: "企业后台演示",
   [routePaths.adminQrCodes]: "二维码管理",
 };
 

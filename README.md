@@ -114,6 +114,6 @@ cp .env.example .env
 
 ## 注意事项
 
-- `artifacts/`、`dist/`、`storybook-static/`、`java-backend/uploads/`、`*.tsbuildinfo` 属于生成物或运行时数据，不应提交。
+- `artifacts/`、`dist/`、`screenshots/`、`java-backend/uploads/`、`*.tsbuildinfo` 属于生成物或运行时数据，不应提交。
 - 生产密钥、数据库密码、Redis 密码、邮箱授权码、支付宝私钥和支付宝接口内容加密密钥都应通过环境变量或密钥管理系统注入。
 - GitHub Actions 流程位于 `.github/workflows/deploy.yml`：PR 会校验前端和 Java 后端，`main` 分支校验通过后才上传 Vite 的 `dist/*` 到服务器目录。

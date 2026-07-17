@@ -4926,12 +4926,6 @@ export default function Admin({ preview = false }: AdminProps) {
                 二维码管理
               </Button>
               <Button
-                icon={<AreaChartOutlined />}
-                href="/admin/demos/enterprise"
-              >
-                Demo 对照
-              </Button>
-              <Button
                 icon={<BellOutlined />}
                 loading={loading}
                 onClick={() => void loadAll(reportStatus)}

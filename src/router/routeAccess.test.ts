@@ -43,8 +43,10 @@ function expectActionMatchesRouteAccess(action: HeaderAction) {
 }
 
 describe("route access metadata", () => {
-  it("does not expose the removed stock page", () => {
+  it("does not expose removed pages", () => {
     expect(Object.values(routePaths)).not.toContain("/stock");
+    expect(Object.values(routePaths)).not.toContain("/admin/demos");
+    expect(Object.values(routePaths)).not.toContain("/admin/demos/enterprise");
     expect([...primaryNavItems, ...authenticatedNavItems, ...adminNavItems].map((item) => item.to)).not.toContain("/stock");
     expect([...accountMenuActions, ...drawerShortcutActions].map((item) => item.to)).not.toContain("/stock");
   });

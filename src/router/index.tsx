@@ -21,8 +21,6 @@ const Forbidden = lazy(() => import("../pages/Forbidden"));
 const Forum = lazy(() => import("../pages/Forum"));
 const Profile = lazy(() => import("../pages/Profile"));
 const Admin = lazy(() => import("../pages/Admin"));
-const AdminDesignDemos = lazy(() => import("../pages/AdminDesignDemos"));
-const AdminEnterpriseDemo = lazy(() => import("../pages/AdminEnterpriseDemo"));
 const QrManage = lazy(() => import("../pages/QrManage"));
 const MailCode = lazy(() => import("../pages/MailCode"));
 const PublicMailCode = lazy(() => import("../pages/PublicMailCode"));
@@ -64,8 +62,6 @@ const protectedRoutes: AppRoute[] = [
 const adminRoutes: AppRoute[] = [
   { path: routePaths.admin, element: <Admin /> },
   { path: routePaths.adminPreview, element: <Admin preview />, devOnly: true },
-  { path: routePaths.adminDemos, element: <AdminDesignDemos /> },
-  { path: routePaths.adminEnterpriseDemo, element: <AdminEnterpriseDemo /> },
   { path: routePaths.adminQrCodes, element: <QrManage /> },
 ];
 
