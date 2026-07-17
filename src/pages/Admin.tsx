@@ -554,6 +554,7 @@ export default function Admin() {
     closed: 0,
     failed: 0,
     errors: 0,
+    openSupport: 0,
   });
   const [systemHealth, setSystemHealth] = useState<AdminSystemHealth | null>(
     null,
@@ -655,6 +656,7 @@ export default function Admin() {
   const [paymentResourceFilter, setPaymentResourceFilter] = useState("ALL");
   const [paymentErrorFilter, setPaymentErrorFilter] = useState("ALL");
   const [paymentCouponFilter, setPaymentCouponFilter] = useState("ALL");
+  const [paymentSupportFilter, setPaymentSupportFilter] = useState("ALL");
   const [paymentPage, setPaymentPage] = useState(1);
   const [paymentPageSize, setPaymentPageSize] = useState(
     DEFAULT_PAYMENT_ORDER_PAGE_SIZE,
@@ -1428,6 +1430,7 @@ export default function Admin() {
       resourceType = "ALL",
       errorFilter = "ALL",
       couponFilter = "ALL",
+      supportFilter = "ALL",
     ) => {
       const isLatestRequest = beginAdminRequest(paymentRequestRef);
       setPaymentLoading(true);
@@ -1440,6 +1443,7 @@ export default function Admin() {
           resourceType,
           hasError: paymentErrorFilterValue(errorFilter),
           hasCoupon: paymentCouponFilterValue(couponFilter),
+          supportStatus: supportFilter,
         });
         if (!isLatestRequest()) {
           return;
@@ -1681,6 +1685,7 @@ export default function Admin() {
         paymentResourceFilter,
         paymentErrorFilter,
         paymentCouponFilter,
+        paymentSupportFilter,
       );
     }, 350);
     return () => window.clearTimeout(timer);
@@ -1691,6 +1696,7 @@ export default function Admin() {
     paymentKeyword,
     paymentResourceFilter,
     paymentStatusFilter,
+    paymentSupportFilter,
   ]);
 
   useEffect(() => {
@@ -2016,7 +2022,9 @@ export default function Admin() {
       (paymentErrorFilter === "ALL" ||
         (paymentErrorFilter === "HAS_ERROR" ? hasError : !hasError)) &&
       (paymentCouponFilter === "ALL" ||
-        (paymentCouponFilter === "HAS_COUPON" ? hasCoupon : !hasCoupon))
+        (paymentCouponFilter === "HAS_COUPON" ? hasCoupon : !hasCoupon)) &&
+      (paymentSupportFilter === "ALL" ||
+        order.supportStatus === paymentSupportFilter)
     );
   }
 
@@ -2038,6 +2046,7 @@ export default function Admin() {
         paymentResourceFilter,
         paymentErrorFilter,
         paymentCouponFilter,
+        paymentSupportFilter,
       ),
       loadPaymentStats(),
     ]);
@@ -2057,6 +2066,10 @@ export default function Admin() {
 
   function handlePaymentCouponFilter(couponFilter: string) {
     setPaymentCouponFilter(couponFilter);
+  }
+
+  function handlePaymentSupportFilter(supportFilter: string) {
+    setPaymentSupportFilter(supportFilter);
   }
 
   async function handleSyncPaymentOrder(outTradeNo: string) {
@@ -3269,6 +3282,7 @@ export default function Admin() {
     setPaymentResourceFilter("PRODUCT");
     setPaymentErrorFilter("ALL");
     setPaymentCouponFilter("ALL");
+    setPaymentSupportFilter("ALL");
     await loadPaymentOrders(
       1,
       paymentPageSizeRef.current,
@@ -3288,6 +3302,7 @@ export default function Admin() {
     setPaymentResourceFilter("PRODUCT");
     setPaymentErrorFilter("ALL");
     setPaymentCouponFilter("HAS_COUPON");
+    setPaymentSupportFilter("ALL");
     await loadPaymentOrders(
       1,
       paymentPageSizeRef.current,
@@ -3306,6 +3321,7 @@ export default function Admin() {
     setPaymentResourceFilter("ALL");
     setPaymentErrorFilter("ALL");
     setPaymentCouponFilter("ALL");
+    setPaymentSupportFilter("ALL");
     await Promise.all([
       loadPaymentOrders(
         1,
@@ -3760,7 +3776,8 @@ export default function Admin() {
     paymentStatusFilter !== "ALL" ||
     paymentResourceFilter !== "ALL" ||
     paymentErrorFilter !== "ALL" ||
-    paymentCouponFilter !== "ALL";
+    paymentCouponFilter !== "ALL" ||
+    paymentSupportFilter !== "ALL";
   const hasNoticeFilters =
     noticeKeyword.trim() !== "" || noticeStatusFilter !== "ALL";
   const hasReportFilters = reportStatus !== "ALL";
@@ -3816,6 +3833,7 @@ export default function Admin() {
 
   const attentionCount =
     paymentSummary.errors +
+    paymentSummary.openSupport +
     reportSummary.pending +
     lowDeliveryCodeProducts.length;
   const hasSystemHealthAttention =
@@ -3861,7 +3879,7 @@ export default function Admin() {
       {
         label: "支付订单",
         value: `${paymentSummary.total}`,
-        meta: `待支付 ${paymentSummary.waiting} / 异常 ${paymentSummary.errors}`,
+        meta: `待支付 ${paymentSummary.waiting} / 售后 ${paymentSummary.openSupport} / 异常 ${paymentSummary.errors}`,
         toneClass: "border-red-100 bg-red-50 text-red-700",
         icon: <CreditCardOutlined />,
       },
@@ -3894,6 +3912,7 @@ export default function Admin() {
       downloadSummary.total,
       lowDeliveryCodeProducts.length,
       paymentSummary.errors,
+      paymentSummary.openSupport,
       paymentSummary.total,
       paymentSummary.waiting,
       summary.admin,
@@ -4852,7 +4871,7 @@ export default function Admin() {
                 icon={<CreditCardOutlined />}
                 onClick={() =>
                   switchSection(
-                    paymentSummary.errors > 0
+                    paymentSummary.errors > 0 || paymentSummary.openSupport > 0
                       ? "payments"
                       : reportSummary.pending > 0
                         ? "reports"
@@ -6471,6 +6490,11 @@ export default function Admin() {
                         {paymentSummary.errors > 0 ? (
                           <Tag color="red">异常 {paymentSummary.errors}</Tag>
                         ) : null}
+                        {paymentSummary.openSupport > 0 ? (
+                          <Tag color="orange">
+                            待回复售后 {paymentSummary.openSupport}
+                          </Tag>
+                        ) : null}
                       </Space>
                     </div>
                     <Card className="rounded-[28px] border-slate-100 shadow-sm">
@@ -6493,6 +6517,7 @@ export default function Admin() {
                                 paymentResourceFilter,
                                 paymentErrorFilter,
                                 paymentCouponFilter,
+                                paymentSupportFilter,
                               )
                             }
                             style={{ width: 260 }}
@@ -6540,6 +6565,16 @@ export default function Admin() {
                               { label: "未使用优惠码", value: "NO_COUPON" },
                             ]}
                           />
+                          <Select
+                            value={paymentSupportFilter}
+                            onChange={handlePaymentSupportFilter}
+                            style={{ width: 150 }}
+                            options={[
+                              { label: "全部售后", value: "ALL" },
+                              { label: "待回复售后", value: "OPEN" },
+                              { label: "已回复售后", value: "RESOLVED" },
+                            ]}
+                          />
                         </Space>
                         <Space>
                           <Button
@@ -6579,6 +6614,7 @@ export default function Admin() {
                             paymentResourceFilter,
                             paymentErrorFilter,
                             paymentCouponFilter,
+                            paymentSupportFilter,
                           );
                         }}
                         scroll={{ x: 1180 }}

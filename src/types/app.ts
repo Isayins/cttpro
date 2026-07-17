@@ -399,6 +399,7 @@ export interface AdminPaymentOrderStats {
   closed: number;
   failed: number;
   errors: number;
+  openSupport: number;
 }
 
 export interface AdminSystemHealthItem {

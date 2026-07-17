@@ -33,8 +33,10 @@ public class AdminPaymentOrderController {
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String resourceType,
             @RequestParam(required = false) Boolean hasError,
-            @RequestParam(required = false) Boolean hasCoupon) {
-        return ResponseEntity.ok(alipayFaceToFacePaymentService.getAdminOrders(userId, page, size, keyword, status, resourceType, hasError, hasCoupon));
+            @RequestParam(required = false) Boolean hasCoupon,
+            @RequestParam(required = false) String supportStatus) {
+        return ResponseEntity.ok(alipayFaceToFacePaymentService.getAdminOrders(
+                userId, page, size, keyword, status, resourceType, hasError, hasCoupon, supportStatus));
     }
 
     @GetMapping("/stats")

@@ -359,6 +359,19 @@ public class AlipayFaceToFacePaymentService {
         order.setSupportReply(null);
         order.setSupportUpdatedAt(new Date());
         paymentOrderMapper.updateById(order);
+        List<Long> adminUserIds = userMapper.selectList(new QueryWrapper<User>()
+                        .in("role", List.of("OWNER", "ADMIN"))
+                        .eq("status", "ACTIVE"))
+                .stream()
+                .map(User::getId)
+                .collect(Collectors.toList());
+        notificationService.createNotifications(
+                adminUserIds,
+                "ORDER_SUPPORT_OPENED",
+                "有新的订单售后",
+                "订单 " + order.getOutTradeNo() + "：" + order.getSupportMessage(),
+                "/admin#payments"
+        );
         return PaymentOrderDto.fromEntity(paymentOrderMapper.selectById(order.getId()));
     }
 
@@ -381,13 +394,15 @@ public class AlipayFaceToFacePaymentService {
         return PageResultDto.of(records, result.getTotal(), safePage, safeSize);
     }
 
-    public PageResultDto<AdminPaymentOrderDto> getAdminOrders(Long adminUserId, Integer page, Integer size, String keyword, String status, String resourceType, Boolean hasError, Boolean hasCoupon) {
+    public PageResultDto<AdminPaymentOrderDto> getAdminOrders(Long adminUserId, Integer page, Integer size,
+                                                              String keyword, String status, String resourceType,
+                                                              Boolean hasError, Boolean hasCoupon, String supportStatus) {
         userAccessService.requireAdmin(adminUserId);
         int safePage = page == null ? 1 : Math.max(1, page);
         int safeSize = size == null ? 10 : Math.max(1, Math.min(size, 100));
 
         QueryWrapper<PaymentOrder> queryWrapper = new QueryWrapper<>();
-        applyAdminOrderFilters(queryWrapper, keyword, status, resourceType, hasError, hasCoupon);
+        applyAdminOrderFilters(queryWrapper, keyword, status, resourceType, hasError, hasCoupon, supportStatus);
         queryWrapper.orderByDesc("create_time");
 
         Page<PaymentOrder> result = paymentOrderMapper.selectPage(new Page<>(safePage, safeSize), queryWrapper);
@@ -404,7 +419,8 @@ public class AlipayFaceToFacePaymentService {
         Long closed = paymentOrderMapper.selectCount(new QueryWrapper<PaymentOrder>().eq("status", STATUS_TRADE_CLOSED));
         Long failed = paymentOrderMapper.selectCount(new QueryWrapper<PaymentOrder>().eq("status", STATUS_FAILED));
         Long errors = paymentOrderMapper.selectCount(new QueryWrapper<PaymentOrder>().isNotNull("last_error").ne("last_error", ""));
-        return AdminPaymentOrderStatsDto.of(total, created, waiting, paid, closed, failed, errors);
+        Long openSupport = paymentOrderMapper.selectCount(new QueryWrapper<PaymentOrder>().eq("support_status", "OPEN"));
+        return AdminPaymentOrderStatsDto.of(total, created, waiting, paid, closed, failed, errors, openSupport);
     }
 
     public AdminPaymentOrderDto adminQuery(Long adminUserId, String outTradeNo) {
@@ -1109,7 +1125,9 @@ public class AlipayFaceToFacePaymentService {
         return order;
     }
 
-    private void applyAdminOrderFilters(QueryWrapper<PaymentOrder> queryWrapper, String keyword, String status, String resourceType, Boolean hasError, Boolean hasCoupon) {
+    private void applyAdminOrderFilters(QueryWrapper<PaymentOrder> queryWrapper, String keyword, String status,
+                                        String resourceType, Boolean hasError, Boolean hasCoupon,
+                                        String supportStatus) {
         String normalizedKeyword = normalizeNullableText(keyword);
         if (normalizedKeyword != null) {
             List<Long> payerUserIds = userMapper.selectList(new QueryWrapper<User>()
@@ -1166,6 +1184,11 @@ public class AlipayFaceToFacePaymentService {
             } else {
                 queryWrapper.and(wrapper -> wrapper.isNull("coupon_code").or().eq("coupon_code", ""));
             }
+        }
+
+        String normalizedSupportStatus = normalizeNullableText(supportStatus);
+        if (normalizedSupportStatus != null && !"ALL".equalsIgnoreCase(normalizedSupportStatus)) {
+            queryWrapper.eq("support_status", normalizedSupportStatus.toUpperCase(Locale.ROOT));
         }
     }
 

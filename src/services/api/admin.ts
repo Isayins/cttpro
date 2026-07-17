@@ -352,7 +352,7 @@ export const adminApi = {
     }
     return response.blob();
   },
-  getPaymentOrders: (params: { page?: number; size?: number; keyword?: string; status?: string; resourceType?: string; hasError?: boolean; hasCoupon?: boolean } = {}) => {
+  getPaymentOrders: (params: { page?: number; size?: number; keyword?: string; status?: string; resourceType?: string; hasError?: boolean; hasCoupon?: boolean; supportStatus?: string } = {}) => {
     const query = new URLSearchParams();
     query.set("page", String(params.page ?? 1));
     query.set("size", String(params.size ?? 8));
@@ -370,6 +370,9 @@ export const adminApi = {
     }
     if (typeof params.hasCoupon === "boolean") {
       query.set("hasCoupon", String(params.hasCoupon));
+    }
+    if (params.supportStatus && params.supportStatus !== "ALL") {
+      query.set("supportStatus", params.supportStatus);
     }
     return apiRequest<PageResult<AdminPaymentOrder>>(`/api/admin/payment-orders?${query.toString()}`, {
       authMode: "required",

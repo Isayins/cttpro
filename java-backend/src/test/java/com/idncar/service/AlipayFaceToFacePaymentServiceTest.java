@@ -21,6 +21,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -158,6 +159,7 @@ class AlipayFaceToFacePaymentServiceTest {
         admin.setId(1L);
         admin.setNickname("管理员");
         when(userAccessService.requireAdmin(1L)).thenReturn(admin);
+        when(userMapper.selectList(any())).thenReturn(List.of(admin));
         setField("paymentOrderMapper", orderMapper);
         setField("adminOperationLogMapper", operationLogMapper);
         setField("userMapper", userMapper);
@@ -169,6 +171,13 @@ class AlipayFaceToFacePaymentServiceTest {
         service.submitSupport(7L, order.getOutTradeNo(), issue);
         assertThat(order.getSupportStatus()).isEqualTo("OPEN");
         assertThat(order.getSupportMessage()).isEqualTo("没有收到发货邮件");
+        verify(notificationService).createNotifications(
+                List.of(1L),
+                "ORDER_SUPPORT_OPENED",
+                "有新的订单售后",
+                "订单 202607180002：没有收到发货邮件",
+                "/admin#payments"
+        );
 
         OrderSupportRequest reply = new OrderSupportRequest();
         reply.setMessage("已补发，请检查垃圾箱");
@@ -183,6 +192,18 @@ class AlipayFaceToFacePaymentServiceTest {
                 "订单 202607180002：已补发，请检查垃圾箱",
                 "/orders"
         );
+    }
+
+    @Test
+    void adminPaymentStatsIncludeOpenSupportCases() throws Exception {
+        PaymentOrderMapper orderMapper = mock(PaymentOrderMapper.class);
+        UserAccessService userAccessService = mock(UserAccessService.class);
+        when(orderMapper.selectCount(any())).thenReturn(
+                10L, 1L, 2L, 3L, 1L, 1L, 2L, 4L);
+        setField("paymentOrderMapper", orderMapper);
+        setField("userAccessService", userAccessService);
+
+        assertThat(service.getAdminOrderStats(1L).getOpenSupport()).isEqualTo(4L);
     }
 
     private String resolveDeliveryEmail(Product product, String deliveryEmail) throws Throwable {
