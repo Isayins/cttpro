@@ -24,7 +24,6 @@ const routeTitleMap: Record<string, string> = {
   "/randomtalk": "随便聊聊",
   "/verify": "下载验证",
   "/login": "登录注册",
-  "/stock": "股票页面",
   "/forum": "论坛交流",
   "/profile": "个人资料",
   "/admin": "管理后台",

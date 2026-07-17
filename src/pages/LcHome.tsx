@@ -7,7 +7,6 @@ import {
   MessageOutlined,
   NotificationOutlined,
   SettingOutlined,
-  StockOutlined,
   ToolOutlined,
   UserOutlined,
 } from "@ant-design/icons";
@@ -64,12 +63,6 @@ const featureCards: FeatureCard[] = [
     icon: <ToolOutlined className="text-[#2a6df4]" />,
     to: routePaths.tools,
   },
-  {
-    title: "股票工作台",
-    description: "行情查看、筛选结果、策略参数和日志入口都整理在一个工作台里，便于持续跟踪。",
-    icon: <StockOutlined className="text-[#2a6df4]" />,
-    to: routePaths.stock,
-  },
 ];
 
 const heroSlides: HeroSlide[] = [
@@ -97,12 +90,12 @@ const heroSlides: HeroSlide[] = [
   },
   {
     eyebrow: "工作台",
-    title: "商品、订单和股票工作台入口，按使用频率整理在首页",
-    description: "如果要查看商品、订单或行情工作台，可以从首页直接进入。管理员入口也会根据你的权限自动显示。",
+    title: "商品和订单入口，按使用频率整理在首页",
+    description: "如果要查看商品或订单，可以从首页直接进入。管理员入口也会根据你的权限自动显示。",
     primaryLabel: "商品中心",
     primaryTo: routePaths.products,
-    secondaryLabel: "股票工作台",
-    secondaryTo: routePaths.stock,
+    secondaryLabel: "我的订单",
+    secondaryTo: routePaths.orders,
     panelClass:
       "bg-[radial-gradient(circle_at_18%_78%,rgba(220,238,255,0.34),transparent_24%),radial-gradient(circle_at_80%_22%,rgba(255,232,196,0.32),transparent_18%),linear-gradient(180deg,#fffdfa_0%,#f6f8fc_100%)]",
   },
@@ -215,11 +208,6 @@ export default function LcHome() {
         icon: <ToolOutlined className="text-[#2a6df4]" />,
       },
       {
-        label: "股票工作台",
-        to: routePaths.stock,
-        icon: <StockOutlined className="text-[#2a6df4]" />,
-      },
-      {
         label: "个人资料",
         to: routePaths.profile,
         icon: <UserOutlined className="text-[#2a6df4]" />,
@@ -248,7 +236,7 @@ export default function LcHome() {
               <div className="rounded-full border border-white/80 bg-white/70 px-4 py-1.5 text-xs tracking-[0.16em] text-slate-600 shadow-sm">
                 精选
               </div>
-              <div className="hidden text-sm md:block">社区、下载、商品、工具和股票工作台入口都集中在首页</div>
+              <div className="hidden text-sm md:block">社区、下载、商品和工具入口都集中在首页</div>
             </div>
 
             <div className="mt-8 grid items-stretch gap-6 lg:grid-cols-[minmax(0,1.35fr)_360px]">

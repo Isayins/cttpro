@@ -4,7 +4,6 @@ import {
   MailOutlined,
   MessageOutlined,
   SettingOutlined,
-  StockOutlined,
   ToolOutlined,
   UserOutlined,
 } from "@ant-design/icons";
@@ -44,7 +43,6 @@ export const primaryNavItems: NavItem[] = [
 ];
 
 export const authenticatedNavItems: NavItem[] = [
-  { label: "股票页面", to: routePaths.stock, requiresAuth: true },
   { label: "我的订单", to: routePaths.orders, requiresAuth: true },
   { label: "个人资料", to: routePaths.profile, requiresAuth: true },
 ];
@@ -66,7 +64,6 @@ export const publicHomeItems: NavItem[] = [
 
 const profileAction: HeaderAction = { key: "profile", label: "个人资料", to: routePaths.profile, icon: icon(UserOutlined) };
 const ordersAction: HeaderAction = { key: "orders", label: "我的订单", to: routePaths.orders, icon: icon(CreditCardOutlined) };
-const stockAction: HeaderAction = { key: "stock", label: "股票页面", to: routePaths.stock, icon: icon(StockOutlined) };
 const forumAction: HeaderAction = { key: "forum", label: "论坛交流", to: routePaths.forum, icon: icon(MessageOutlined) };
 const mailcodeAction: HeaderAction = { key: "mailcode", label: "邮箱接码", to: routePaths.mailcode, icon: icon(MailOutlined) };
 const toolsAction: HeaderAction = { key: "tools", label: "实用工具", to: routePaths.tools, icon: icon(ToolOutlined) };
@@ -81,14 +78,12 @@ const adminAction: HeaderAction = {
 export const accountMenuActions: HeaderAction[] = [
   profileAction,
   ordersAction,
-  stockAction,
   forumAction,
   mailcodeAction,
   adminAction,
 ];
 
 export const drawerShortcutActions: HeaderAction[] = [
-  stockAction,
   ordersAction,
   mailcodeAction,
   profileAction,

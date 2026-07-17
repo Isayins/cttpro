@@ -1,38 +1,15 @@
 import type { HTMLAttributes, PropsWithChildren } from "react";
-import React from "react";
-
-type ButtonVariant = "primary" | "danger" | "ghost";
-
-type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: ButtonVariant;
-};
-
-export function Button({
-  variant = "primary",
-  className = "",
-  ...props
-}: PropsWithChildren<ButtonProps>) {
-  const base = "btn";
-  const variantClass =
-    variant === "danger"
-      ? "btn-danger"
-      : variant === "ghost"
-      ? "btn-ghost"
-      : "btn-primary";
-
-  return <button className={`${base} ${variantClass} ${className}`} {...props} />;
-}
 
 export function Card({
   className = "",
   ...props
 }: PropsWithChildren<HTMLAttributes<HTMLDivElement>>) {
-  return <div className={`card ${className}`} {...props} />;
+  return <div className={`rounded-[28px] border border-slate-200/70 bg-white/90 shadow-[0_18px_40px_rgba(18,34,48,0.08)] backdrop-blur-xl ${className}`} {...props} />;
 }
 
 export function CardContent({
   className = "",
   ...props
 }: PropsWithChildren<HTMLAttributes<HTMLDivElement>>) {
-  return <div className={`card-content ${className}`} {...props} />;
+  return <div className={`p-5 ${className}`} {...props} />;
 }

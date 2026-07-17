@@ -43,6 +43,12 @@ function expectActionMatchesRouteAccess(action: HeaderAction) {
 }
 
 describe("route access metadata", () => {
+  it("does not expose the removed stock page", () => {
+    expect(Object.values(routePaths)).not.toContain("/stock");
+    expect([...primaryNavItems, ...authenticatedNavItems, ...adminNavItems].map((item) => item.to)).not.toContain("/stock");
+    expect([...accountMenuActions, ...drawerShortcutActions].map((item) => item.to)).not.toContain("/stock");
+  });
+
   it("keeps route groups disjoint", () => {
     for (const path of publicRoutePaths) {
       expect(protectedRouteSet.has(path), `${path} should not be both public and protected`).toBe(false);

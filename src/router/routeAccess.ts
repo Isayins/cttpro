@@ -14,7 +14,6 @@ export const routePaths = {
   mailcode: "/mailcode",
   randomTalk: "/randomtalk",
   chat: "/chat",
-  stock: "/stock",
   forum: "/forum",
   profile: "/profile",
   admin: "/admin",
@@ -52,7 +51,6 @@ export const protectedRoutePaths = [
   routePaths.mailcode,
   routePaths.randomTalk,
   routePaths.chat,
-  routePaths.stock,
   routePaths.forum,
   routePaths.profile,
 ] as const;

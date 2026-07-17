@@ -18,7 +18,6 @@ const VerifyDownload = lazy(() => import("../pages/VerifyDownload"));
 const QrAccess = lazy(() => import("../pages/QrAccess"));
 const Login = lazy(() => import("../pages/Login"));
 const Forbidden = lazy(() => import("../pages/Forbidden"));
-const Stock = lazy(() => import("../pages/Stock"));
 const Forum = lazy(() => import("../pages/Forum"));
 const Profile = lazy(() => import("../pages/Profile"));
 const Admin = lazy(() => import("../pages/Admin"));
@@ -58,7 +57,6 @@ const protectedRoutes: AppRoute[] = [
   { path: routePaths.mailcode, element: <MailCode /> },
   { path: routePaths.randomTalk, element: <RandomTalk /> },
   { path: routePaths.chat, element: <ChatRoom /> },
-  { path: routePaths.stock, element: <Stock /> },
   { path: routePaths.forum, element: <Forum /> },
   { path: routePaths.profile, element: <Profile /> },
 ];

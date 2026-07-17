@@ -18,7 +18,6 @@ const redirectPageTitleMap: Record<string, string> = {
   [routePaths.mailcode]: "邮箱接码",
   [routePaths.randomTalk]: "随便聊聊",
   [routePaths.chat]: "聊天室",
-  [routePaths.stock]: "股票页面",
   [routePaths.forum]: "论坛交流",
   [routePaths.profile]: "个人资料",
   [routePaths.admin]: "管理后台",
