@@ -17,7 +17,6 @@ export const routePaths = {
   forum: "/forum",
   profile: "/profile",
   admin: "/admin",
-  adminPreview: "/admin-preview",
   adminQrCodes: "/admin/qrcodes",
 } as const;
 
@@ -55,6 +54,5 @@ export const protectedRoutePaths = [
 
 export const adminRoutePaths = [
   routePaths.admin,
-  routePaths.adminPreview,
   routePaths.adminQrCodes,
 ] as const;

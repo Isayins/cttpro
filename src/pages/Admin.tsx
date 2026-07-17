@@ -468,11 +468,7 @@ const deliveryCodeImportTemplate = [
   "IDNCAR-2026-0003",
 ].join("\n");
 
-interface AdminProps {
-  preview?: boolean;
-}
-
-export default function Admin({ preview = false }: AdminProps) {
+export default function Admin() {
   const { user, isOwner } = useAuth();
   const [loading, setLoading] = useState(true);
   const [userLoading, setUserLoading] = useState(false);
@@ -752,13 +748,6 @@ export default function Admin({ preview = false }: AdminProps) {
   const loadAll = useCallback(
     async (status: string) => {
       const isLatestRequest = beginAdminRequest(loadAllRequestRef);
-
-      if (preview) {
-        setSectionErrors({});
-        setLastLoadedAt("预览模式");
-        setLoading(false);
-        return;
-      }
 
       setLoading(true);
       const tasks: Array<{
@@ -1080,14 +1069,10 @@ export default function Admin({ preview = false }: AdminProps) {
         message.warning(`后台有 ${failedCount} 个模块加载失败，其余数据已保留`);
       }
     },
-    [preview, vmqForm],
+    [vmqForm],
   );
 
   const loadSystemHealth = useCallback(async () => {
-    if (preview) {
-      return;
-    }
-
     setSystemHealthLoading(true);
     try {
       const health = await adminApi.getSystemHealth();
@@ -1104,7 +1089,7 @@ export default function Admin({ preview = false }: AdminProps) {
     } finally {
       setSystemHealthLoading(false);
     }
-  }, [preview]);
+  }, []);
 
   const loadInviteCodes = useCallback(
     async (
@@ -1636,10 +1621,6 @@ export default function Admin({ preview = false }: AdminProps) {
   }, []);
 
   useEffect(() => {
-    if (preview) {
-      return undefined;
-    }
-
     if (!couponQueryMountedRef.current) {
       couponQueryMountedRef.current = true;
       return undefined;
@@ -1660,14 +1641,9 @@ export default function Admin({ preview = false }: AdminProps) {
     couponProductFilter,
     couponStatusFilter,
     loadCouponCodes,
-    preview,
   ]);
 
   useEffect(() => {
-    if (preview) {
-      return undefined;
-    }
-
     if (!deliveryCodeQueryMountedRef.current) {
       deliveryCodeQueryMountedRef.current = true;
       return undefined;
@@ -1688,14 +1664,9 @@ export default function Admin({ preview = false }: AdminProps) {
     deliveryCodeProductFilter,
     deliveryCodeStatusFilter,
     loadDeliveryCodes,
-    preview,
   ]);
 
   useEffect(() => {
-    if (preview) {
-      return undefined;
-    }
-
     if (!paymentQueryMountedRef.current) {
       paymentQueryMountedRef.current = true;
       return undefined;
@@ -1720,7 +1691,6 @@ export default function Admin({ preview = false }: AdminProps) {
     paymentKeyword,
     paymentResourceFilter,
     paymentStatusFilter,
-    preview,
   ]);
 
   useEffect(() => {
@@ -1764,10 +1734,6 @@ export default function Admin({ preview = false }: AdminProps) {
   ]);
 
   useEffect(() => {
-    if (preview) {
-      return undefined;
-    }
-
     if (!userQueryMountedRef.current) {
       userQueryMountedRef.current = true;
       return undefined;
@@ -1783,13 +1749,9 @@ export default function Admin({ preview = false }: AdminProps) {
       );
     }, 350);
     return () => window.clearTimeout(timer);
-  }, [loadUsers, preview, userKeyword, userRoleFilter, userStatusFilter]);
+  }, [loadUsers, userKeyword, userRoleFilter, userStatusFilter]);
 
   useEffect(() => {
-    if (preview) {
-      return undefined;
-    }
-
     if (!inviteQueryMountedRef.current) {
       inviteQueryMountedRef.current = true;
       return undefined;
@@ -1804,13 +1766,9 @@ export default function Admin({ preview = false }: AdminProps) {
       );
     }, 350);
     return () => window.clearTimeout(timer);
-  }, [inviteKeyword, inviteStatusFilter, loadInviteCodes, preview]);
+  }, [inviteKeyword, inviteStatusFilter, loadInviteCodes]);
 
   useEffect(() => {
-    if (preview) {
-      return undefined;
-    }
-
     if (!downloadQueryMountedRef.current) {
       downloadQueryMountedRef.current = true;
       return undefined;
@@ -1825,13 +1783,9 @@ export default function Admin({ preview = false }: AdminProps) {
       );
     }, 350);
     return () => window.clearTimeout(timer);
-  }, [downloadKeyword, downloadModeFilter, loadDownloads, preview]);
+  }, [downloadKeyword, downloadModeFilter, loadDownloads]);
 
   useEffect(() => {
-    if (preview) {
-      return undefined;
-    }
-
     if (!productQueryMountedRef.current) {
       productQueryMountedRef.current = true;
       return undefined;
@@ -1846,13 +1800,9 @@ export default function Admin({ preview = false }: AdminProps) {
       );
     }, 350);
     return () => window.clearTimeout(timer);
-  }, [loadProducts, preview, productKeyword, productStatusFilter]);
+  }, [loadProducts, productKeyword, productStatusFilter]);
 
   useEffect(() => {
-    if (preview) {
-      return undefined;
-    }
-
     if (!noticeQueryMountedRef.current) {
       noticeQueryMountedRef.current = true;
       return undefined;
@@ -1867,7 +1817,7 @@ export default function Admin({ preview = false }: AdminProps) {
       );
     }, 350);
     return () => window.clearTimeout(timer);
-  }, [loadSiteNotices, noticeKeyword, noticeStatusFilter, preview]);
+  }, [loadSiteNotices, noticeKeyword, noticeStatusFilter]);
 
   const loadOperationLogs = useCallback(
     async (page = 1, size = DEFAULT_LOG_PAGE_SIZE, keyword = "") => {
@@ -1909,10 +1859,6 @@ export default function Admin({ preview = false }: AdminProps) {
   );
 
   useEffect(() => {
-    if (preview) {
-      return undefined;
-    }
-
     if (!logQueryMountedRef.current) {
       logQueryMountedRef.current = true;
       return undefined;
@@ -1922,13 +1868,9 @@ export default function Admin({ preview = false }: AdminProps) {
       void loadOperationLogs(1, logPageSizeRef.current, logKeyword);
     }, 350);
     return () => window.clearTimeout(timer);
-  }, [loadOperationLogs, logKeyword, preview]);
+  }, [loadOperationLogs, logKeyword]);
 
   async function refreshLogs() {
-    if (preview) {
-      return;
-    }
-
     await loadOperationLogs(logPage, logPageSizeRef.current, logKeyword);
   }
 
@@ -1978,10 +1920,6 @@ export default function Admin({ preview = false }: AdminProps) {
   );
 
   useEffect(() => {
-    if (preview) {
-      return undefined;
-    }
-
     if (!mailLogQueryMountedRef.current) {
       mailLogQueryMountedRef.current = true;
       return undefined;
@@ -1996,13 +1934,9 @@ export default function Admin({ preview = false }: AdminProps) {
       );
     }, 350);
     return () => window.clearTimeout(timer);
-  }, [loadMailSendLogs, mailLogKeyword, mailLogStatusFilter, preview]);
+  }, [loadMailSendLogs, mailLogKeyword, mailLogStatusFilter]);
 
   async function refreshMailLogs() {
-    if (preview) {
-      return;
-    }
-
     await loadMailSendLogs(
       mailLogPage,
       mailLogPageSizeRef.current,
@@ -2014,10 +1948,6 @@ export default function Admin({ preview = false }: AdminProps) {
   async function resetMailLogFilters() {
     setMailLogKeyword("");
     setMailLogStatusFilter("ALL");
-    if (preview) {
-      return;
-    }
-
     await loadMailSendLogs(1, mailLogPageSizeRef.current, "", "ALL");
   }
 
@@ -2099,10 +2029,6 @@ export default function Admin({ preview = false }: AdminProps) {
   }
 
   async function refreshPaymentOrders(nextPage = paymentPage) {
-    if (preview) {
-      return;
-    }
-
     await Promise.all([
       loadPaymentOrders(
         nextPage,
@@ -2245,9 +2171,6 @@ export default function Admin({ preview = false }: AdminProps) {
   }
 
   async function loadVmqPaymentSettings() {
-    if (preview) {
-      return;
-    }
     setVmqLoading(true);
     try {
       const settings = await adminApi.getVmqPaymentSettings();
@@ -2418,10 +2341,6 @@ export default function Admin({ preview = false }: AdminProps) {
   async function handleReportFilter(status: string) {
     setReportStatus(status);
     setSelectedReportIds([]);
-    if (preview) {
-      return;
-    }
-
     await loadPostReports(1, reportPageSizeRef.current, status);
   }
 
@@ -2738,11 +2657,6 @@ export default function Admin({ preview = false }: AdminProps) {
     setDeliveryCodeKeyword("");
     setDeliveryCodeProductFilter(record.id);
     setDeliveryCodeStatusFilter("ALL");
-    if (preview) {
-      switchSection("delivery-codes");
-      return;
-    }
-
     await loadDeliveryCodes(
       1,
       deliveryCodePageSizeRef.current,
@@ -2768,10 +2682,6 @@ export default function Admin({ preview = false }: AdminProps) {
     setDeliveryCodeStatusFilter("AVAILABLE");
     setSelectedDeliveryCodeIds([]);
     switchSection("delivery-codes");
-    if (preview) {
-      return;
-    }
-
     await loadDeliveryCodes(
       1,
       deliveryCodePageSizeRef.current,
@@ -2882,10 +2792,6 @@ export default function Admin({ preview = false }: AdminProps) {
     setInviteKeyword("");
     setInviteStatusFilter("ALL");
     setSelectedInviteIds([]);
-    if (preview) {
-      return;
-    }
-
     await loadInviteCodes(1, invitePageSizeRef.current, "", "ALL");
   }
 
@@ -2893,38 +2799,22 @@ export default function Admin({ preview = false }: AdminProps) {
     setUserKeyword("");
     setUserRoleFilter("ALL");
     setUserStatusFilter("ALL");
-    if (preview) {
-      return;
-    }
-
     await loadUsers(1, userPageSizeRef.current, "", "ALL", "ALL");
   }
 
   async function resetProductFilters() {
     setProductKeyword("");
     setProductStatusFilter("ALL");
-    if (preview) {
-      return;
-    }
-
     await loadProducts(1, productPageSizeRef.current, "", "ALL");
   }
 
   async function resetDownloadFilters() {
     setDownloadKeyword("");
     setDownloadModeFilter("ALL");
-    if (preview) {
-      return;
-    }
-
     await loadDownloads(1, downloadPageSizeRef.current, "", "ALL");
   }
 
   async function refreshCouponCodes(nextPage = couponPage) {
-    if (preview) {
-      return;
-    }
-
     await loadCouponCodes(
       nextPage,
       couponPageSizeRef.current,
@@ -2939,10 +2829,6 @@ export default function Admin({ preview = false }: AdminProps) {
     setCouponProductFilter("ALL");
     setCouponStatusFilter("ALL");
     setSelectedCouponCodeIds([]);
-    if (preview) {
-      return;
-    }
-
     await loadCouponCodes(1, couponPageSizeRef.current, "", "ALL", "ALL");
   }
 
@@ -3070,10 +2956,6 @@ export default function Admin({ preview = false }: AdminProps) {
     setCouponKeyword(normalizedBatchNo);
     setCouponProductFilter("ALL");
     setCouponStatusFilter("ALL");
-    if (preview) {
-      return;
-    }
-
     await loadCouponCodes(
       1,
       couponPageSizeRef.current,
@@ -3118,10 +3000,6 @@ export default function Admin({ preview = false }: AdminProps) {
   }
 
   async function refreshDeliveryCodes(nextPage = deliveryCodePage) {
-    if (preview) {
-      return;
-    }
-
     await loadDeliveryCodes(
       nextPage,
       deliveryCodePageSizeRef.current,
@@ -3136,10 +3014,6 @@ export default function Admin({ preview = false }: AdminProps) {
     setDeliveryCodeProductFilter("ALL");
     setDeliveryCodeStatusFilter("ALL");
     setSelectedDeliveryCodeIds([]);
-    if (preview) {
-      return;
-    }
-
     await loadDeliveryCodes(
       1,
       deliveryCodePageSizeRef.current,
@@ -3294,10 +3168,6 @@ export default function Admin({ preview = false }: AdminProps) {
     setDeliveryCodeProductFilter("ALL");
     setDeliveryCodeStatusFilter("ALL");
     setSelectedDeliveryCodeIds([]);
-    if (preview) {
-      return;
-    }
-
     await loadDeliveryCodes(
       1,
       deliveryCodePageSizeRef.current,
@@ -3354,11 +3224,6 @@ export default function Admin({ preview = false }: AdminProps) {
     setPaymentResourceFilter("PRODUCT");
     setPaymentErrorFilter("ALL");
     setPaymentCouponFilter("ALL");
-    if (preview) {
-      switchSection("payments");
-      return;
-    }
-
     await loadPaymentOrders(
       1,
       paymentPageSizeRef.current,
@@ -3378,11 +3243,6 @@ export default function Admin({ preview = false }: AdminProps) {
     setPaymentResourceFilter("PRODUCT");
     setPaymentErrorFilter("ALL");
     setPaymentCouponFilter("HAS_COUPON");
-    if (preview) {
-      switchSection("payments");
-      return;
-    }
-
     await loadPaymentOrders(
       1,
       paymentPageSizeRef.current,
@@ -3401,10 +3261,6 @@ export default function Admin({ preview = false }: AdminProps) {
     setPaymentResourceFilter("ALL");
     setPaymentErrorFilter("ALL");
     setPaymentCouponFilter("ALL");
-    if (preview) {
-      return;
-    }
-
     await Promise.all([
       loadPaymentOrders(
         1,
@@ -3423,10 +3279,6 @@ export default function Admin({ preview = false }: AdminProps) {
     setNoticeKeyword("");
     setNoticeStatusFilter("ALL");
     setSelectedNoticeIds([]);
-    if (preview) {
-      return;
-    }
-
     await loadSiteNotices(1, noticePageSizeRef.current, "", "ALL");
   }
 
@@ -3437,19 +3289,10 @@ export default function Admin({ preview = false }: AdminProps) {
 
   async function resetLogFilters() {
     setLogKeyword("");
-    if (preview) {
-      return;
-    }
-
     await loadOperationLogs(1, logPageSizeRef.current, "");
   }
 
   async function handleExportCouponCodes() {
-    if (preview) {
-      message.info("预览模式不导出数据");
-      return;
-    }
-
     setCouponLoading(true);
     try {
       const blob = await adminApi.exportProductCouponCodes({
@@ -3474,11 +3317,6 @@ export default function Admin({ preview = false }: AdminProps) {
   }
 
   async function handleExportDeliveryCodes() {
-    if (preview) {
-      message.info("预览模式不导出数据");
-      return;
-    }
-
     setDeliveryCodeLoading(true);
     try {
       const blob = await adminApi.exportProductDeliveryCodes({

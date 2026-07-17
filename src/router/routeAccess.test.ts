@@ -47,6 +47,7 @@ describe("route access metadata", () => {
     expect(Object.values(routePaths)).not.toContain("/stock");
     expect(Object.values(routePaths)).not.toContain("/admin/demos");
     expect(Object.values(routePaths)).not.toContain("/admin/demos/enterprise");
+    expect(Object.values(routePaths)).not.toContain("/admin-preview");
     expect([...primaryNavItems, ...authenticatedNavItems, ...adminNavItems].map((item) => item.to)).not.toContain("/stock");
     expect([...accountMenuActions, ...drawerShortcutActions].map((item) => item.to)).not.toContain("/stock");
   });

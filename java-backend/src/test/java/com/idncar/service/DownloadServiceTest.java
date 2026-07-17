@@ -7,7 +7,7 @@ import com.idncar.model.dto.DownloadResourceDto;
 import com.idncar.model.dto.VerifyDownloadCaptchaRequest;
 import com.idncar.model.dto.VerifyDownloadCaptchaResponse;
 import com.idncar.model.entity.DownloadResource;
-import com.idncar.service.impl.DownloadServiceImpl;
+import com.idncar.service.DownloadService;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
@@ -25,12 +25,12 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-class DownloadServiceImplTest {
+class DownloadServiceTest {
 
     @Test
     void captchaAndDownloadTokenSurviveRedisReadFailure() throws Exception {
         DownloadResource resource = resource(true, null);
-        DownloadServiceImpl service = service(resource, true);
+        DownloadService service = service(resource, true);
 
         DownloadCaptchaDto captcha = service.createCaptcha();
         String answer = extractCaptchaAnswer(captcha.image());
@@ -49,7 +49,7 @@ class DownloadServiceImplTest {
     void resourcePasswordIsValidatedWithoutExposingOrRequiringCaptcha() throws Exception {
         String passwordHash = new BCryptPasswordEncoder().encode("file-pass-123");
         DownloadResource resource = resource(false, passwordHash);
-        DownloadServiceImpl service = service(resource, true);
+        DownloadService service = service(resource, true);
 
         VerifyDownloadCaptchaResponse wrong = service.verifyCaptcha(new VerifyDownloadCaptchaRequest(
                 null, null, "download-resource:1", resource.getTitle(), "wrong-password"));
@@ -66,7 +66,7 @@ class DownloadServiceImplTest {
         assertThat(publicDto.getUrl()).isEqualTo("download-resource:1");
     }
 
-    private DownloadServiceImpl service(DownloadResource resource, boolean redisReadFails) throws Exception {
+    private DownloadService service(DownloadResource resource, boolean redisReadFails) throws Exception {
         DownloadResourceMapper mapper = mock(DownloadResourceMapper.class);
         when(mapper.selectOne(any())).thenReturn(resource);
         when(mapper.selectById(resource.getId())).thenReturn(resource);
@@ -80,7 +80,7 @@ class DownloadServiceImplTest {
             when(valueOperations.get(anyString())).thenThrow(new IllegalStateException("Redis unavailable"));
         }
 
-        DownloadServiceImpl service = new DownloadServiceImpl();
+        DownloadService service = new DownloadService();
         setField(service, "downloadResourceMapper", mapper);
         setField(service, "redisTemplate", redisTemplate);
         return service;

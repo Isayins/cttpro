@@ -9,7 +9,7 @@ import com.idncar.model.entity.PaymentOrder;
 import com.idncar.model.entity.Product;
 import com.idncar.model.entity.ProductDeliveryCode;
 import com.idncar.service.impl.MailBrandTemplateHelper;
-import com.idncar.service.impl.ProductDeliveryCodeServiceImpl;
+import com.idncar.service.ProductDeliveryCodeService;
 import jakarta.mail.Multipart;
 import jakarta.mail.Part;
 import jakarta.mail.Session;
@@ -30,7 +30,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class ProductDeliveryCodeServiceImplTest {
+class ProductDeliveryCodeServiceTest {
 
     @Test
     void normalProductSendsDeliveryEmailWithoutLockingCdk() throws Exception {
@@ -61,7 +61,7 @@ class ProductDeliveryCodeServiceImplTest {
 
         MailBrandTemplateHelper templateHelper = new MailBrandTemplateHelper("https://idncar.com", "https://idncar.com/logo.png");
 
-        ProductDeliveryCodeServiceImpl service = new ProductDeliveryCodeServiceImpl();
+        ProductDeliveryCodeService service = new ProductDeliveryCodeService();
         setField(service, "productMapper", productMapper);
         setField(service, "userMapper", userMapper);
         setField(service, "productDeliveryCodeMapper", deliveryCodeMapper);
@@ -106,7 +106,7 @@ class ProductDeliveryCodeServiceImplTest {
         ObjectProvider<JavaMailSender> mailSenderProvider = mock(ObjectProvider.class);
         when(mailSenderProvider.getIfAvailable()).thenReturn(null);
 
-        ProductDeliveryCodeServiceImpl service = new ProductDeliveryCodeServiceImpl();
+        ProductDeliveryCodeService service = new ProductDeliveryCodeService();
         setField(service, "productMapper", productMapper);
         setField(service, "userMapper", mock(UserMapper.class));
         setField(service, "mailSendLogMapper", mailSendLogMapper);
@@ -155,7 +155,7 @@ class ProductDeliveryCodeServiceImplTest {
         ObjectProvider<JavaMailSender> mailSenderProvider = mock(ObjectProvider.class);
         when(mailSenderProvider.getIfAvailable()).thenReturn(mailSender);
 
-        ProductDeliveryCodeServiceImpl service = new ProductDeliveryCodeServiceImpl();
+        ProductDeliveryCodeService service = new ProductDeliveryCodeService();
         setField(service, "productMapper", productMapper);
         setField(service, "userMapper", mock(UserMapper.class));
         setField(service, "productDeliveryCodeMapper", deliveryCodeMapper);

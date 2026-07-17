@@ -1,7 +1,7 @@
 package com.idncar.service;
 
 import com.idncar.model.dto.CreateDownloadResourceRequest;
-import com.idncar.service.impl.AdminServiceImpl;
+import com.idncar.service.AdminService;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
@@ -9,9 +9,9 @@ import java.lang.reflect.Method;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class AdminServiceImplDownloadPasswordTest {
+class AdminServiceDownloadPasswordTest {
 
-    private final AdminServiceImpl service = new AdminServiceImpl();
+    private final AdminService service = new AdminService();
 
     @Test
     void newDownloadPasswordIsHashedAndExistingHashCanBePreserved() throws Exception {
@@ -37,7 +37,7 @@ class AdminServiceImplDownloadPasswordTest {
     }
 
     private String resolvePasswordHash(CreateDownloadResourceRequest request, String currentHash) throws Exception {
-        Method method = AdminServiceImpl.class.getDeclaredMethod(
+        Method method = AdminService.class.getDeclaredMethod(
                 "resolveDownloadPasswordHash",
                 CreateDownloadResourceRequest.class,
                 String.class

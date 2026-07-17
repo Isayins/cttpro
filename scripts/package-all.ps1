@@ -22,23 +22,6 @@ function Invoke-Step {
   & $Command
 }
 
-function Get-Sha256Hash {
-  param([string]$Path)
-
-  $sha256 = [System.Security.Cryptography.SHA256]::Create()
-  try {
-    $stream = [System.IO.File]::OpenRead($Path)
-    try {
-      $hash = -join ($sha256.ComputeHash($stream) | ForEach-Object { $_.ToString("x2") })
-      return $hash.ToUpperInvariant()
-    } finally {
-      $stream.Dispose()
-    }
-  } finally {
-    $sha256.Dispose()
-  }
-}
-
 Invoke-Step "Build frontend" {
   Push-Location $repoRoot
   try {
@@ -96,8 +79,8 @@ Invoke-Step "Create artifacts" {
   Copy-Item -Path $backendSourceJar -Destination $backendJar -Force
 }
 
-$frontendHash = Get-Sha256Hash $frontendZip
-$backendHash = Get-Sha256Hash $backendJar
+$frontendHash = (Get-FileHash -Algorithm SHA256 $frontendZip).Hash
+$backendHash = (Get-FileHash -Algorithm SHA256 $backendJar).Hash
 
 Write-Host ""
 Write-Host "Package complete."

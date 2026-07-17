@@ -2,45 +2,11 @@ import { apiRequest, buildApiRequestUrl } from "./api/client";
 import { downloadApi } from "./api/download";
 import type { DownloadResource } from "../types/app";
 
-export type DownloadItem = {
-  id: number;
-  title: string;
-  version?: string | null;
-  changelog?: string | null;
-  url: string;
-  icon?: string | null;
-  locked?: boolean;
-  passwordProtected?: boolean;
-  category?: string | null;
-  fileSize?: string | null;
-  checksumSha256?: string | null;
-  downloadCount?: number | null;
-  updateTime?: string | null;
-  sortOrder?: number | null;
-};
-
-function mapDownload(item: DownloadResource): DownloadItem {
-  return {
-    id: item.id,
-    title: item.title,
-    version: item.version,
-    changelog: item.changelog,
-    url: item.url,
-    icon: item.icon,
-    locked: item.locked,
-    passwordProtected: item.passwordProtected,
-    category: item.category,
-    fileSize: item.fileSize,
-    checksumSha256: item.checksumSha256,
-    downloadCount: item.downloadCount,
-    updateTime: item.updateTime ?? item.createTime,
-    sortOrder: item.sortOrder,
-  };
-}
+export type DownloadItem = DownloadResource;
 
 export async function getDownloads(): Promise<DownloadItem[]> {
   const items = await downloadApi.getDownloads();
-  return items.map(mapDownload);
+  return items.map((item) => ({ ...item, updateTime: item.updateTime ?? item.createTime }));
 }
 
 export async function trackDownload(downloadId: number): Promise<void> {

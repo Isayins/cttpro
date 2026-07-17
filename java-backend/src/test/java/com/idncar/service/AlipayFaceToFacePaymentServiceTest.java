@@ -7,7 +7,7 @@ import com.idncar.mapper.PaymentVmqEventMapper;
 import com.idncar.model.entity.Product;
 import com.idncar.model.entity.PaymentVmqEvent;
 import com.idncar.service.InternalVmqPaymentService;
-import com.idncar.service.impl.AlipayFaceToFacePaymentServiceImpl;
+import com.idncar.service.AlipayFaceToFacePaymentService;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.InvocationTargetException;
@@ -24,9 +24,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class AlipayFaceToFacePaymentServiceImplTest {
+class AlipayFaceToFacePaymentServiceTest {
 
-    private final AlipayFaceToFacePaymentServiceImpl service = new AlipayFaceToFacePaymentServiceImpl();
+    private final AlipayFaceToFacePaymentService service = new AlipayFaceToFacePaymentService();
 
     @Test
     void productOrderRequiresDeliveryEmailForNormalProduct() {
@@ -90,7 +90,7 @@ class AlipayFaceToFacePaymentServiceImplTest {
     }
 
     private String resolveDeliveryEmail(Product product, String deliveryEmail) throws Throwable {
-        Method method = AlipayFaceToFacePaymentServiceImpl.class.getDeclaredMethod(
+        Method method = AlipayFaceToFacePaymentService.class.getDeclaredMethod(
                 "resolveDeliveryEmail",
                 Product.class,
                 String.class
@@ -104,7 +104,7 @@ class AlipayFaceToFacePaymentServiceImplTest {
     }
 
     private boolean isVmqEventWithinOrderWindow(com.idncar.model.entity.PaymentOrder order, Date paidAt) throws Exception {
-        Method method = AlipayFaceToFacePaymentServiceImpl.class.getDeclaredMethod(
+        Method method = AlipayFaceToFacePaymentService.class.getDeclaredMethod(
                 "isVmqEventWithinOrderWindow",
                 com.idncar.model.entity.PaymentOrder.class,
                 Date.class
@@ -114,7 +114,7 @@ class AlipayFaceToFacePaymentServiceImplTest {
     }
 
     private void setField(String fieldName, Object value) throws Exception {
-        java.lang.reflect.Field field = AlipayFaceToFacePaymentServiceImpl.class.getDeclaredField(fieldName);
+        java.lang.reflect.Field field = AlipayFaceToFacePaymentService.class.getDeclaredField(fieldName);
         field.setAccessible(true);
         field.set(service, value);
     }

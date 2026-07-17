@@ -33,7 +33,6 @@ function requireAuth(children: ReactNode, adminOnly = false) {
 interface AppRoute {
   path: string;
   element: ReactNode;
-  devOnly?: boolean;
 }
 
 const publicRoutes: AppRoute[] = [
@@ -61,7 +60,6 @@ const protectedRoutes: AppRoute[] = [
 
 const adminRoutes: AppRoute[] = [
   { path: routePaths.admin, element: <Admin /> },
-  { path: routePaths.adminPreview, element: <Admin preview />, devOnly: true },
   { path: routePaths.adminQrCodes, element: <QrManage /> },
 ];
 
@@ -98,16 +96,12 @@ function RouteLoadingFallback() {
 }
 
 export default function RouterConfig() {
-  const showAdminPreview = import.meta.env.DEV;
-
   return (
     <Suspense fallback={<RouteLoadingFallback />}>
       <Routes>
         {publicRoutes.map(renderRoute)}
         {protectedRoutes.map((route) => renderProtectedRoute(route))}
-        {adminRoutes
-          .filter((route) => !route.devOnly || showAdminPreview)
-          .map((route) => renderProtectedRoute(route, true))}
+        {adminRoutes.map((route) => renderProtectedRoute(route, true))}
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>

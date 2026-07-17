@@ -2,7 +2,7 @@ package com.idncar.service;
 
 import com.idncar.mapper.PaymentVmqSettingMapper;
 import com.idncar.model.entity.PaymentVmqSetting;
-import com.idncar.service.impl.InternalVmqPaymentServiceImpl;
+import com.idncar.service.InternalVmqPaymentService;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
@@ -16,14 +16,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-class InternalVmqPaymentServiceImplSecurityTest {
+class InternalVmqPaymentServiceSecurityTest {
 
     private static final String KEY = "1234567890abcdef1234567890abcdef";
     private static final String EVENT_ID = "a".repeat(64);
 
     @Test
     void appPushRequiresFreshSignedEventMetadata() throws Exception {
-        InternalVmqPaymentServiceImpl service = service();
+        InternalVmqPaymentService service = service();
         long now = Instant.now().getEpochSecond();
 
         Map<String, String> valid = signedParams(now - 1, now);
@@ -40,7 +40,7 @@ class InternalVmqPaymentServiceImplSecurityTest {
         assertThat(service.verifyAppPush(stalePaymentEvent)).isFalse();
     }
 
-    private InternalVmqPaymentServiceImpl service() throws Exception {
+    private InternalVmqPaymentService service() throws Exception {
         PaymentVmqSetting setting = new PaymentVmqSetting();
         setting.setId(1L);
         setting.setEnabled(true);
@@ -54,7 +54,7 @@ class InternalVmqPaymentServiceImplSecurityTest {
         PaymentVmqSettingMapper mapper = mock(PaymentVmqSettingMapper.class);
         when(mapper.selectById(1L)).thenReturn(setting);
 
-        InternalVmqPaymentServiceImpl service = new InternalVmqPaymentServiceImpl();
+        InternalVmqPaymentService service = new InternalVmqPaymentService();
         setField(service, "paymentVmqSettingMapper", mapper);
         return service;
     }

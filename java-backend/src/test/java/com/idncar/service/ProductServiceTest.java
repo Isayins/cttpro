@@ -7,7 +7,7 @@ import com.idncar.model.dto.ProductDto;
 import com.idncar.model.dto.SaveProductRequest;
 import com.idncar.model.entity.Product;
 import com.idncar.model.entity.User;
-import com.idncar.service.impl.ProductServiceImpl;
+import com.idncar.service.ProductService;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
@@ -22,7 +22,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-class ProductServiceImplTest {
+class ProductServiceTest {
 
     @Test
     void createProductRequiresStock() throws Exception {
@@ -39,7 +39,7 @@ class ProductServiceImplTest {
         UserAccessService userAccessService = mock(UserAccessService.class);
         when(userAccessService.requireAdmin(1L)).thenReturn(operator);
 
-        ProductServiceImpl service = new ProductServiceImpl();
+        ProductService service = new ProductService();
         setField(service, "userAccessService", userAccessService);
 
         assertThatThrownBy(() -> service.createProduct(1L, request))
@@ -60,7 +60,7 @@ class ProductServiceImplTest {
         ProductMapper productMapper = mock(ProductMapper.class);
         when(productMapper.selectById(1L)).thenReturn(product);
 
-        ProductServiceImpl service = new ProductServiceImpl();
+        ProductService service = new ProductService();
         setField(service, "productMapper", productMapper);
 
         assertThatThrownBy(() -> service.requirePurchasableProduct(1L))
@@ -83,7 +83,7 @@ class ProductServiceImplTest {
         ProductDeliveryCodeMapper productDeliveryCodeMapper = mock(ProductDeliveryCodeMapper.class);
         when(productDeliveryCodeMapper.selectCount(any())).thenReturn(7L);
 
-        ProductServiceImpl service = new ProductServiceImpl();
+        ProductService service = new ProductService();
         setField(service, "productMapper", productMapper);
         setField(service, "productDeliveryCodeMapper", productDeliveryCodeMapper);
 
@@ -100,7 +100,7 @@ class ProductServiceImplTest {
         request.setStatus("DRAFT");
 
         Product product = new Product();
-        ProductServiceImpl service = new ProductServiceImpl();
+        ProductService service = new ProductService();
         invokeFillProduct(service, product, request);
 
         assertThat(product.getDeliveryType()).isEqualTo("CDK_EMAIL");
@@ -124,7 +124,7 @@ class ProductServiceImplTest {
                 "total", 7L
         )));
 
-        ProductServiceImpl service = new ProductServiceImpl();
+        ProductService service = new ProductService();
         setField(service, "productDeliveryCodeMapper", productDeliveryCodeMapper);
 
         ProductDto dto = invokeToAdminProductDto(service, product);
@@ -139,14 +139,14 @@ class ProductServiceImplTest {
         field.set(target, value);
     }
 
-    private void invokeFillProduct(ProductServiceImpl service, Product product, SaveProductRequest request) throws Exception {
-        Method method = ProductServiceImpl.class.getDeclaredMethod("fillProduct", Product.class, SaveProductRequest.class);
+    private void invokeFillProduct(ProductService service, Product product, SaveProductRequest request) throws Exception {
+        Method method = ProductService.class.getDeclaredMethod("fillProduct", Product.class, SaveProductRequest.class);
         method.setAccessible(true);
         method.invoke(service, product, request);
     }
 
-    private ProductDto invokeToAdminProductDto(ProductServiceImpl service, Product product) throws Exception {
-        Method method = ProductServiceImpl.class.getDeclaredMethod("toAdminProductDto", Product.class);
+    private ProductDto invokeToAdminProductDto(ProductService service, Product product) throws Exception {
+        Method method = ProductService.class.getDeclaredMethod("toAdminProductDto", Product.class);
         method.setAccessible(true);
         return (ProductDto) method.invoke(service, product);
     }
