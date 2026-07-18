@@ -1,13 +1,41 @@
-# Ubuntu 一键部署
+# Ubuntu 部署
 
-这个目录用于在 Ubuntu 服务器上一键部署 cttpro：
+当前生产环境采用宿主机 Nginx、systemd Java、MySQL 和 Redis。Docker 文件仅保留为可选部署方式。
+
+## 宿主机持续部署
+
+首次接入持续部署前，确认 `/opt/cttpro/.env` 已配置，并让 systemd 固定从
+`/opt/cttpro/java-backend.jar` 启动。已有 JAR 可以先建立软链接，再安装服务：
+
+```bash
+ln -sfn /opt/cttpro/现有后端.jar /opt/cttpro/java-backend.jar
+sudo SERVICE_USER=cttpro bash deploy/ubuntu/install-backend-service.sh
+```
+
+GitHub Actions 在 `main` 检查通过后会上传同一版本的前端和后端，并执行
+`deploy-host-release.sh`。脚本先切换后端，等待 `/actuator/health` 返回 `UP`，
+再切换前端和重载 Nginx；任一步失败会恢复上一版本。
+
+需要手动回滚最近一次发布时执行：
+
+```bash
+sudo bash deploy/ubuntu/deploy-host-release.sh --rollback
+```
+
+流水线需要配置 `SERVER_HOST`、`SERVER_USER`、`SERVER_SSH_KEY` 和
+`SERVER_SSH_PASSPHRASE`；部署账号必须能够写入 `/opt/cttpro`、
+`/var/www/html/cttpro`，并执行 `systemctl` 与 `nginx -t`。
+
+## Docker 可选部署
+
+Docker 方案包含：
 
 - `frontend`：Nginx 静态站点，反代 `/api/` 和 WebSocket 到 Java 后端
 - `java-backend`：Spring Boot API
 - `mysql`：MySQL 8
 - `redis`：Redis 7
 
-## 首次部署
+### 首次部署
 
 在服务器上进入项目根目录：
 
@@ -29,7 +57,7 @@ bash deploy/ubuntu/deploy.sh
 http://服务器IP
 ```
 
-## 配置
+### 配置
 
 首次运行后可编辑：
 
@@ -57,7 +85,7 @@ APP_PAYMENT_ALIPAY_NOTIFY_URL=
 bash deploy/ubuntu/deploy.sh
 ```
 
-## 维护命令
+### 维护命令
 
 查看状态：
 
