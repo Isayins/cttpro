@@ -44,6 +44,7 @@ import {
   renderImageMarkupLines,
 } from "../lib/richContent";
 import {
+  blockPrivateChatUser,
   clearChatMessages,
   fetchChatMessages,
   fetchOnlinePrivateChatUsers,
@@ -52,6 +53,7 @@ import {
   sendChatMessage,
   sendPrivateMessage,
   updateChatPresenceMode,
+  unblockPrivateChatUser,
   uploadChatImage,
 } from "../services/communityService";
 import type {
@@ -108,6 +110,7 @@ export default function ChatRoom() {
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [loadingPrivateMessages, setLoadingPrivateMessages] = useState(false);
   const [updatingPresence, setUpdatingPresence] = useState(false);
+  const [updatingBlockUserId, setUpdatingBlockUserId] = useState<number | null>(null);
   const privateMessageListRef = useRef<HTMLDivElement | null>(null);
   const privateImageInputRef = useRef<HTMLInputElement | null>(null);
   const privateMessageInFlightRef = useRef(false);
@@ -152,7 +155,7 @@ export default function ChatRoom() {
     activeGroupRoom && groupDraftTextLength > 0 && !sendingGroupMessage,
   );
   const canSendPrivateMessage = Boolean(
-    activeUser && privateDraftTextLength > 0 && !sendingPrivateMessage,
+    activeUser && !activeUser.blocked && privateDraftTextLength > 0 && !sendingPrivateMessage,
   );
 
   useEffect(() => {
@@ -365,6 +368,10 @@ export default function ChatRoom() {
       message.warning("请先选择一个在线用户");
       return;
     }
+    if (activeUser?.blocked) {
+      message.warning("请先解除屏蔽后再发送消息");
+      return;
+    }
     if (!content) {
       message.warning("请输入要发送的消息");
       return;
@@ -387,6 +394,32 @@ export default function ChatRoom() {
     }
   }
 
+  async function handleTogglePrivateBlock() {
+    if (!activeUser) {
+      return;
+    }
+    const target = activeUser;
+    setUpdatingBlockUserId(target.id);
+    try {
+      if (target.blocked) {
+        await unblockPrivateChatUser(target.id);
+      } else {
+        await blockPrivateChatUser(target.id);
+      }
+      setUsers((current) => current.map((item) => (
+        item.id === target.id ? { ...item, blocked: !target.blocked } : item
+      )));
+      if (!target.blocked) {
+        setPrivateDraft("");
+      }
+      message.success(target.blocked ? "已解除屏蔽" : "已屏蔽该用户");
+    } catch (error) {
+      message.error(getErrorMessage(error, target.blocked ? "解除屏蔽失败" : "屏蔽失败"));
+    } finally {
+      setUpdatingBlockUserId(null);
+    }
+  }
+
   function appendPrivateEmoji(emoji: string) {
     setPrivateDraft((current) => `${current}${emoji}`);
   }
@@ -405,6 +438,10 @@ export default function ChatRoom() {
     }
     if (!activeUserId) {
       message.warning("请先选择一个在线用户");
+      return;
+    }
+    if (activeUser?.blocked) {
+      message.warning("请先解除屏蔽后再发送图片");
       return;
     }
     const validationError = getImageFileValidationError(file, "聊天图片");
@@ -927,6 +964,11 @@ export default function ChatRoom() {
                                       当前
                                     </Tag>
                                   ) : null}
+                                  {item.blocked ? (
+                                    <Tag color="red" className="!mr-0">
+                                      已屏蔽
+                                    </Tag>
+                                  ) : null}
                                 </div>
                                 <div className="truncate text-xs text-slate-500">
                                   {item.bio || "这个用户很低调，还没写简介。"}
@@ -943,37 +985,46 @@ export default function ChatRoom() {
               <main className="flex min-h-0 flex-col bg-white">
                 <div className="border-b border-slate-100 px-6 py-4">
                   {activeUser ? (
-                    <div className="flex items-center gap-3">
-                      <Avatar
-                        src={resolveAssetUrl(activeUser.avatarUrl)}
-                        icon={<UserOutlined />}
-                      >
-                        {getAvatarLabel(activeUser.nickname)}
-                      </Avatar>
-                      <div className="min-w-0">
-                        <div className="truncate text-base font-semibold text-slate-900">
-                          {activeUser.nickname}
-                        </div>
-                        <div className="mt-1 text-xs text-slate-500">
-                          {activeUser.bio || "点对点私聊"}
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
-                          <Tag color="blue" className="!mr-0">
-                            每 {PRIVATE_MESSAGES_POLL_INTERVAL_MS / 1000}s 同步
-                          </Tag>
-                          <Tag className="!mr-0">
-                            {privateMessages.length} 条消息
-                          </Tag>
-                          {latestPrivateMessage ? (
-                            <Tag className="!mr-0">
-                              最新{" "}
-                              {formatMessageTime(
-                                latestPrivateMessage.createdAt,
-                              )}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <Avatar
+                          src={resolveAssetUrl(activeUser.avatarUrl)}
+                          icon={<UserOutlined />}
+                        >
+                          {getAvatarLabel(activeUser.nickname)}
+                        </Avatar>
+                        <div className="min-w-0">
+                          <div className="truncate text-base font-semibold text-slate-900">
+                            {activeUser.nickname}
+                          </div>
+                          <div className="mt-1 text-xs text-slate-500">
+                            {activeUser.bio || "点对点私聊"}
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
+                            <Tag color="blue" className="!mr-0">
+                              每 {PRIVATE_MESSAGES_POLL_INTERVAL_MS / 1000}s 同步
                             </Tag>
-                          ) : null}
+                            <Tag className="!mr-0">
+                              {privateMessages.length} 条消息
+                            </Tag>
+                            {latestPrivateMessage ? (
+                              <Tag className="!mr-0">
+                                最新{" "}
+                                {formatMessageTime(
+                                  latestPrivateMessage.createdAt,
+                                )}
+                              </Tag>
+                            ) : null}
+                          </div>
                         </div>
                       </div>
+                      <Button
+                        danger={!activeUser.blocked}
+                        loading={updatingBlockUserId === activeUser.id}
+                        onClick={() => void handleTogglePrivateBlock()}
+                      >
+                        {activeUser.blocked ? "解除屏蔽" : "屏蔽用户"}
+                      </Button>
                     </div>
                   ) : (
                     <div>
@@ -1053,7 +1104,7 @@ export default function ChatRoom() {
                     }
                     autoSize={{ minRows: 2, maxRows: 5 }}
                     maxLength={CHAT_DRAFT_MAX_LENGTH}
-                    disabled={!activeUser}
+                    disabled={!activeUser || activeUser.blocked}
                     onPressEnter={(event) => {
                       if (event.shiftKey) {
                         return;
@@ -1079,7 +1130,7 @@ export default function ChatRoom() {
                       >
                         <Button
                           icon={<SmileOutlined />}
-                          disabled={!activeUser}
+                          disabled={!activeUser || activeUser.blocked}
                           aria-label="插入表情"
                           title="插入表情"
                         />
@@ -1087,7 +1138,7 @@ export default function ChatRoom() {
                       <Button
                         icon={<PictureOutlined />}
                         loading={uploadingPrivateImage}
-                        disabled={!activeUser || uploadingPrivateImage}
+                        disabled={!activeUser || activeUser.blocked || uploadingPrivateImage}
                         aria-label="发送图片"
                         title="发送图片"
                         onClick={() => privateImageInputRef.current?.click()}

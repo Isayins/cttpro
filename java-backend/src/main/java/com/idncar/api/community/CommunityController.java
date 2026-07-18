@@ -86,6 +86,20 @@ public class CommunityController {
         return ResponseEntity.ok(communityService.createPrivateMessage(userId, request));
     }
 
+    @PostMapping({"/private/users/{targetUserId}/block", "/private/users/{targetUserId}/block/"})
+    public ResponseEntity<Void> blockPrivateChatUser(@RequestAttribute("userId") Long userId,
+                                                      @PathVariable Long targetUserId) {
+        communityService.blockPrivateChatUser(userId, targetUserId);
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping({"/private/users/{targetUserId}/block", "/private/users/{targetUserId}/block/"})
+    public ResponseEntity<Void> unblockPrivateChatUser(@RequestAttribute("userId") Long userId,
+                                                        @PathVariable Long targetUserId) {
+        communityService.unblockPrivateChatUser(userId, targetUserId);
+        return ResponseEntity.ok().build();
+    }
+
     @GetMapping({"/private/presence", "/private/presence/"})
     public ResponseEntity<ChatPresenceModeDto> getPresenceMode(@RequestAttribute("userId") Long userId) {
         return ResponseEntity.ok(communityService.getChatPresenceMode(userId));

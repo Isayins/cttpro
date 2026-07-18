@@ -766,6 +766,7 @@ export interface PrivateChatUser {
   avatarUrl?: string | null;
   bio?: string | null;
   online: boolean;
+  blocked: boolean;
 }
 
 export interface PrivateChatMessage {

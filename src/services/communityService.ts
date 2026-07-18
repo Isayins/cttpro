@@ -38,6 +38,7 @@ type PrivateChatUserResponse = {
   avatarUrl?: string | null;
   bio?: string | null;
   online: boolean;
+  blocked: boolean;
 };
 
 type PrivateChatMessageResponse = {
@@ -111,6 +112,7 @@ function mapPrivateChatUser(item: PrivateChatUserResponse): PrivateChatUser {
     avatarUrl: resolveAssetUrl(item.avatarUrl) ?? null,
     bio: item.bio ?? null,
     online: Boolean(item.online),
+    blocked: Boolean(item.blocked),
   };
 }
 
@@ -183,6 +185,18 @@ export async function sendPrivateMessage(payload: {
     body: payload,
   });
   return mapPrivateChatMessage(item);
+}
+
+export async function blockPrivateChatUser(targetUserId: number): Promise<void> {
+  await request<void>(`/api/community/private/users/${encodeURIComponent(String(targetUserId))}/block`, {
+    method: "POST",
+  });
+}
+
+export async function unblockPrivateChatUser(targetUserId: number): Promise<void> {
+  await request<void>(`/api/community/private/users/${encodeURIComponent(String(targetUserId))}/block`, {
+    method: "DELETE",
+  });
 }
 
 export async function getChatPresenceMode(): Promise<ChatPresenceMode> {

@@ -146,10 +146,13 @@ public class CommunityService {
 
         List<PrivateChatUserDto> users = jdbcTemplate.query(
                 """
-                SELECT id, nickname, avatar_url, bio, COALESCE(chat_visibility, 'ONLINE') AS chat_visibility
-                FROM users
-                WHERE status = 'ACTIVE'
-                ORDER BY nickname ASC, id ASC
+                SELECT u.id, u.nickname, u.avatar_url, u.bio,
+                       COALESCE(u.chat_visibility, 'ONLINE') AS chat_visibility,
+                       b.blocker_id IS NOT NULL AS blocked
+                FROM users u
+                LEFT JOIN community_user_blocks b ON b.blocker_id = ? AND b.blocked_id = u.id
+                WHERE u.status = 'ACTIVE'
+                ORDER BY u.nickname ASC, u.id ASC
                 """,
                 (rs, rowNum) -> {
                     Long userId = rs.getLong("id");
@@ -171,9 +174,11 @@ public class CommunityService {
                             defaultIfBlank(rs.getString("nickname"), "用户"),
                             rs.getString("avatar_url"),
                             rs.getString("bio"),
-                            true
+                            true,
+                            rs.getBoolean("blocked")
                     );
-                }
+                },
+                currentUserId
         );
 
         return users.stream().filter(Objects::nonNull).toList();
@@ -210,6 +215,9 @@ public class CommunityService {
     public PrivateChatMessageDto createPrivateMessage(Long currentUserId, CreatePrivateChatMessageRequest request) {
         User sender = userAccessService.requireActiveUser(currentUserId);
         Long recipientUserId = requirePrivateTarget(currentUserId, request.recipientUserId());
+        if (hasPrivateChatBlock(currentUserId, recipientUserId)) {
+            throw ApiException.forbidden("你们之间已启用屏蔽，无法发送消息");
+        }
         String content = RichContentValidator.requireSafeImageMarkupUrls(limitText(requireText(request.content(), "消息内容不能为空"), 1000));
         Date now = Date.from(Instant.now());
 
@@ -232,6 +240,28 @@ public class CommunityService {
                 recipientUserId,
                 content,
                 now.getTime()
+        );
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void blockPrivateChatUser(Long currentUserId, Long targetUserId) {
+        userAccessService.requireActiveUser(currentUserId);
+        Long safeTargetUserId = requirePrivateTarget(currentUserId, targetUserId);
+        jdbcTemplate.update(
+                "INSERT IGNORE INTO community_user_blocks (blocker_id, blocked_id, create_time) VALUES (?, ?, CURRENT_TIMESTAMP)",
+                currentUserId,
+                safeTargetUserId
+        );
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void unblockPrivateChatUser(Long currentUserId, Long targetUserId) {
+        userAccessService.requireActiveUser(currentUserId);
+        Long safeTargetUserId = requirePrivateTarget(currentUserId, targetUserId);
+        jdbcTemplate.update(
+                "DELETE FROM community_user_blocks WHERE blocker_id = ? AND blocked_id = ?",
+                currentUserId,
+                safeTargetUserId
         );
     }
 
@@ -371,6 +401,23 @@ public class CommunityService {
         }
         userAccessService.requireActiveUser(targetUserId);
         return targetUserId;
+    }
+
+    private boolean hasPrivateChatBlock(Long currentUserId, Long targetUserId) {
+        Integer count = jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM community_user_blocks
+                WHERE (blocker_id = ? AND blocked_id = ?)
+                   OR (blocker_id = ? AND blocked_id = ?)
+                """,
+                Integer.class,
+                currentUserId,
+                targetUserId,
+                targetUserId,
+                currentUserId
+        );
+        return count != null && count > 0;
     }
 
     private CommunityTalkPostDto getTalkPost(Long postId) {

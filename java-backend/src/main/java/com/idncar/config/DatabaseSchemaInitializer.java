@@ -44,6 +44,7 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
         ensureCommunityChatMessageColumns();
         ensurePrivateChatMessagesTable();
         ensurePrivateChatMessageColumns();
+        ensureCommunityUserBlocksTable();
         ensureCommunityTalkPostsTable();
         ensureCommunityTalkPostColumns();
         ensureCommunityTalkCommentsTable();
@@ -376,6 +377,19 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
         ensureIndex("private_chat_messages", "idx_private_chat_messages_recipient_id", "CREATE INDEX idx_private_chat_messages_recipient_id ON private_chat_messages(recipient_id)");
         ensureIndex("private_chat_messages", "idx_private_chat_messages_create_time", "CREATE INDEX idx_private_chat_messages_create_time ON private_chat_messages(create_time)");
         ensureIndex("private_chat_messages", "idx_private_chat_messages_pair", "CREATE INDEX idx_private_chat_messages_pair ON private_chat_messages(sender_id, recipient_id, create_time)");
+    }
+
+    private void ensureCommunityUserBlocksTable() {
+        jdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS community_user_blocks (
+                    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                    blocker_id BIGINT NOT NULL,
+                    blocked_id BIGINT NOT NULL,
+                    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uk_community_user_blocks_pair (blocker_id, blocked_id)
+                )
+                """);
+        ensureIndex("community_user_blocks", "idx_community_user_blocks_blocked_id", "CREATE INDEX idx_community_user_blocks_blocked_id ON community_user_blocks(blocked_id)");
     }
 
     private void ensureCommunityTalkPostsTable() {
