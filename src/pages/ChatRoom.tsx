@@ -21,6 +21,7 @@ import {
 import {
   ClearOutlined,
   EyeInvisibleOutlined,
+  FlagOutlined,
   MessageOutlined,
   PictureOutlined,
   SendOutlined,
@@ -29,6 +30,7 @@ import {
 } from "@ant-design/icons";
 
 import MainLayout from "../layouts/MainLayout";
+import CommunityReportModal from "../components/CommunityReportModal";
 import StatusState from "../components/StatusState";
 import { useAuth } from "../context/useAuth";
 import { chatRooms, type ChatMessage } from "../lib/community";
@@ -55,6 +57,7 @@ import {
   updateChatPresenceMode,
   unblockPrivateChatUser,
   uploadChatImage,
+  type CommunityReportTarget,
 } from "../services/communityService";
 import type {
   ChatPresenceMode,
@@ -127,6 +130,7 @@ export default function ChatRoom() {
   const [uploadingGroupImage, setUploadingGroupImage] = useState(false);
   const [loadingGroupMessages, setLoadingGroupMessages] = useState(false);
   const [clearingGroup, setClearingGroup] = useState(false);
+  const [reportTarget, setReportTarget] = useState<CommunityReportTarget | null>(null);
   const groupMessageListRef = useRef<HTMLDivElement | null>(null);
   const groupImageInputRef = useRef<HTMLInputElement | null>(null);
   const groupMessageInFlightRef = useRef(false);
@@ -790,6 +794,19 @@ export default function ChatRoom() {
                             {formatMessageTime(item.createdAt)}
                           </div>
                           {renderMessageContent(item.content)}
+                          {!mine ? (
+                            <button
+                              type="button"
+                              className="mt-2 text-xs text-slate-400 hover:text-red-500"
+                              onClick={() => setReportTarget({
+                                targetType: "CHAT_MESSAGE",
+                                targetId: Number(item.id),
+                                label: `${item.author} 的群聊消息`,
+                              })}
+                            >
+                              <FlagOutlined className="mr-1" />举报
+                            </button>
+                          ) : null}
                         </div>
                       </div>
                     );
@@ -1160,6 +1177,7 @@ export default function ChatRoom() {
           </section>
         ) : null}
       </div>
+      <CommunityReportModal target={reportTarget} onClose={() => setReportTarget(null)} />
     </MainLayout>
   );
 }

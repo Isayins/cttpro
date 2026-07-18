@@ -1,13 +1,19 @@
 package com.idncar.service;
 
 import com.idncar.exception.ApiException;
+import com.idncar.mapper.PostReportMapper;
+import com.idncar.model.dto.CreateCommunityReportRequest;
 import com.idncar.model.dto.CreatePrivateChatMessageRequest;
 import com.idncar.model.entity.User;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.List;
+import java.util.Map;
+
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
@@ -56,5 +62,31 @@ class CommunityServiceTest {
                 new CreatePrivateChatMessageRequest(9L, "hello")
         )).isInstanceOf(ApiException.class)
                 .hasMessage("你们之间已启用屏蔽，无法发送消息");
+    }
+
+    @Test
+    void duplicatePendingCommunityReportIsRejected() {
+        CommunityService service = new CommunityService();
+        UserAccessService userAccessService = mock(UserAccessService.class);
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        PostReportMapper postReportMapper = mock(PostReportMapper.class);
+        User reporter = new User();
+        reporter.setId(7L);
+        when(userAccessService.requireActiveUser(7L)).thenReturn(reporter);
+        when(jdbcTemplate.queryForList(anyString(), eq(12L))).thenReturn(List.of(Map.of(
+                "author_id", 9L,
+                "author", "other",
+                "content", "reported content"
+        )));
+        when(postReportMapper.selectCount(any())).thenReturn(1L);
+        ReflectionTestUtils.setField(service, "userAccessService", userAccessService);
+        ReflectionTestUtils.setField(service, "jdbcTemplate", jdbcTemplate);
+        ReflectionTestUtils.setField(service, "postReportMapper", postReportMapper);
+
+        assertThatThrownBy(() -> service.reportCommunityContent(
+                7L,
+                new CreateCommunityReportRequest("TALK_POST", 12L, "垃圾广告", null)
+        )).isInstanceOf(ApiException.class)
+                .hasMessage("你已经举报过这条内容");
     }
 }

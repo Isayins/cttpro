@@ -8,6 +8,7 @@ import com.idncar.model.dto.CommunityTalkPostDto;
 import com.idncar.model.dto.CreateChatMessageRequest;
 import com.idncar.model.dto.CreateCommunityTalkCommentRequest;
 import com.idncar.model.dto.CreateCommunityTalkPostRequest;
+import com.idncar.model.dto.CreateCommunityReportRequest;
 import com.idncar.model.dto.PrivateChatMessageDto;
 import com.idncar.model.dto.PrivateChatUserDto;
 import com.idncar.model.dto.UpdateChatPresenceModeRequest;
@@ -109,6 +110,13 @@ public class CommunityController {
     public ResponseEntity<ChatPresenceModeDto> updatePresenceMode(@RequestAttribute("userId") Long userId,
                                                                   @RequestBody UpdateChatPresenceModeRequest request) {
         return ResponseEntity.ok(communityService.updateChatPresenceMode(userId, request));
+    }
+
+    @PostMapping({"/reports", "/reports/"})
+    public ResponseEntity<Void> reportCommunityContent(@RequestAttribute("userId") Long userId,
+                                                        @RequestBody CreateCommunityReportRequest request) {
+        communityService.reportCommunityContent(userId, request);
+        return ResponseEntity.ok().build();
     }
 
     @GetMapping({"/talk/posts", "/talk/posts/"})

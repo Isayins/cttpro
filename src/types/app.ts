@@ -593,7 +593,9 @@ export interface SaveSiteNoticePayload {
 
 export interface AdminPostReport {
   id: number;
-  postId: number;
+  postId?: number | null;
+  targetType?: "FORUM_POST" | "CHAT_MESSAGE" | "TALK_POST" | string;
+  targetId?: number | null;
   postTitle: string;
   reporterId: number;
   reporterName: string;

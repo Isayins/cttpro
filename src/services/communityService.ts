@@ -64,6 +64,12 @@ const IMAGE_UPLOAD_TIMEOUT_MS = 60_000;
 
 type CommunityRequestOptions = Omit<RequestOptions, "authMode">;
 
+export type CommunityReportTarget = {
+  targetType: "CHAT_MESSAGE" | "TALK_POST";
+  targetId: number;
+  label: string;
+};
+
 function request<T>(path: string, options: CommunityRequestOptions = {}): Promise<T> {
   return apiRequest<T>(path, {
     authMode: "required",
@@ -161,6 +167,18 @@ export async function uploadChatImage(file: File): Promise<UploadedChatImageResp
 export async function clearChatMessages(roomId: string): Promise<void> {
   await request<void>(`/api/community/chat/rooms/${encodeURIComponent(roomId)}/messages`, {
     method: "DELETE",
+  });
+}
+
+export async function reportCommunityContent(payload: {
+  targetType: CommunityReportTarget["targetType"];
+  targetId: number;
+  reason: string;
+  detail?: string;
+}): Promise<void> {
+  await request<void>("/api/community/reports", {
+    method: "POST",
+    body: payload,
   });
 }
 

@@ -20,6 +20,23 @@ import static org.mockito.Mockito.when;
 class DatabaseSchemaInitializerTest {
 
     @Test
+    void postReportTableSupportsCommunityTargets() throws Exception {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        DatabaseSchemaInitializer initializer = new DatabaseSchemaInitializer();
+        setField(initializer, "jdbcTemplate", jdbcTemplate);
+
+        invoke(initializer, "ensurePostReportsTable");
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).execute(sqlCaptor.capture());
+        assertThat(sqlCaptor.getValue())
+                .contains("post_id BIGINT NULL")
+                .contains("target_type VARCHAR(30) NULL")
+                .contains("target_id BIGINT NULL")
+                .contains("target_summary VARCHAR(240) NULL");
+    }
+
+    @Test
     void publicCodeIndexPreparationClearsHalfBrokenPublicLinksBeforeCreatingIndexes() throws Exception {
         JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
         when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), any(Object.class)))

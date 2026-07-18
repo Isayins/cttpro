@@ -1,6 +1,8 @@
 package com.idncar.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.idncar.exception.ApiException;
+import com.idncar.mapper.PostReportMapper;
 import com.idncar.mapper.UserMapper;
 import com.idncar.model.dto.ChatPresenceModeDto;
 import com.idncar.model.dto.ChatRoomMessageDto;
@@ -9,11 +11,13 @@ import com.idncar.model.dto.CommunityTalkPostDto;
 import com.idncar.model.dto.CreateChatMessageRequest;
 import com.idncar.model.dto.CreateCommunityTalkCommentRequest;
 import com.idncar.model.dto.CreateCommunityTalkPostRequest;
+import com.idncar.model.dto.CreateCommunityReportRequest;
 import com.idncar.model.dto.CreatePrivateChatMessageRequest;
 import com.idncar.model.dto.PrivateChatMessageDto;
 import com.idncar.model.dto.PrivateChatUserDto;
 import com.idncar.model.dto.UpdateChatPresenceModeRequest;
 import com.idncar.model.entity.User;
+import com.idncar.model.entity.PostReport;
 import com.idncar.util.RichContentValidator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -43,6 +47,7 @@ public class CommunityService {
     private static final String DEFAULT_TALK_CATEGORY = "闲聊";
     private static final String VISIBILITY_ONLINE = "ONLINE";
     private static final String VISIBILITY_INVISIBLE = "INVISIBLE";
+    private static final List<String> REPORT_TARGET_TYPES = List.of("CHAT_MESSAGE", "TALK_POST");
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -55,6 +60,12 @@ public class CommunityService {
 
     @Autowired
     private UserMapper userMapper;
+
+    @Autowired
+    private PostReportMapper postReportMapper;
+
+    @Autowired
+    private NotificationService notificationService;
 
     private final RowMapper<ChatRoomMessageDto> chatMessageRowMapper = (rs, rowNum) -> new ChatRoomMessageDto(
             rs.getLong("id"),
@@ -119,9 +130,10 @@ public class CommunityService {
 
         long id = insertAndReturnKey(
                 """
-                INSERT INTO community_chat_messages (room_id, author, avatar_seed, content, create_time)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO community_chat_messages (author_id, room_id, author, avatar_seed, content, create_time)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
+                currentUser.getId(),
                 roomId,
                 author,
                 avatarSeed,
@@ -262,6 +274,61 @@ public class CommunityService {
                 "DELETE FROM community_user_blocks WHERE blocker_id = ? AND blocked_id = ?",
                 currentUserId,
                 safeTargetUserId
+        );
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void reportCommunityContent(Long currentUserId, CreateCommunityReportRequest request) {
+        User reporter = userAccessService.requireActiveUser(currentUserId);
+        String targetType = requireText(request.targetType(), "举报类型不能为空").toUpperCase(Locale.ROOT);
+        if (!REPORT_TARGET_TYPES.contains(targetType)) {
+            throw ApiException.badRequest("举报类型无效");
+        }
+        Long targetId = request.targetId();
+        if (targetId == null || targetId <= 0) {
+            throw ApiException.badRequest("举报目标无效");
+        }
+
+        Map<String, Object> target = loadReportTarget(targetType, targetId);
+        Long authorId = toLong(target.get("author_id"));
+        if (Objects.equals(authorId, reporter.getId())) {
+            throw ApiException.badRequest("不能举报自己发布的内容");
+        }
+
+        Long existingCount = postReportMapper.selectCount(new QueryWrapper<PostReport>()
+                .eq("target_type", targetType)
+                .eq("target_id", targetId)
+                .eq("reporter_id", currentUserId)
+                .eq("status", "PENDING"));
+        if (existingCount != null && existingCount > 0) {
+            throw ApiException.badRequest("你已经举报过这条内容");
+        }
+
+        String reason = limitText(requireText(request.reason(), "举报原因不能为空"), 60);
+        PostReport report = new PostReport();
+        report.setTargetType(targetType);
+        report.setTargetId(targetId);
+        report.setTargetSummary(limitText(buildReportTargetSummary(targetType, target), 240));
+        report.setReporterId(currentUserId);
+        report.setReason(reason);
+        report.setDetail(limitText(normalizeNullableText(request.detail()), 500));
+        report.setStatus("PENDING");
+        report.setCreateTime(new Date());
+        report.setUpdateTime(new Date());
+        postReportMapper.insert(report);
+
+        List<Long> managerIds = userMapper.selectList(new QueryWrapper<User>()
+                        .eq("status", "ACTIVE")
+                        .in("role", List.of("OWNER", "ADMIN")))
+                .stream()
+                .map(User::getId)
+                .toList();
+        notificationService.createNotifications(
+                managerIds,
+                "COMMUNITY_REPORT",
+                "有新的社区举报待处理",
+                report.getTargetSummary(),
+                "/admin#reports"
         );
     }
 
@@ -424,6 +491,25 @@ public class CommunityService {
         CommunityTalkPostDto post = requireTalkPost(postId);
         Map<Long, List<CommunityTalkCommentDto>> commentsByPostId = loadTalkCommentsByPostIds(List.of(postId));
         return post.withComments(commentsByPostId.getOrDefault(postId, List.of()));
+    }
+
+    private Map<String, Object> loadReportTarget(String targetType, Long targetId) {
+        String sql = "CHAT_MESSAGE".equals(targetType)
+                ? "SELECT author_id, author, content FROM community_chat_messages WHERE id = ?"
+                : "SELECT author_id, author, content FROM community_talk_posts WHERE id = ?";
+        return jdbcTemplate.queryForList(sql, targetId).stream()
+                .findFirst()
+                .orElseThrow(() -> ApiException.notFound("举报内容不存在"));
+    }
+
+    private String buildReportTargetSummary(String targetType, Map<String, Object> target) {
+        String label = "CHAT_MESSAGE".equals(targetType) ? "群聊消息" : "随便聊聊";
+        return label + " · " + defaultIfBlank((String) target.get("author"), "用户") + "："
+                + defaultIfBlank(normalizeNullableText((String) target.get("content")), "无内容");
+    }
+
+    private Long toLong(Object value) {
+        return value instanceof Number number ? number.longValue() : null;
     }
 
     private CommunityTalkPostDto requireTalkPost(Long postId) {

@@ -308,7 +308,10 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
         jdbcTemplate.execute("""
                 CREATE TABLE IF NOT EXISTS post_reports (
                     id BIGINT PRIMARY KEY AUTO_INCREMENT,
-                    post_id BIGINT NOT NULL,
+                    post_id BIGINT NULL,
+                    target_type VARCHAR(30) NULL,
+                    target_id BIGINT NULL,
+                    target_summary VARCHAR(240) NULL,
                     reporter_id BIGINT NOT NULL,
                     reason VARCHAR(60) NOT NULL,
                     detail VARCHAR(500) NULL,
@@ -323,6 +326,16 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
     }
 
     private void ensurePostReportColumns() {
+        String postIdNullable = jdbcTemplate.queryForObject(
+                "SELECT IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'post_reports' AND COLUMN_NAME = 'post_id'",
+                String.class
+        );
+        if ("NO".equalsIgnoreCase(postIdNullable)) {
+            jdbcTemplate.execute("ALTER TABLE post_reports MODIFY COLUMN post_id BIGINT NULL");
+        }
+        ensureColumn("post_reports", "target_type", "target_type VARCHAR(30) NULL");
+        ensureColumn("post_reports", "target_id", "target_id BIGINT NULL");
+        ensureColumn("post_reports", "target_summary", "target_summary VARCHAR(240) NULL");
         ensureColumn("post_reports", "detail", "detail VARCHAR(500) NULL");
         ensureColumn("post_reports", "status", "status VARCHAR(20) NOT NULL DEFAULT 'PENDING'");
         ensureColumn("post_reports", "reviewed_by", "reviewed_by BIGINT NULL");
@@ -332,12 +345,14 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
         ensureIndex("post_reports", "idx_post_reports_reporter_id", "CREATE INDEX idx_post_reports_reporter_id ON post_reports(reporter_id)");
         ensureIndex("post_reports", "idx_post_reports_status", "CREATE INDEX idx_post_reports_status ON post_reports(status)");
         ensureIndex("post_reports", "idx_post_reports_reviewed_by", "CREATE INDEX idx_post_reports_reviewed_by ON post_reports(reviewed_by)");
+        ensureIndex("post_reports", "idx_post_reports_target", "CREATE INDEX idx_post_reports_target ON post_reports(target_type, target_id)");
     }
 
     private void ensureCommunityChatMessagesTable() {
         jdbcTemplate.execute("""
                 CREATE TABLE IF NOT EXISTS community_chat_messages (
                     id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                    author_id BIGINT NULL,
                     room_id VARCHAR(32) NOT NULL,
                     author VARCHAR(40) NOT NULL,
                     avatar_seed VARCHAR(60) NULL,
@@ -348,12 +363,14 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
     }
 
     private void ensureCommunityChatMessageColumns() {
+        ensureColumn("community_chat_messages", "author_id", "author_id BIGINT NULL");
         ensureColumn("community_chat_messages", "room_id", "room_id VARCHAR(32) NOT NULL DEFAULT 'general'");
         ensureColumn("community_chat_messages", "author", "author VARCHAR(40) NOT NULL DEFAULT 'Anonymous'");
         ensureColumn("community_chat_messages", "avatar_seed", "avatar_seed VARCHAR(60) NULL");
         ensureColumn("community_chat_messages", "content", "content TEXT NOT NULL");
         ensureIndex("community_chat_messages", "idx_community_chat_messages_room_id", "CREATE INDEX idx_community_chat_messages_room_id ON community_chat_messages(room_id)");
         ensureIndex("community_chat_messages", "idx_community_chat_messages_create_time", "CREATE INDEX idx_community_chat_messages_create_time ON community_chat_messages(create_time)");
+        ensureIndex("community_chat_messages", "idx_community_chat_messages_author_id", "CREATE INDEX idx_community_chat_messages_author_id ON community_chat_messages(author_id)");
     }
 
     private void ensurePrivateChatMessagesTable() {

@@ -12,6 +12,8 @@ public class AdminPostReportDto {
 
     private Long id;
     private Long postId;
+    private String targetType;
+    private Long targetId;
     private String postTitle;
     private Long reporterId;
     private String reporterName;
@@ -29,7 +31,11 @@ public class AdminPostReportDto {
         AdminPostReportDto dto = new AdminPostReportDto();
         dto.setId(entity.getId());
         dto.setPostId(entity.getPostId());
-        dto.setPostTitle(post == null ? "帖子已删除" : post.getTitle());
+        dto.setTargetType(entity.getTargetType() == null ? "FORUM_POST" : entity.getTargetType());
+        dto.setTargetId(entity.getTargetId() == null ? entity.getPostId() : entity.getTargetId());
+        dto.setPostTitle(entity.getTargetType() == null
+                ? (post == null ? "帖子已删除" : post.getTitle())
+                : (entity.getTargetSummary() == null ? "社区内容已删除" : entity.getTargetSummary()));
         dto.setReporterId(entity.getReporterId());
         dto.setReporterName(reporter == null ? "用户#" + entity.getReporterId() : reporter.getNickname());
         dto.setReason(entity.getReason());

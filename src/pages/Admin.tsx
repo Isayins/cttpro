@@ -4706,7 +4706,7 @@ export default function Admin() {
 
   const reportColumns: ColumnsType<AdminPostReport> = [
     {
-      title: "帖子",
+      title: "举报内容",
       key: "post",
       render: (_, record) => (
         <div>
@@ -7845,6 +7845,15 @@ export default function Admin() {
           footer={null}
           destroyOnClose
         >
+          {reviewingReport ? (
+            <Alert
+              className="mb-4"
+              type="info"
+              showIcon
+              message={reviewingReport.reason}
+              description={reviewingReport.detail || "举报人未填写补充说明"}
+            />
+          ) : null}
           <Form
             form={reviewForm}
             layout="vertical"

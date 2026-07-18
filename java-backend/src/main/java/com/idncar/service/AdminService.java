@@ -586,8 +586,8 @@ public class AdminService {
                 dto.getReporterId(),
                 "REPORT_REVIEW",
                 "你的举报已有处理结果",
-                "你提交的帖子举报《" + limitText(dto.getPostTitle(), 40) + "》已更新为：" + status,
-                "/forum"
+                "你提交的举报《" + limitText(dto.getPostTitle(), 40) + "》已更新为：" + status,
+                "CHAT_MESSAGE".equals(dto.getTargetType()) ? "/chat" : "TALK_POST".equals(dto.getTargetType()) ? "/randomtalk" : "/forum"
         );
         return dto;
     }

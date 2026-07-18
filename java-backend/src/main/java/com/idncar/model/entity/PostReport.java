@@ -15,6 +15,9 @@ public class PostReport {
     private Long id;
 
     private Long postId;
+    private String targetType;
+    private Long targetId;
+    private String targetSummary;
     private Long reporterId;
     private String reason;
     private String detail;

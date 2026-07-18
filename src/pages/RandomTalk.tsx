@@ -4,6 +4,7 @@ import {
   ClockCircleOutlined,
   DeleteOutlined,
   HeartOutlined,
+  FlagOutlined,
   MessageOutlined,
   PlusOutlined,
   SearchOutlined,
@@ -12,6 +13,7 @@ import {
 } from "@ant-design/icons";
 
 import MainLayout from "../layouts/MainLayout";
+import CommunityReportModal from "../components/CommunityReportModal";
 import StatusState from "../components/StatusState";
 import { useAuth } from "../context/useAuth";
 import {
@@ -22,7 +24,7 @@ import {
   type TalkPost,
 } from "../lib/community";
 import { getErrorMessage } from "../lib/errorMessage";
-import { addTalkComment, deleteTalkPost, fetchTalkPosts, likeTalkPost, publishTalkPost } from "../services/communityService";
+import { addTalkComment, deleteTalkPost, fetchTalkPosts, likeTalkPost, publishTalkPost, type CommunityReportTarget } from "../services/communityService";
 
 const { TextArea } = Input;
 
@@ -49,6 +51,7 @@ export default function RandomTalk() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [commentInput, setCommentInput] = useState("");
   const [loading, setLoading] = useState(true);
+  const [reportTarget, setReportTarget] = useState<CommunityReportTarget | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -446,7 +449,18 @@ export default function RandomTalk() {
                         <Button danger icon={<DeleteOutlined />} onClick={() => void handleDelete(post.id)}>
                           删除
                         </Button>
-                      ) : null}
+                      ) : (
+                        <Button
+                          icon={<FlagOutlined />}
+                          onClick={() => setReportTarget({
+                            targetType: "TALK_POST",
+                            targetId: Number(post.id),
+                            label: `${post.author} 的帖子`,
+                          })}
+                        >
+                          举报
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -525,6 +539,7 @@ export default function RandomTalk() {
           </div>
         ) : null}
       </Drawer>
+      <CommunityReportModal target={reportTarget} onClose={() => setReportTarget(null)} />
     </MainLayout>
   );
 }
