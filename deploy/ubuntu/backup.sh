@@ -4,17 +4,42 @@ set -Eeuo pipefail
 umask 077
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COMPOSE_FILE="${SCRIPT_DIR}/docker-compose.yml"
-ENV_FILE="${ENV_FILE:-${SCRIPT_DIR}/.env}"
-BACKUP_ROOT="${BACKUP_ROOT:-${SCRIPT_DIR}/backups}"
+APP_HOME="${APP_HOME:-/opt/cttpro}"
+ENV_FILE="${ENV_FILE:-${APP_HOME}/.env}"
+BACKUP_ROOT="${BACKUP_ROOT:-${APP_HOME}/backups}"
 BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo "Missing environment file: ${ENV_FILE}" >&2
   exit 1
 fi
+set -a
+# shellcheck disable=SC1090
+. "${ENV_FILE}"
+set +a
+
+for command in mysqldump tar gzip sha256sum; do
+  command -v "${command}" >/dev/null 2>&1 || { echo "Missing command: ${command}" >&2; exit 1; }
+done
 if [[ ! "${BACKUP_RETENTION_DAYS}" =~ ^[0-9]+$ ]]; then
   echo "BACKUP_RETENTION_DAYS must be a non-negative integer." >&2
+  exit 1
+fi
+
+JDBC_URL="${SPRING_DATASOURCE_URL:-jdbc:mysql://127.0.0.1:3306/idncar}"
+if [[ ! "${JDBC_URL}" =~ ^jdbc:mysql://([^/:]+)(:([0-9]+))?/([^?]+) ]]; then
+  echo "Unsupported SPRING_DATASOURCE_URL; set BACKUP_DB_HOST, BACKUP_DB_PORT and BACKUP_DB_NAME." >&2
+  exit 1
+fi
+DB_HOST="${BACKUP_DB_HOST:-${BASH_REMATCH[1]}}"
+DB_PORT="${BACKUP_DB_PORT:-${BASH_REMATCH[3]:-3306}}"
+DB_NAME="${BACKUP_DB_NAME:-${BASH_REMATCH[4]}}"
+DB_USER="${BACKUP_DB_USER:-${SPRING_DATASOURCE_USERNAME:-root}}"
+DB_PASSWORD="${BACKUP_DB_PASSWORD:-${SPRING_DATASOURCE_PASSWORD:-}}"
+UPLOAD_DIR="${APP_UPLOAD_BASE_DIR:-uploads}"
+[[ "${UPLOAD_DIR}" == /* ]] || UPLOAD_DIR="${APP_HOME}/${UPLOAD_DIR}"
+if [[ ! -d "${UPLOAD_DIR}" ]]; then
+  echo "Upload directory does not exist: ${UPLOAD_DIR}" >&2
   exit 1
 fi
 
@@ -25,20 +50,16 @@ if [[ -z "${BACKUP_ROOT}" || "${BACKUP_ROOT}" == "/" ]]; then
   exit 1
 fi
 
-COMPOSE=(docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}")
 STAMP="$(date '+%Y%m%d-%H%M%S')"
 TEMP_DIR="${BACKUP_ROOT}/.${STAMP}.tmp"
 FINAL_DIR="${BACKUP_ROOT}/${STAMP}"
 mkdir "${TEMP_DIR}"
 trap 'rm -rf -- "${TEMP_DIR}"' EXIT
 
-"${COMPOSE[@]}" exec -T mysql sh -c \
-  'exec mysqldump -uroot -p"$MYSQL_ROOT_PASSWORD" --single-transaction --routines --events --triggers --set-gtid-purged=OFF "$MYSQL_DATABASE"' \
+MYSQL_PWD="${DB_PASSWORD}" mysqldump -h "${DB_HOST}" -P "${DB_PORT}" -u "${DB_USER}" \
+  --single-transaction --routines --events --triggers --set-gtid-purged=OFF "${DB_NAME}" \
   | gzip > "${TEMP_DIR}/database.sql.gz"
-
-"${COMPOSE[@]}" exec -T java-backend tar -C /app/uploads -czf - . \
-  > "${TEMP_DIR}/uploads.tar.gz"
-
+tar -C "${UPLOAD_DIR}" -czf "${TEMP_DIR}/uploads.tar.gz" .
 (
   cd "${TEMP_DIR}"
   sha256sum database.sql.gz uploads.tar.gz > SHA256SUMS

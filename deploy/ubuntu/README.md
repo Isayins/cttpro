@@ -81,8 +81,12 @@ docker compose --env-file deploy/ubuntu/.env -f deploy/ubuntu/docker-compose.yml
 
 ## 数据备份与恢复
 
-备份运行中的 MySQL 和上传文件，默认写入 `deploy/ubuntu/backups/<时间>/`，
-并生成 SHA-256 校验文件；默认删除超过 14 天的本机备份：
+以下脚本用于宿主机部署，不依赖 Docker。它读取 `/opt/cttpro/.env` 中的
+`SPRING_DATASOURCE_*` 和 `APP_UPLOAD_BASE_DIR`，需要宿主机已安装
+`default-mysql-client`、`redis-tools`、`tar` 和 `gzip`。
+
+备份运行中的 MySQL 和上传文件，默认写入 `/opt/cttpro/backups/<时间>/`，
+并生成 SHA-256 校验文件；默认删除超过 14 天的备份：
 
 ```bash
 bash deploy/ubuntu/backup.sh
@@ -103,10 +107,14 @@ BACKUP_ROOT=/srv/cttpro-backups BACKUP_RETENTION_DAYS=30 \
 ```
 
 恢复会校验归档、停止 Java 后端、重建数据库与上传目录、清理 Redis 会话，
-必须显式确认。失败时后端保持停止，先检查数据后再手动启动：
+必须显式确认。默认通过 systemd 管理 `java-backend` 服务；nohup 部署设置
+`APP_CONTROL=nohup`。失败时后端保持停止，先检查数据后再手动启动：
 
 ```bash
 RESTORE_CONFIRM=RESTORE \
+  bash deploy/ubuntu/restore.sh /srv/cttpro-backups/20260718-030000
+
+APP_CONTROL=nohup RESTORE_CONFIRM=RESTORE \
   bash deploy/ubuntu/restore.sh /srv/cttpro-backups/20260718-030000
 ```
 
