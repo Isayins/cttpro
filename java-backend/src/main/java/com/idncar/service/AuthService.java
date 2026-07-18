@@ -7,6 +7,7 @@ import com.idncar.mapper.LoginRecordMapper;
 import com.idncar.mapper.UserMapper;
 import com.idncar.model.dto.AuthResponse;
 import com.idncar.model.dto.ChangePasswordRequest;
+import com.idncar.model.dto.ChangeEmailRequest;
 import com.idncar.model.dto.LoginRecordDto;
 import com.idncar.model.dto.LoginRequest;
 import com.idncar.model.dto.RegisterRequest;
@@ -43,6 +44,7 @@ import java.nio.file.Path;
 import java.time.Year;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -54,6 +56,9 @@ public class AuthService {
 
     private static final String PASSWORD_RESET_CODE_SENT_MESSAGE =
             "如果该邮箱已注册，验证码邮件将发送到该邮箱";
+    private static final String EMAIL_PURPOSE_REGISTER = "REGISTER";
+    private static final String EMAIL_PURPOSE_PASSWORD_RESET = "PASSWORD_RESET";
+    private static final String EMAIL_PURPOSE_CHANGE = "EMAIL_CHANGE";
 
     private static final Logger log = LoggerFactory.getLogger(AuthService.class);
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
@@ -155,7 +160,8 @@ public class AuthService {
             throw ApiException.badRequest("该邮箱已注册，请直接登录");
         }
 
-        return sendVerificationEmail(email, registerCodeKey(email), registerCooldownKey(email), false);
+        return sendVerificationEmail(
+                email, registerCodeKey(email), registerCooldownKey(email), EMAIL_PURPOSE_REGISTER);
     }
 
     public SendEmailCodeResponse sendPasswordResetEmailCode(SendEmailCodeRequest request) {
@@ -170,9 +176,22 @@ public class AuthService {
             return new SendEmailCodeResponse(PASSWORD_RESET_CODE_SENT_MESSAGE, null);
         }
 
-        sendVerificationEmail(email, passwordResetCodeKey(email), cooldownKey, true);
+        sendVerificationEmail(email, passwordResetCodeKey(email), cooldownKey, EMAIL_PURPOSE_PASSWORD_RESET);
         redisTemplate.delete(passwordResetAttemptsKey(email));
         return new SendEmailCodeResponse(PASSWORD_RESET_CODE_SENT_MESSAGE, null);
+    }
+
+    public SendEmailCodeResponse sendEmailChangeCode(Long userId, SendEmailCodeRequest request) {
+        User user = userAccessService.requireActiveUser(userId);
+        String email = requireEmail(request.getEmail());
+        if (email.equalsIgnoreCase(user.getEmail())) {
+            throw ApiException.badRequest("新邮箱不能与当前邮箱相同");
+        }
+        if (userMapper.selectByEmail(email) != null) {
+            throw ApiException.badRequest("该邮箱已被其他账号使用");
+        }
+        return sendVerificationEmail(
+                email, emailChangeCodeKey(userId, email), emailChangeCooldownKey(userId), EMAIL_PURPOSE_CHANGE);
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -382,6 +401,35 @@ public class AuthService {
         userMapper.updateById(user);
     }
 
+    @Transactional(rollbackFor = Exception.class)
+    public void changeEmail(Long userId, ChangeEmailRequest request) {
+        User user = userAccessService.requireActiveUser(userId);
+        String currentPassword = requireText(request.currentPassword(), "请输入当前密码");
+        String newEmail = requireEmail(request.newEmail());
+        String emailCode = requireText(request.emailCode(), "请输入邮箱验证码");
+
+        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
+            throw ApiException.badRequest("当前密码不正确");
+        }
+        if (newEmail.equalsIgnoreCase(user.getEmail())) {
+            throw ApiException.badRequest("新邮箱不能与当前邮箱相同");
+        }
+        User existing = userMapper.selectByEmail(newEmail);
+        if (existing != null && !existing.getId().equals(userId)) {
+            throw ApiException.badRequest("该邮箱已被其他账号使用");
+        }
+        Object storedCode = redisTemplate.opsForValue().get(emailChangeCodeKey(userId, newEmail));
+        if (storedCode == null || !emailCode.equals(String.valueOf(storedCode))) {
+            throw ApiException.badRequest("邮箱验证码错误或已过期");
+        }
+
+        user.setEmail(newEmail);
+        userMapper.updateById(user);
+        redisTemplate.delete(emailChangeCodeKey(userId, newEmail));
+        redisTemplate.delete(emailChangeCooldownKey(userId));
+        invalidateCurrentSession(userId);
+    }
+
     public List<LoginRecordDto> getRecentLoginRecords(Long userId, Integer limit) {
         userAccessService.requireActiveUser(userId);
         int safeLimit = limit == null ? 10 : Math.max(1, Math.min(limit, 20));
@@ -436,7 +484,7 @@ public class AuthService {
         if (!EMAIL_PATTERN.matcher(normalizedEmail).matches()) {
             throw ApiException.badRequest("邮箱格式不正确");
         }
-        return normalizedEmail;
+        return normalizedEmail.toLowerCase(Locale.ROOT);
     }
 
     private String requirePassword(String password) {
@@ -473,6 +521,14 @@ public class AuthService {
 
     private String passwordResetAttemptsKey(String email) {
         return "email:password-reset:attempts:" + email.toLowerCase();
+    }
+
+    private String emailChangeCodeKey(Long userId, String email) {
+        return "email:change:code:" + userId + ":" + email.toLowerCase();
+    }
+
+    private String emailChangeCooldownKey(Long userId) {
+        return "email:change:cooldown:" + userId;
     }
 
     private int nextUsageCount(Integer usageCount) {
@@ -548,7 +604,7 @@ public class AuthService {
         return value.substring(0, maxLength);
     }
 
-    private SendEmailCodeResponse sendVerificationEmail(String email, String codeKey, String cooldownKey, boolean passwordReset) {
+    private SendEmailCodeResponse sendVerificationEmail(String email, String codeKey, String cooldownKey, String purpose) {
         if (Boolean.TRUE.equals(redisTemplate.hasKey(cooldownKey))) {
             throw ApiException.badRequest("验证码发送过于频繁，请稍后再试");
         }
@@ -578,13 +634,21 @@ public class AuthService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(senderAddress, "IDNCAR");
             helper.setTo(email);
-            helper.setSubject(passwordReset ? "IDNCAR 密码重置验证码" : "IDNCAR 注册验证码");
-            helper.setText(passwordReset ? buildPasswordResetEmailHtml(code) : buildRegisterEmailHtml(code), true);
+            helper.setSubject(switch (purpose) {
+                case EMAIL_PURPOSE_PASSWORD_RESET -> "IDNCAR 密码重置验证码";
+                case EMAIL_PURPOSE_CHANGE -> "IDNCAR 更换邮箱验证码";
+                default -> "IDNCAR 注册验证码";
+            });
+            helper.setText(switch (purpose) {
+                case EMAIL_PURPOSE_PASSWORD_RESET -> buildPasswordResetEmailHtml(code);
+                case EMAIL_PURPOSE_CHANGE -> buildEmailChangeEmailHtml(code);
+                default -> buildRegisterEmailHtml(code);
+            }, true);
             mailBrandTemplateHelper.addInlineLogoIfNeeded(helper);
             mailSender.send(message);
         } catch (Exception e) {
             log.warn("Verification email failed: purpose={}, email={}, sender={}, error={}",
-                    passwordReset ? "PASSWORD_RESET" : "REGISTER", email, senderAddress, e.getMessage(), e);
+                    purpose, email, senderAddress, e.getMessage(), e);
             clearEmailState(codeKey, cooldownKey);
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "验证码邮件发送失败，请稍后重试");
         }
@@ -706,5 +770,12 @@ public class AuthService {
                 .replace("注册验证码", "密码重置验证码")
                 .replace("完成邮箱验证", "重置账号密码")
                 .replace("仅用于本次注册", "仅用于本次密码重置");
+    }
+
+    private String buildEmailChangeEmailHtml(String code) {
+        return buildRegisterEmailHtml(code)
+                .replace("注册验证码", "更换邮箱验证码")
+                .replace("完成邮箱验证", "绑定新的账号邮箱")
+                .replace("仅用于本次注册", "仅用于本次邮箱更换");
     }
 }

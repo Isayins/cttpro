@@ -36,7 +36,7 @@ import { IMAGE_ACCEPT, isAllowedImageFile } from "../lib/richContent";
 import { isAllowedImageResourceUrl } from "../lib/urlValidation";
 import { authApi } from "../services/api/auth";
 import { forumApi } from "../services/api/forum";
-import type { ChangePasswordPayload, LoginRecord, Post, UpdateProfilePayload } from "../types/app";
+import type { ChangeEmailPayload, ChangePasswordPayload, LoginRecord, Post, UpdateProfilePayload } from "../types/app";
 
 const AVATAR_MAX_SIZE_BYTES = 5 * 1024 * 1024;
 const numberFormatter = new Intl.NumberFormat("zh-CN");
@@ -117,11 +117,15 @@ function normalizeProfilePayload(values: UpdateProfilePayload): UpdateProfilePay
 }
 
 export default function Profile() {
-  const { user, updateProfile, changePassword, uploadAvatar } = useAuth();
+  const { user, updateProfile, changePassword, uploadAvatar, logout } = useAuth();
   const [profileForm] = Form.useForm<UpdateProfilePayload>();
   const [passwordForm] = Form.useForm<ChangePasswordPayload>();
+  const [emailForm] = Form.useForm<ChangeEmailPayload>();
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [sendingEmailCode, setSendingEmailCode] = useState(false);
+  const [emailCodeCountdown, setEmailCodeCountdown] = useState(0);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [avatarSourceFile, setAvatarSourceFile] = useState<File | null>(null);
   const [loadingRecords, setLoadingRecords] = useState(false);
@@ -142,6 +146,17 @@ export default function Profile() {
       bio: user.bio ?? "",
     });
   }, [profileForm, user]);
+
+  useEffect(() => {
+    if (emailCodeCountdown <= 0) {
+      return;
+    }
+    const timer = window.setTimeout(
+      () => setEmailCodeCountdown((value) => value - 1),
+      1000,
+    );
+    return () => window.clearTimeout(timer);
+  }, [emailCodeCountdown]);
 
   const loadLoginRecords = useCallback(async () => {
     setLoadingRecords(true);
@@ -244,6 +259,48 @@ export default function Profile() {
       message.error(getFriendlyMessage(error, "修改密码失败"));
     } finally {
       setSavingPassword(false);
+    }
+  }
+
+  async function handleSendEmailChangeCode() {
+    try {
+      await emailForm.validateFields(["newEmail"]);
+    } catch {
+      message.warning("请先输入正确的新邮箱");
+      return;
+    }
+    const newEmail = String(emailForm.getFieldValue("newEmail") ?? "")
+      .trim()
+      .toLowerCase();
+    emailForm.setFieldsValue({ newEmail });
+    setSendingEmailCode(true);
+    try {
+      const response = await authApi.sendEmailChangeCode(newEmail);
+      message.success(response.message || "验证码已发送，请查收新邮箱");
+      setEmailCodeCountdown(60);
+    } catch (error) {
+      message.error(getFriendlyMessage(error, "验证码发送失败"));
+    } finally {
+      setSendingEmailCode(false);
+    }
+  }
+
+  async function handleChangeEmail(values: ChangeEmailPayload) {
+    setSavingEmail(true);
+    try {
+      await authApi.changeEmail({
+        ...values,
+        newEmail: values.newEmail.trim().toLowerCase(),
+        emailCode: values.emailCode.trim(),
+      });
+      emailForm.resetFields();
+      setEmailCodeCountdown(0);
+      message.success("邮箱更换成功，请使用新邮箱重新登录");
+      await logout();
+    } catch (error) {
+      message.error(getFriendlyMessage(error, "邮箱更换失败"));
+    } finally {
+      setSavingEmail(false);
     }
   }
 
@@ -459,6 +516,7 @@ export default function Profile() {
                     保存资料
                   </Button>
                 </Form>
+
               </Card>
 
               <Card className="rounded-[30px] border-slate-100 shadow-sm">
@@ -525,6 +583,90 @@ export default function Profile() {
                     </Button>
                     <Button onClick={() => passwordForm.resetFields()}>清空</Button>
                   </Space>
+                </Form>
+
+                <div className="my-7 border-t border-slate-100" />
+                <div className="mb-5">
+                  <div className="font-semibold text-slate-900">更换登录邮箱</div>
+                  <div className="mt-1 text-sm text-slate-500">
+                    当前邮箱：{user?.email || "未绑定邮箱"}。更换成功后需要重新登录。
+                  </div>
+                </div>
+                <Form<ChangeEmailPayload>
+                  form={emailForm}
+                  layout="vertical"
+                  onFinish={(values) => void handleChangeEmail(values)}
+                >
+                  <Row gutter={[16, 0]}>
+                    <Col xs={24} md={12}>
+                      <Form.Item
+                        name="currentPassword"
+                        label="当前密码"
+                        rules={[{ required: true, message: "请输入当前密码" }]}
+                      >
+                        <Input.Password
+                          prefix={<LockOutlined />}
+                          autoComplete="current-password"
+                          placeholder="请输入当前密码"
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} md={12}>
+                      <Form.Item
+                        name="newEmail"
+                        label="新邮箱"
+                        normalize={(value) =>
+                          typeof value === "string" ? value.trim().toLowerCase() : value
+                        }
+                        rules={[
+                          { required: true, message: "请输入新邮箱" },
+                          { type: "email", message: "请输入正确的邮箱格式" },
+                        ]}
+                      >
+                        <Input
+                          prefix={<MailOutlined />}
+                          type="email"
+                          autoComplete="email"
+                          placeholder="请输入新邮箱"
+                        />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                  <Form.Item
+                    name="emailCode"
+                    label="新邮箱验证码"
+                    normalize={(value) =>
+                      typeof value === "string"
+                        ? value.replace(/\D/g, "").slice(0, 6)
+                        : value
+                    }
+                    rules={[
+                      { required: true, message: "请输入邮箱验证码" },
+                      { len: 6, message: "请输入 6 位邮箱验证码" },
+                    ]}
+                  >
+                    <Input
+                      prefix={<SafetyCertificateOutlined />}
+                      inputMode="numeric"
+                      maxLength={6}
+                      autoComplete="one-time-code"
+                      placeholder="请输入邮箱验证码"
+                      addonAfter={
+                        <Button
+                          type="link"
+                          size="small"
+                          loading={sendingEmailCode}
+                          disabled={sendingEmailCode || emailCodeCountdown > 0}
+                          onClick={() => void handleSendEmailChangeCode()}
+                        >
+                          {emailCodeCountdown > 0 ? `${emailCodeCountdown}s` : "发送"}
+                        </Button>
+                      }
+                    />
+                  </Form.Item>
+                  <Button type="primary" htmlType="submit" loading={savingEmail}>
+                    验证并更换邮箱
+                  </Button>
                 </Form>
               </Card>
             </div>

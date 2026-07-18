@@ -554,6 +554,12 @@ export interface ChangePasswordPayload {
   confirmPassword: string;
 }
 
+export interface ChangeEmailPayload {
+  currentPassword: string;
+  newEmail: string;
+  emailCode: string;
+}
+
 export interface AdminUpdateUserPayload {
   nickname?: string;
   avatarUrl?: string;

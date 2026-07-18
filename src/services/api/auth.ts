@@ -1,6 +1,7 @@
 import type {
   AuthResponse,
   ChangePasswordPayload,
+  ChangeEmailPayload,
   EmailCodeResponse,
   LoginPayload,
   LoginRecord,
@@ -59,6 +60,18 @@ export const authApi = {
   },
   changePassword: (payload: ChangePasswordPayload) =>
     apiRequest<void>("/api/auth/change-password", {
+      method: "POST",
+      authMode: "required",
+      body: payload,
+    }),
+  sendEmailChangeCode: (email: string) =>
+    apiRequest<EmailCodeResponse>("/api/auth/email-change-code", {
+      method: "POST",
+      authMode: "required",
+      body: { email },
+    }),
+  changeEmail: (payload: ChangeEmailPayload) =>
+    apiRequest<void>("/api/auth/change-email", {
       method: "POST",
       authMode: "required",
       body: payload,

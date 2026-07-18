@@ -2,6 +2,7 @@ package com.idncar.api.auth;
 
 import com.idncar.model.dto.AuthResponse;
 import com.idncar.model.dto.ChangePasswordRequest;
+import com.idncar.model.dto.ChangeEmailRequest;
 import com.idncar.model.dto.LoginRecordDto;
 import com.idncar.model.dto.LoginRequest;
 import com.idncar.model.dto.RegisterRequest;
@@ -94,6 +95,20 @@ public class AuthController {
                                                @RequestBody ChangePasswordRequest request) {
         authService.changePassword(userId, request);
         return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/email-change-code")
+    public ResponseEntity<SendEmailCodeResponse> sendEmailChangeCode(
+            @RequestAttribute("userId") Long userId,
+            @RequestBody SendEmailCodeRequest request) {
+        return ResponseEntity.ok(authService.sendEmailChangeCode(userId, request));
+    }
+
+    @PostMapping("/change-email")
+    public ResponseEntity<Void> changeEmail(@RequestAttribute("userId") Long userId,
+                                            @RequestBody ChangeEmailRequest request) {
+        authService.changeEmail(userId, request);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/login-records")
