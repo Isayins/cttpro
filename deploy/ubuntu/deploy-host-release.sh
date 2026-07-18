@@ -117,6 +117,16 @@ deploy_release() {
     exit 1
   fi
 
+  if [[ -d "${incoming}/ops" ]]; then
+    install -d -m 0755 "${APP_HOME}/deploy/ubuntu"
+    install -m 0755 "${incoming}/ops/"*.sh "${APP_HOME}/deploy/ubuntu/"
+    if [[ -d "${APP_HOME}/bin" ]]; then
+      for script in backup.sh ops-alert.sh ops-health-check.sh; do
+        [[ ! -f "${incoming}/ops/${script}" ]] || install -m 0755 "${incoming}/ops/${script}" "${APP_HOME}/bin/${script}"
+      done
+    fi
+  fi
+
   rm -rf -- "${incoming}"
   echo "Release deployed: ${RELEASE_ID}"
 }

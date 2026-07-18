@@ -14,7 +14,8 @@ sudo SERVICE_USER=cttpro bash deploy/ubuntu/install-backend-service.sh
 
 GitHub Actions 在 `main` 检查通过后会上传同一版本的前端和后端，并执行
 `deploy-host-release.sh`。脚本先切换后端，等待 `/actuator/health` 返回 `UP`，
-再切换前端和重载 Nginx；任一步失败会恢复上一版本。
+再切换前端和重载 Nginx；任一步失败会恢复上一版本。发布成功后还会同步
+`/opt/cttpro/deploy/ubuntu` 和已安装的备份、健康检查运行脚本。
 
 需要手动回滚最近一次发布时执行：
 
@@ -107,7 +108,7 @@ docker compose --env-file deploy/ubuntu/.env -f deploy/ubuntu/docker-compose.yml
 
 保留数据库和上传文件的持久化卷；如需清空数据，需额外删除 Docker volumes。
 
-## 数据备份与恢复
+## 宿主机数据备份与恢复
 
 以下脚本用于宿主机部署，不依赖 Docker。它读取 `/opt/cttpro/.env` 中的
 `SPRING_DATASOURCE_*` 和 `APP_UPLOAD_BASE_DIR`，需要宿主机已安装
@@ -166,7 +167,7 @@ APP_CONTROL=nohup RESTORE_CONFIRM=RESTORE \
   bash deploy/ubuntu/restore.sh /srv/cttpro-backups/20260718-030000
 ```
 
-## Nohup 单独启动 Java 后端
+## 宿主机 Nohup 单独启动 Java 后端
 
 如果只部署 Java 后端 JAR，可以使用：
 
