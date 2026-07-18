@@ -21,8 +21,16 @@ import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.IOException;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Properties;
 
 @RestController
 @RequestMapping("/api/admin/system-health")
@@ -55,6 +63,9 @@ public class AdminSystemHealthController {
     @Value("${app.mail.mock-enabled:false}")
     private boolean mailMockEnabled;
 
+    @Value("${app.ops.backup-status-file:/opt/cttpro/backup-status.properties}")
+    private String backupStatusFile;
+
     @GetMapping
     public ResponseEntity<AdminSystemHealthDto> getSystemHealth(@RequestAttribute("userId") Long userId) {
         List<AdminSystemHealthDto.Item> items = new ArrayList<>();
@@ -63,6 +74,7 @@ public class AdminSystemHealthController {
         items.add(orderHealth(userId));
         items.add(deliveryHealth(userId));
         items.add(downloadHealth(userId));
+        items.add(backupHealth());
         return ResponseEntity.ok(AdminSystemHealthDto.of(items));
     }
 
@@ -141,6 +153,51 @@ public class AdminSystemHealthController {
         }
         return item("downloads", "下载中心", "OK", "下载中心有可用资源",
                 "共 " + safe(stats.getTotal()) + " 个资源，其中 " + safe(stats.getLocked()) + " 个需要验证或密码。", "查看下载", "downloads");
+    }
+
+    private AdminSystemHealthDto.Item backupHealth() {
+        Path statusPath = Path.of(backupStatusFile).toAbsolutePath().normalize();
+        if (!Files.isRegularFile(statusPath)) {
+            return item("backup", "数据备份", "WARNING", "尚无备份结果",
+                    "未找到备份状态文件，请安装宿主机备份定时器并完成首次备份。", "查看部署说明", "system-health");
+        }
+
+        Properties status = new Properties();
+        try (Reader reader = Files.newBufferedReader(statusPath, StandardCharsets.UTF_8)) {
+            status.load(reader);
+        } catch (IOException exception) {
+            return item("backup", "数据备份", "ERROR", "备份状态无法读取",
+                    "无法读取 " + statusPath + "：" + exception.getMessage(), "检查备份任务", "system-health");
+        }
+
+        String result = status.getProperty("status", "UNKNOWN");
+        String finishedAt = status.getProperty("finishedAt", "");
+        if ("FAILED".equalsIgnoreCase(result)) {
+            return item("backup", "数据备份", "ERROR", "最近一次备份失败",
+                    status.getProperty("message", "请检查 cttpro-backup.service 日志。"), "检查备份任务", "system-health");
+        }
+        if (!"SUCCESS".equalsIgnoreCase(result)) {
+            return item("backup", "数据备份", "WARNING", "备份状态未知",
+                    "状态文件没有成功结果，请检查 cttpro-backup.service。", "检查备份任务", "system-health");
+        }
+
+        try {
+            if (Duration.between(Instant.parse(finishedAt), Instant.now()).toHours() > 36) {
+                return item("backup", "数据备份", "WARNING", "备份已超过 36 小时",
+                        "最近完成时间：" + finishedAt, "检查备份任务", "system-health");
+            }
+        } catch (RuntimeException exception) {
+            return item("backup", "数据备份", "WARNING", "备份时间无效",
+                    "状态文件中的完成时间无法识别。", "检查备份任务", "system-health");
+        }
+
+        if (!Boolean.parseBoolean(status.getProperty("remoteSynced", "false"))) {
+            return item("backup", "数据备份", "WARNING", "本机备份成功但未异机同步",
+                    "最近完成时间：" + finishedAt + "；配置 BACKUP_REMOTE_TARGET 后可同步到独立服务器。",
+                    "配置异机备份", "system-health");
+        }
+        return item("backup", "数据备份", "OK", "备份与异机同步正常",
+                "最近完成时间：" + finishedAt, "查看备份状态", "system-health");
     }
 
     private AdminSystemHealthDto.Item item(String key, String title, String status, String summary,

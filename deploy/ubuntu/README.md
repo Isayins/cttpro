@@ -111,7 +111,8 @@ docker compose --env-file deploy/ubuntu/.env -f deploy/ubuntu/docker-compose.yml
 
 以下脚本用于宿主机部署，不依赖 Docker。它读取 `/opt/cttpro/.env` 中的
 `SPRING_DATASOURCE_*` 和 `APP_UPLOAD_BASE_DIR`，需要宿主机已安装
-`default-mysql-client`、`redis-tools`、`tar` 和 `gzip`。
+`default-mysql-client`、`redis-tools`、`tar` 和 `gzip`；启用异机同步时还需
+`rsync` 和可免交互登录的 SSH 密钥。
 
 备份运行中的 MySQL 和上传文件，默认写入 `/opt/cttpro/backups/<时间>/`，
 并生成 SHA-256 校验文件；默认删除超过 14 天的备份：
@@ -127,8 +128,27 @@ BACKUP_ROOT=/srv/cttpro-backups BACKUP_RETENTION_DAYS=30 \
   bash deploy/ubuntu/backup.sh
 ```
 
-本机备份仍可能随磁盘一起丢失，备份完成后应同步到独立服务器或对象存储。
-每天凌晨 3 点执行的 cron 示例：
+本机备份仍可能随磁盘一起丢失。推荐在 `/opt/cttpro/.env` 配置独立服务器：
+
+```bash
+BACKUP_REMOTE_TARGET=backup@example.com:/srv/cttpro
+APP_OPS_ALERT_WEBHOOK_URL=https://alerts.example.com/cttpro
+```
+
+备份完成后会通过 SSH/rsync 同步到远端，并将结果写入
+`/opt/cttpro/backup-status.properties`；后台「系统状态」会显示备份是否失败、
+是否超过 36 小时及是否完成异机同步。Webhook 接收标准 JSON `{"text":"..."}`。
+
+安装宿主机定时器后，每天凌晨 3 点备份、每 5 分钟检查后端健康状态；健康告警
+只在正常/故障状态变化时发送：
+
+```bash
+sudo bash deploy/ubuntu/install-ops-timers.sh
+systemctl list-timers 'cttpro-*'
+journalctl -u cttpro-backup.service -u cttpro-health.service
+```
+
+如不使用 systemd timer，也可以使用 cron：
 
 ```cron
 0 3 * * * BACKUP_ROOT=/srv/cttpro-backups BACKUP_RETENTION_DAYS=30 /bin/bash /opt/cttpro/deploy/ubuntu/backup.sh >> /var/log/cttpro-backup.log 2>&1

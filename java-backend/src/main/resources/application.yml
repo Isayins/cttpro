@@ -58,6 +58,8 @@ jwt:
   expiration: 86400000
 
 app:
+  ops:
+    backup-status-file: ${APP_BACKUP_STATUS_FILE:/opt/cttpro/backup-status.properties}
   site:
     base-url: ${APP_SITE_BASE_URL:https://idncar.com}
   auth:

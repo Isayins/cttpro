@@ -8,6 +8,36 @@ APP_HOME="${APP_HOME:-/opt/cttpro}"
 ENV_FILE="${ENV_FILE:-${APP_HOME}/.env}"
 BACKUP_ROOT="${BACKUP_ROOT:-${APP_HOME}/backups}"
 BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
+BACKUP_STATUS_FILE="${BACKUP_STATUS_FILE:-${APP_HOME}/backup-status.properties}"
+BACKUP_REMOTE_TARGET="${BACKUP_REMOTE_TARGET:-}"
+TEMP_DIR=""
+FINAL_DIR=""
+REMOTE_SYNCED="false"
+
+write_status() {
+  local status="$1"
+  local message="$2"
+  local temporary="${BACKUP_STATUS_FILE}.tmp"
+  mkdir -p "$(dirname "${BACKUP_STATUS_FILE}")"
+  printf 'status=%s\nfinishedAt=%s\nbackupDir=%s\nremoteSynced=%s\nmessage=%s\n' \
+    "${status}" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "${FINAL_DIR}" "${REMOTE_SYNCED}" "${message}" > "${temporary}"
+  chmod 0644 "${temporary}"
+  mv "${temporary}" "${BACKUP_STATUS_FILE}"
+}
+
+finish() {
+  local exit_code=$?
+  trap - EXIT
+  [[ -z "${TEMP_DIR}" || ! -d "${TEMP_DIR}" ]] || rm -rf -- "${TEMP_DIR}"
+  if [[ "${exit_code}" -ne 0 ]]; then
+    write_status "FAILED" "Backup failed with exit code ${exit_code}"
+    if [[ -f "${SCRIPT_DIR}/ops-alert.sh" ]]; then
+      bash "${SCRIPT_DIR}/ops-alert.sh" "cttpro backup failed on $(hostname)" || true
+    fi
+  fi
+  exit "${exit_code}"
+}
+trap finish EXIT
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo "Missing environment file: ${ENV_FILE}" >&2
@@ -21,6 +51,9 @@ set +a
 for command in mysqldump tar gzip sha256sum; do
   command -v "${command}" >/dev/null 2>&1 || { echo "Missing command: ${command}" >&2; exit 1; }
 done
+if [[ -n "${BACKUP_REMOTE_TARGET}" ]]; then
+  command -v rsync >/dev/null 2>&1 || { echo "Missing command: rsync" >&2; exit 1; }
+fi
 if [[ ! "${BACKUP_RETENTION_DAYS}" =~ ^[0-9]+$ ]]; then
   echo "BACKUP_RETENTION_DAYS must be a non-negative integer." >&2
   exit 1
@@ -54,7 +87,6 @@ STAMP="$(date '+%Y%m%d-%H%M%S')"
 TEMP_DIR="${BACKUP_ROOT}/.${STAMP}.tmp"
 FINAL_DIR="${BACKUP_ROOT}/${STAMP}"
 mkdir "${TEMP_DIR}"
-trap 'rm -rf -- "${TEMP_DIR}"' EXIT
 
 MYSQL_PWD="${DB_PASSWORD}" mysqldump -h "${DB_HOST}" -P "${DB_PORT}" -u "${DB_USER}" \
   --single-transaction --routines --events --triggers --set-gtid-purged=OFF "${DB_NAME}" \
@@ -66,7 +98,12 @@ tar -C "${UPLOAD_DIR}" -czf "${TEMP_DIR}/uploads.tar.gz" .
 )
 
 mv "${TEMP_DIR}" "${FINAL_DIR}"
-trap - EXIT
+TEMP_DIR=""
+if [[ -n "${BACKUP_REMOTE_TARGET}" ]]; then
+  rsync -a "${FINAL_DIR}/" "${BACKUP_REMOTE_TARGET%/}/${STAMP}/"
+  REMOTE_SYNCED="true"
+fi
 find "${BACKUP_ROOT}" -mindepth 1 -maxdepth 1 -type d -mtime "+${BACKUP_RETENTION_DAYS}" -exec rm -rf -- {} +
 
+write_status "SUCCESS" "Backup completed"
 echo "Backup created: ${FINAL_DIR}"
