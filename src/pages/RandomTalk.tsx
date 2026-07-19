@@ -33,9 +33,16 @@ type SortMode = "latest" | "hot" | "commented";
 const categoryOptions: Array<TalkCategory> = ["全部", ...talkCategories];
 const TALK_CONTENT_MAX_LENGTH = 500;
 const TALK_COMMENT_MAX_LENGTH = 300;
+const TALK_PAGE_SIZE = 50;
 
 function getAvatarLabel(name: string) {
   return (name || "ID")[0]?.toUpperCase() || "I";
+}
+
+function mergeTalkPosts(current: TalkPost[], next: TalkPost[]) {
+  const items = new Map<string, TalkPost>();
+  [...current, ...next].forEach((item) => items.set(item.id, item));
+  return [...items.values()].sort((left, right) => right.createdAt - left.createdAt);
 }
 
 export default function RandomTalk() {
@@ -51,6 +58,8 @@ export default function RandomTalk() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [commentInput, setCommentInput] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasOlder, setHasOlder] = useState(false);
   const [reportTarget, setReportTarget] = useState<CommunityReportTarget | null>(null);
 
   useEffect(() => {
@@ -67,9 +76,12 @@ export default function RandomTalk() {
           return;
         }
 
-        setPosts(nextPosts);
+        setPosts((current) => (silent ? mergeTalkPosts(current, nextPosts) : nextPosts));
+        if (!silent) {
+          setHasOlder(nextPosts.length === TALK_PAGE_SIZE);
+        }
         setActivePost((current) =>
-          current ? nextPosts.find((post) => post.id === current.id) ?? null : current,
+          current ? nextPosts.find((post) => post.id === current.id) ?? current : current,
         );
       } catch (error) {
         if (!silent) {
@@ -92,6 +104,23 @@ export default function RandomTalk() {
       window.clearInterval(timer);
     };
   }, []);
+
+  async function handleLoadOlder() {
+    const oldestPost = posts[posts.length - 1];
+    if (!oldestPost || loadingOlder) {
+      return;
+    }
+    setLoadingOlder(true);
+    try {
+      const olderPosts = await fetchTalkPosts(oldestPost.id);
+      setPosts((current) => mergeTalkPosts(current, olderPosts));
+      setHasOlder(olderPosts.length === TALK_PAGE_SIZE);
+    } catch (error) {
+      message.error(getErrorMessage(error, "更早的内容加载失败"));
+    } finally {
+      setLoadingOlder(false);
+    }
+  }
 
   const filteredPosts = useMemo(() => {
     const normalizedKeyword = keyword.trim().toLowerCase();
@@ -421,8 +450,16 @@ export default function RandomTalk() {
               <StatusState compact title="没有找到匹配内容" description="试试换个关键词，或者直接发布一条新内容。" />
             </Card>
           ) : (
-            filteredPosts.map((post) => (
-              <Card key={post.id} className="rounded-[28px] border-slate-100 shadow-sm transition hover:border-[#d8e4f4]">
+            <>
+              {hasOlder ? (
+                <div className="flex justify-center">
+                  <Button size="small" loading={loadingOlder} onClick={() => void handleLoadOlder()}>
+                    加载更早
+                  </Button>
+                </div>
+              ) : null}
+              {filteredPosts.map((post) => (
+                <Card key={post.id} className="rounded-[28px] border-slate-100 shadow-sm transition hover:border-[#d8e4f4]">
                 <div className="flex items-start gap-4">
                   <Avatar className="bg-[#2a6df4]">{getAvatarLabel(post.author)}</Avatar>
                   <div className="min-w-0 flex-1">
@@ -465,7 +502,8 @@ export default function RandomTalk() {
                   </div>
                 </div>
               </Card>
-            ))
+              ))}
+            </>
           )}
         </div>
       </div>

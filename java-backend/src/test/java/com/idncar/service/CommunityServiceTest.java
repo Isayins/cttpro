@@ -29,6 +29,15 @@ import static org.mockito.Mockito.when;
 class CommunityServiceTest {
 
     @Test
+    void invalidCommunityPageCursorIsRejected() {
+        CommunityService service = new CommunityService();
+
+        assertThatThrownBy(() -> service.getChatMessages("general", 0L))
+                .isInstanceOf(ApiException.class)
+                .hasMessage("分页游标无效");
+    }
+
+    @Test
     void clearingAChatRoomRequiresAdminBeforeDeletingMessages() {
         CommunityService service = new CommunityService();
         UserAccessService userAccessService = mock(UserAccessService.class);
@@ -78,7 +87,7 @@ class CommunityServiceTest {
         when(jdbcTemplate.query(
                 anyString(),
                 any(org.springframework.jdbc.core.RowMapper.class),
-                eq(7L), eq(9L), eq(9L), eq(7L)
+                eq(7L), eq(9L), eq(9L), eq(7L), eq(Long.MAX_VALUE)
         )).thenReturn(List.of());
         ReflectionTestUtils.setField(service, "userAccessService", userAccessService);
         ReflectionTestUtils.setField(service, "jdbcTemplate", jdbcTemplate);

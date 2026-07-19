@@ -47,8 +47,9 @@ public class CommunityController {
     private String uploadChatImageSubDir;
 
     @GetMapping({"/chat/rooms/{roomId}/messages", "/chat/rooms/{roomId}/messages/"})
-    public ResponseEntity<List<ChatRoomMessageDto>> getChatMessages(@PathVariable String roomId) {
-        return ResponseEntity.ok(communityService.getChatMessages(roomId));
+    public ResponseEntity<List<ChatRoomMessageDto>> getChatMessages(@PathVariable String roomId,
+                                                                    @RequestParam(required = false) Long beforeId) {
+        return ResponseEntity.ok(communityService.getChatMessages(roomId, beforeId));
     }
 
     @PostMapping({"/chat/messages", "/chat/messages/"})
@@ -78,8 +79,9 @@ public class CommunityController {
 
     @GetMapping({"/private/messages/{targetUserId}", "/private/messages/{targetUserId}/"})
     public ResponseEntity<List<PrivateChatMessageDto>> getPrivateMessages(@RequestAttribute("userId") Long userId,
-                                                                          @PathVariable Long targetUserId) {
-        return ResponseEntity.ok(communityService.getPrivateMessages(userId, targetUserId));
+                                                                          @PathVariable Long targetUserId,
+                                                                          @RequestParam(required = false) Long beforeId) {
+        return ResponseEntity.ok(communityService.getPrivateMessages(userId, targetUserId, beforeId));
     }
 
     @PostMapping({"/private/messages", "/private/messages/"})
@@ -121,8 +123,8 @@ public class CommunityController {
     }
 
     @GetMapping({"/talk/posts", "/talk/posts/"})
-    public ResponseEntity<List<CommunityTalkPostDto>> getTalkPosts() {
-        return ResponseEntity.ok(communityService.getTalkPosts());
+    public ResponseEntity<List<CommunityTalkPostDto>> getTalkPosts(@RequestParam(required = false) Long beforeId) {
+        return ResponseEntity.ok(communityService.getTalkPosts(beforeId));
     }
 
     @PostMapping({"/talk/posts", "/talk/posts/"})

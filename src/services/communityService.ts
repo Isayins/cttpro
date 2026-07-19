@@ -142,8 +142,11 @@ function normalizePresenceMode(mode: string | null | undefined): ChatPresenceMod
   return mode === "INVISIBLE" ? "INVISIBLE" : "ONLINE";
 }
 
-export async function fetchChatMessages(roomId: string): Promise<ChatMessage[]> {
-  const items = await request<ChatMessageResponse[]>(`/api/community/chat/rooms/${encodeURIComponent(roomId)}/messages`);
+export async function fetchChatMessages(roomId: string, beforeId?: string): Promise<ChatMessage[]> {
+  const query = beforeId ? `?beforeId=${encodeURIComponent(beforeId)}` : "";
+  const items = await request<ChatMessageResponse[]>(
+    `/api/community/chat/rooms/${encodeURIComponent(roomId)}/messages${query}`,
+  );
   return items.map(mapChatMessage);
 }
 
@@ -191,9 +194,10 @@ export async function fetchPrivateChatUsers(): Promise<PrivateChatUser[]> {
   return items.map(mapPrivateChatUser);
 }
 
-export async function fetchPrivateMessages(targetUserId: number): Promise<PrivateChatMessage[]> {
+export async function fetchPrivateMessages(targetUserId: number, beforeId?: number): Promise<PrivateChatMessage[]> {
+  const query = beforeId ? `?beforeId=${encodeURIComponent(String(beforeId))}` : "";
   const items = await request<PrivateChatMessageResponse[]>(
-    `/api/community/private/messages/${encodeURIComponent(String(targetUserId))}`,
+    `/api/community/private/messages/${encodeURIComponent(String(targetUserId))}${query}`,
   );
   return items.map(mapPrivateChatMessage);
 }
@@ -234,8 +238,9 @@ export async function updateChatPresenceMode(mode: ChatPresenceMode): Promise<Ch
   return normalizePresenceMode(item.mode);
 }
 
-export async function fetchTalkPosts(): Promise<TalkPost[]> {
-  const items = await request<TalkPostResponse[]>("/api/community/talk/posts");
+export async function fetchTalkPosts(beforeId?: string): Promise<TalkPost[]> {
+  const query = beforeId ? `?beforeId=${encodeURIComponent(beforeId)}` : "";
+  const items = await request<TalkPostResponse[]>(`/api/community/talk/posts${query}`);
   return items.map(mapTalkPost);
 }
 

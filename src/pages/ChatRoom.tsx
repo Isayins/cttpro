@@ -71,6 +71,7 @@ type ChatViewMode = "PRIVATE" | "GROUP";
 const PRIVATE_USERS_POLL_INTERVAL_MS = 15_000;
 const PRIVATE_MESSAGES_POLL_INTERVAL_MS = 8_000;
 const GROUP_MESSAGES_POLL_INTERVAL_MS = 8_000;
+const MESSAGE_PAGE_SIZE = 50;
 const PRIVATE_IMAGE_UPLOAD_MESSAGE_KEY = "private-image-upload";
 const GROUP_IMAGE_UPLOAD_MESSAGE_KEY = "group-image-upload";
 const CHAT_DRAFT_MAX_LENGTH = 1000;
@@ -97,6 +98,18 @@ function renderMessageContent(content: string) {
   });
 }
 
+function mergeMessageHistory<T extends { id: string | number }>(current: T[], latest: T[]): T[] {
+  if (latest.length === 0) {
+    return [];
+  }
+  const oldestLatestId = Number(latest[0].id);
+  const items = new Map<string, T>();
+  [...current.filter((item) => Number(item.id) < oldestLatestId), ...latest].forEach((item) => {
+    items.set(String(item.id), item);
+  });
+  return [...items.values()].sort((left, right) => Number(left.id) - Number(right.id));
+}
+
 export default function ChatRoom() {
   const { user } = useAuth();
   const [viewMode, setViewMode] = useState<ChatViewMode>("GROUP");
@@ -112,6 +125,8 @@ export default function ChatRoom() {
   const [uploadingPrivateImage, setUploadingPrivateImage] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [loadingPrivateMessages, setLoadingPrivateMessages] = useState(false);
+  const [loadingOlderPrivateMessages, setLoadingOlderPrivateMessages] = useState(false);
+  const [hasOlderPrivateMessages, setHasOlderPrivateMessages] = useState(false);
   const [updatingPresence, setUpdatingPresence] = useState(false);
   const [updatingBlockUserId, setUpdatingBlockUserId] = useState<number | null>(null);
   const privateMessageListRef = useRef<HTMLDivElement | null>(null);
@@ -120,6 +135,7 @@ export default function ChatRoom() {
   const privateImageUploadInFlightRef = useRef(false);
   const privateUsersRequestRef = useRef(0);
   const privateMessagesRequestRef = useRef(0);
+  const preservePrivateScrollRef = useRef(false);
 
   const [groupRoomId, setGroupRoomId] = useState<string>(
     chatRooms[0]?.id ?? "general",
@@ -129,6 +145,8 @@ export default function ChatRoom() {
   const [sendingGroupMessage, setSendingGroupMessage] = useState(false);
   const [uploadingGroupImage, setUploadingGroupImage] = useState(false);
   const [loadingGroupMessages, setLoadingGroupMessages] = useState(false);
+  const [loadingOlderGroupMessages, setLoadingOlderGroupMessages] = useState(false);
+  const [hasOlderGroupMessages, setHasOlderGroupMessages] = useState(false);
   const [clearingGroup, setClearingGroup] = useState(false);
   const [reportTarget, setReportTarget] = useState<CommunityReportTarget | null>(null);
   const groupMessageListRef = useRef<HTMLDivElement | null>(null);
@@ -136,6 +154,7 @@ export default function ChatRoom() {
   const groupMessageInFlightRef = useRef(false);
   const groupImageUploadInFlightRef = useRef(false);
   const groupMessagesRequestRef = useRef(0);
+  const preserveGroupScrollRef = useRef(false);
 
   const currentAuthor = user?.nickname?.trim() || user?.username || "用户";
 
@@ -163,6 +182,10 @@ export default function ChatRoom() {
   );
 
   useEffect(() => {
+    if (preservePrivateScrollRef.current) {
+      preservePrivateScrollRef.current = false;
+      return;
+    }
     if (!privateMessageListRef.current) {
       return;
     }
@@ -173,6 +196,10 @@ export default function ChatRoom() {
   }, [privateMessages]);
 
   useEffect(() => {
+    if (preserveGroupScrollRef.current) {
+      preserveGroupScrollRef.current = false;
+      return;
+    }
     if (!groupMessageListRef.current) {
       return;
     }
@@ -246,6 +273,7 @@ export default function ChatRoom() {
     if (!activeUserId) {
       privateMessagesRequestRef.current += 1;
       setLoadingPrivateMessages(false);
+      setHasOlderPrivateMessages(false);
       setPrivateMessages([]);
       return;
     }
@@ -266,7 +294,10 @@ export default function ChatRoom() {
         if (!isLatestRequest()) {
           return;
         }
-        setPrivateMessages(list);
+        setPrivateMessages((current) => silent ? mergeMessageHistory(current, list) : list);
+        if (!silent) {
+          setHasOlderPrivateMessages(list.length === MESSAGE_PAGE_SIZE);
+        }
         setUsers((current) =>
           current.map((item) =>
             item.id === activeUserId ? { ...item, unreadCount: 0 } : item,
@@ -303,6 +334,7 @@ export default function ChatRoom() {
     if (!activeGroupRoom?.id) {
       groupMessagesRequestRef.current += 1;
       setLoadingGroupMessages(false);
+      setHasOlderGroupMessages(false);
       setGroupMessages([]);
       return;
     }
@@ -322,7 +354,10 @@ export default function ChatRoom() {
         if (!isLatestRequest()) {
           return;
         }
-        setGroupMessages(list);
+        setGroupMessages((current) => silent ? mergeMessageHistory(current, list) : list);
+        if (!silent) {
+          setHasOlderGroupMessages(list.length === MESSAGE_PAGE_SIZE);
+        }
       } catch (error) {
         if (isLatestRequest() && !silent) {
           message.error(getErrorMessage(error, "加载群聊消息失败"));
@@ -345,6 +380,42 @@ export default function ChatRoom() {
       window.clearInterval(timer);
     };
   }, [activeGroupRoom?.id, viewMode]);
+
+  async function handleLoadOlderPrivateMessages() {
+    const oldestMessage = privateMessages[0];
+    if (!activeUserId || !oldestMessage || loadingOlderPrivateMessages) {
+      return;
+    }
+    setLoadingOlderPrivateMessages(true);
+    try {
+      const olderMessages = await fetchPrivateMessages(activeUserId, oldestMessage.id);
+      preservePrivateScrollRef.current = olderMessages.length > 0;
+      setPrivateMessages((current) => [...olderMessages, ...current]);
+      setHasOlderPrivateMessages(olderMessages.length === MESSAGE_PAGE_SIZE);
+    } catch (error) {
+      message.error(getErrorMessage(error, "更早的私聊消息加载失败"));
+    } finally {
+      setLoadingOlderPrivateMessages(false);
+    }
+  }
+
+  async function handleLoadOlderGroupMessages() {
+    const oldestMessage = groupMessages[0];
+    if (!activeGroupRoom || !oldestMessage || loadingOlderGroupMessages) {
+      return;
+    }
+    setLoadingOlderGroupMessages(true);
+    try {
+      const olderMessages = await fetchChatMessages(activeGroupRoom.id, oldestMessage.id);
+      preserveGroupScrollRef.current = olderMessages.length > 0;
+      setGroupMessages((current) => [...olderMessages, ...current]);
+      setHasOlderGroupMessages(olderMessages.length === MESSAGE_PAGE_SIZE);
+    } catch (error) {
+      message.error(getErrorMessage(error, "更早的群聊消息加载失败"));
+    } finally {
+      setLoadingOlderGroupMessages(false);
+    }
+  }
 
   async function handleModeChange(nextMode: ChatPresenceMode) {
     if (nextMode === presenceMode) {
@@ -621,6 +692,7 @@ export default function ChatRoom() {
     try {
       await clearChatMessages(activeGroupRoom.id);
       setGroupMessages([]);
+      setHasOlderGroupMessages(false);
       message.success("聊天室消息已清空");
     } catch (error) {
       message.error(getErrorMessage(error, "清空聊天室失败"));
@@ -774,6 +846,18 @@ export default function ChatRoom() {
                       description="发一条消息，重新激活这个聊天室。"
                       icon={<MessageOutlined className="text-xl" />}
                     />
+                  ) : null}
+
+                  {groupMessages.length > 0 && hasOlderGroupMessages ? (
+                    <div className="flex justify-center">
+                      <Button
+                        size="small"
+                        loading={loadingOlderGroupMessages}
+                        onClick={() => void handleLoadOlderGroupMessages()}
+                      >
+                        加载更早
+                      </Button>
+                    </div>
                   ) : null}
 
                   {groupMessages.map((item) => {
@@ -1088,6 +1172,18 @@ export default function ChatRoom() {
                       description="发送第一条消息，开始你们的私聊。"
                       icon={<MessageOutlined className="text-xl" />}
                     />
+                  ) : null}
+
+                  {privateMessages.length > 0 && hasOlderPrivateMessages ? (
+                    <div className="flex justify-center">
+                      <Button
+                        size="small"
+                        loading={loadingOlderPrivateMessages}
+                        onClick={() => void handleLoadOlderPrivateMessages()}
+                      >
+                        加载更早
+                      </Button>
+                    </div>
                   ) : null}
 
                   {privateMessages.map((item) => {

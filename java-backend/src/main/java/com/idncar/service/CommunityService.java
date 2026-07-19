@@ -115,15 +115,27 @@ public class CommunityService {
     );
 
     public List<ChatRoomMessageDto> getChatMessages(String roomId) {
+        return getChatMessages(roomId, null);
+    }
+
+    public List<ChatRoomMessageDto> getChatMessages(String roomId, Long beforeId) {
+        String safeRoomId = requireRoomId(roomId);
+        long cursor = pageCursor(beforeId);
         return jdbcTemplate.query(
                 """
                 SELECT id, room_id, author, avatar_seed, content, create_time
-                FROM community_chat_messages
-                WHERE room_id = ?
-                ORDER BY create_time ASC, id ASC
+                FROM (
+                    SELECT id, room_id, author, avatar_seed, content, create_time
+                    FROM community_chat_messages
+                    WHERE room_id = ? AND id < ?
+                    ORDER BY id DESC
+                    LIMIT 50
+                ) recent
+                ORDER BY id ASC
                 """,
                 chatMessageRowMapper,
-                requireRoomId(roomId)
+                safeRoomId,
+                cursor
         );
     }
 
@@ -234,9 +246,10 @@ public class CommunityService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public List<PrivateChatMessageDto> getPrivateMessages(Long currentUserId, Long targetUserId) {
+    public List<PrivateChatMessageDto> getPrivateMessages(Long currentUserId, Long targetUserId, Long beforeId) {
         userAccessService.requireActiveUser(currentUserId);
         Long safeTargetUserId = requirePrivateTarget(currentUserId, targetUserId);
+        long cursor = pageCursor(beforeId);
 
         jdbcTemplate.update(
                 "UPDATE private_chat_messages SET read_at = CURRENT_TIMESTAMP WHERE sender_id = ? AND recipient_id = ? AND read_at IS NULL",
@@ -244,7 +257,7 @@ public class CommunityService {
                 currentUserId
         );
 
-        return jdbcTemplate.query(
+        List<PrivateChatMessageDto> messages = jdbcTemplate.query(
                 """
                 SELECT m.id,
                        m.sender_id,
@@ -255,16 +268,25 @@ public class CommunityService {
                        u.avatar_url AS sender_avatar_url
                 FROM private_chat_messages m
                 LEFT JOIN users u ON u.id = m.sender_id
-                WHERE (m.sender_id = ? AND m.recipient_id = ?)
-                   OR (m.sender_id = ? AND m.recipient_id = ?)
-                ORDER BY m.create_time ASC, m.id ASC
+                WHERE ((m.sender_id = ? AND m.recipient_id = ?)
+                   OR (m.sender_id = ? AND m.recipient_id = ?))
+                  AND m.id < ?
+                ORDER BY m.id DESC
+                LIMIT 50
                 """,
                 privateChatMessageRowMapper,
                 currentUserId,
                 safeTargetUserId,
                 safeTargetUserId,
-                currentUserId
+                currentUserId,
+                cursor
         );
+        Collections.reverse(messages);
+        return messages;
+    }
+
+    public List<PrivateChatMessageDto> getPrivateMessages(Long currentUserId, Long targetUserId) {
+        return getPrivateMessages(currentUserId, targetUserId, null);
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -392,14 +414,18 @@ public class CommunityService {
         return new ChatPresenceModeDto(mode);
     }
 
-    public List<CommunityTalkPostDto> getTalkPosts() {
+    public List<CommunityTalkPostDto> getTalkPosts(Long beforeId) {
+        long cursor = pageCursor(beforeId);
         List<CommunityTalkPostDto> posts = jdbcTemplate.query(
                 """
                 SELECT id, author, avatar_seed, content, category, likes, pinned, create_time
                 FROM community_talk_posts
-                ORDER BY pinned DESC, create_time DESC, id DESC
+                WHERE id < ?
+                ORDER BY id DESC
+                LIMIT 50
                 """,
-                talkPostRowMapper
+                talkPostRowMapper,
+                cursor
         );
 
         if (posts.isEmpty()) {
@@ -413,6 +439,10 @@ public class CommunityService {
         return posts.stream()
                 .map(post -> post.withComments(commentsByPostId.getOrDefault(post.id(), List.of())))
                 .collect(Collectors.toList());
+    }
+
+    public List<CommunityTalkPostDto> getTalkPosts() {
+        return getTalkPosts(null);
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -623,6 +653,13 @@ public class CommunityService {
             throw ApiException.badRequest("创建记录失败");
         }
         return key.longValue();
+    }
+
+    private long pageCursor(Long beforeId) {
+        if (beforeId != null && beforeId <= 0) {
+            throw ApiException.badRequest("分页游标无效");
+        }
+        return beforeId == null ? Long.MAX_VALUE : beforeId;
     }
 
     private boolean isUserOnline(Long userId) {
