@@ -39,6 +39,8 @@ type PrivateChatUserResponse = {
   bio?: string | null;
   online: boolean;
   blocked: boolean;
+  unreadCount?: number | null;
+  lastMessageAt?: number | null;
 };
 
 type PrivateChatMessageResponse = {
@@ -119,6 +121,8 @@ function mapPrivateChatUser(item: PrivateChatUserResponse): PrivateChatUser {
     bio: item.bio ?? null,
     online: Boolean(item.online),
     blocked: Boolean(item.blocked),
+    unreadCount: item.unreadCount ?? 0,
+    lastMessageAt: item.lastMessageAt ?? null,
   };
 }
 
@@ -182,7 +186,7 @@ export async function reportCommunityContent(payload: {
   });
 }
 
-export async function fetchOnlinePrivateChatUsers(): Promise<PrivateChatUser[]> {
+export async function fetchPrivateChatUsers(): Promise<PrivateChatUser[]> {
   const items = await request<PrivateChatUserResponse[]>("/api/community/private/users");
   return items.map(mapPrivateChatUser);
 }

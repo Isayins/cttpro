@@ -13,24 +13,31 @@ if [[ -f "${ENV_FILE}" ]]; then
 fi
 HEALTH_URL="${APP_HEALTH_URL:-http://127.0.0.1:9091/actuator/health}"
 STATUS_FILE="${APP_HEALTH_STATUS_FILE:-${APP_HOME}/health-status}"
-mkdir -p "$(dirname "${STATUS_FILE}")"
+VMQ_HEALTH_URL="${APP_VMQ_HEALTH_URL:-http://127.0.0.1:9091/actuator/health/vmq}"
+VMQ_STATUS_FILE="${APP_VMQ_HEALTH_STATUS_FILE:-${APP_HOME}/vmq-health-status}"
+mkdir -p "$(dirname "${STATUS_FILE}")" "$(dirname "${VMQ_STATUS_FILE}")"
 
-PREVIOUS="UNKNOWN"
-[[ ! -f "${STATUS_FILE}" ]] || PREVIOUS="$(cat "${STATUS_FILE}")"
-if curl -fsS --max-time 10 "${HEALTH_URL}" | grep -q '"status"[[:space:]]*:[[:space:]]*"UP"'; then
-  printf 'UP\n' > "${STATUS_FILE}.tmp"
-  chmod 0644 "${STATUS_FILE}.tmp"
-  mv "${STATUS_FILE}.tmp" "${STATUS_FILE}"
-  if [[ "${PREVIOUS}" == "DOWN" ]]; then
-    bash "${SCRIPT_DIR}/ops-alert.sh" "cttpro backend recovered on $(hostname)" || true
+check_health() {
+  local name="$1" url="$2" status_file="$3" previous="UNKNOWN"
+  [[ ! -f "${status_file}" ]] || previous="$(cat "${status_file}")"
+  if curl -fsS --max-time 10 "${url}" | grep -q '"status"[[:space:]]*:[[:space:]]*"UP"'; then
+    printf 'UP\n' > "${status_file}.tmp"
+    chmod 0644 "${status_file}.tmp"
+    mv "${status_file}.tmp" "${status_file}"
+    if [[ "${previous}" == "DOWN" ]]; then
+      bash "${SCRIPT_DIR}/ops-alert.sh" "cttpro ${name} recovered on $(hostname)" || true
+    fi
+    return 0
   fi
-  exit 0
-fi
 
-printf 'DOWN\n' > "${STATUS_FILE}.tmp"
-chmod 0644 "${STATUS_FILE}.tmp"
-mv "${STATUS_FILE}.tmp" "${STATUS_FILE}"
-if [[ "${PREVIOUS}" != "DOWN" ]]; then
-  bash "${SCRIPT_DIR}/ops-alert.sh" "cttpro backend health check failed on $(hostname)" || true
-fi
-exit 1
+  printf 'DOWN\n' > "${status_file}.tmp"
+  chmod 0644 "${status_file}.tmp"
+  mv "${status_file}.tmp" "${status_file}"
+  if [[ "${previous}" != "DOWN" ]]; then
+    bash "${SCRIPT_DIR}/ops-alert.sh" "cttpro ${name} health check failed on $(hostname)" || true
+  fi
+  return 1
+}
+
+check_health "backend" "${HEALTH_URL}" "${STATUS_FILE}" || exit 1
+check_health "V免签 listener" "${VMQ_HEALTH_URL}" "${VMQ_STATUS_FILE}"

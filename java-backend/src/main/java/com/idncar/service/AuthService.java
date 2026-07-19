@@ -229,7 +229,7 @@ public class AuthService {
         redisTemplate.delete(passwordResetCodeKey(email));
         redisTemplate.delete(passwordResetCooldownKey(email));
         redisTemplate.delete(passwordResetAttemptsKey(email));
-        invalidateCurrentSession(user.getId());
+        invalidateUserSession(user.getId());
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -427,7 +427,7 @@ public class AuthService {
         userMapper.updateById(user);
         redisTemplate.delete(emailChangeCodeKey(userId, newEmail));
         redisTemplate.delete(emailChangeCooldownKey(userId));
-        invalidateCurrentSession(userId);
+        invalidateUserSession(userId);
     }
 
     public List<LoginRecordDto> getRecentLoginRecords(Long userId, Integer limit) {
@@ -656,7 +656,7 @@ public class AuthService {
         return new SendEmailCodeResponse("邮件发送成功，请查收邮箱验证码", null);
     }
 
-    private void invalidateCurrentSession(Long userId) {
+    void invalidateUserSession(Long userId) {
         Object currentToken = redisTemplate.opsForValue().get("token:" + userId);
         if (currentToken != null) {
             redisTemplate.opsForValue().set(

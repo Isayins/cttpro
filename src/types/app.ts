@@ -770,6 +770,8 @@ export interface PrivateChatUser {
   bio?: string | null;
   online: boolean;
   blocked: boolean;
+  unreadCount: number;
+  lastMessageAt?: number | null;
 }
 
 export interface PrivateChatMessage {

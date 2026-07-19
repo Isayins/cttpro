@@ -6,6 +6,8 @@ public record PrivateChatUserDto(
         String avatarUrl,
         String bio,
         Boolean online,
-        Boolean blocked
+        Boolean blocked,
+        Long unreadCount,
+        Long lastMessageAt
 ) {
 }

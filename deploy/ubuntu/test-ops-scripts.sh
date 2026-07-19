@@ -27,7 +27,10 @@ echo "\$*" > "${TEST_ROOT}/rsync-call"
 EOF
 cat > "${FAKE_BIN}/curl" <<EOF
 #!/usr/bin/env bash
-if [[ "\$*" == *actuator/health* ]]; then
+if [[ "\$*" == *actuator/health/vmq* ]]; then
+  [[ "\$(cat "${TEST_ROOT}/vmq-mode")" == "UP" ]] || exit 1
+  echo '{"status":"UP"}'
+elif [[ "\$*" == *actuator/health* ]]; then
   [[ "\$(cat "${TEST_ROOT}/health-mode")" == "UP" ]] || exit 1
   echo '{"status":"UP"}'
 else
@@ -46,6 +49,14 @@ PATH="${FAKE_BIN}:${PATH}" APP_HOME="${APP_HOME}" bash "${SCRIPT_DIR}/ops-health
 PATH="${FAKE_BIN}:${PATH}" APP_HOME="${APP_HOME}" bash "${SCRIPT_DIR}/ops-health-check.sh" && exit 1 || true
 [[ "$(wc -l < "${TEST_ROOT}/alerts")" -eq 1 ]]
 printf 'UP\n' > "${TEST_ROOT}/health-mode"
+printf 'UP\n' > "${TEST_ROOT}/vmq-mode"
 PATH="${FAKE_BIN}:${PATH}" APP_HOME="${APP_HOME}" bash "${SCRIPT_DIR}/ops-health-check.sh"
 [[ "$(wc -l < "${TEST_ROOT}/alerts")" -eq 2 ]]
+printf 'DOWN\n' > "${TEST_ROOT}/vmq-mode"
+PATH="${FAKE_BIN}:${PATH}" APP_HOME="${APP_HOME}" bash "${SCRIPT_DIR}/ops-health-check.sh" && exit 1 || true
+PATH="${FAKE_BIN}:${PATH}" APP_HOME="${APP_HOME}" bash "${SCRIPT_DIR}/ops-health-check.sh" && exit 1 || true
+[[ "$(wc -l < "${TEST_ROOT}/alerts")" -eq 3 ]]
+printf 'UP\n' > "${TEST_ROOT}/vmq-mode"
+PATH="${FAKE_BIN}:${PATH}" APP_HOME="${APP_HOME}" bash "${SCRIPT_DIR}/ops-health-check.sh"
+[[ "$(wc -l < "${TEST_ROOT}/alerts")" -eq 4 ]]
 echo "Operations script smoke test passed."

@@ -140,8 +140,8 @@ APP_OPS_ALERT_WEBHOOK_URL=https://alerts.example.com/cttpro
 `/opt/cttpro/backup-status.properties`；后台「系统状态」会显示备份是否失败、
 是否超过 36 小时及是否完成异机同步。Webhook 接收标准 JSON `{"text":"..."}`。
 
-安装宿主机定时器后，每天凌晨 3 点备份、每 5 分钟检查后端健康状态；健康告警
-只在正常/故障状态变化时发送：
+安装宿主机定时器后，每天凌晨 3 点备份、每 5 分钟检查后端和 V免签监听心跳；
+健康告警只在正常/故障状态变化时发送：
 
 ```bash
 sudo bash deploy/ubuntu/install-ops-timers.sh

@@ -380,6 +380,7 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
                     sender_id BIGINT NOT NULL,
                     recipient_id BIGINT NOT NULL,
                     content TEXT NOT NULL,
+                    read_at DATETIME NULL,
                     create_time DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
                 """);
@@ -389,11 +390,13 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
         ensureColumn("private_chat_messages", "sender_id", "sender_id BIGINT NOT NULL");
         ensureColumn("private_chat_messages", "recipient_id", "recipient_id BIGINT NOT NULL");
         ensureColumn("private_chat_messages", "content", "content TEXT NOT NULL");
+        ensureColumn("private_chat_messages", "read_at", "read_at DATETIME NULL");
         ensureTextColumn("private_chat_messages", "content");
         ensureIndex("private_chat_messages", "idx_private_chat_messages_sender_id", "CREATE INDEX idx_private_chat_messages_sender_id ON private_chat_messages(sender_id)");
         ensureIndex("private_chat_messages", "idx_private_chat_messages_recipient_id", "CREATE INDEX idx_private_chat_messages_recipient_id ON private_chat_messages(recipient_id)");
         ensureIndex("private_chat_messages", "idx_private_chat_messages_create_time", "CREATE INDEX idx_private_chat_messages_create_time ON private_chat_messages(create_time)");
         ensureIndex("private_chat_messages", "idx_private_chat_messages_pair", "CREATE INDEX idx_private_chat_messages_pair ON private_chat_messages(sender_id, recipient_id, create_time)");
+        ensureIndex("private_chat_messages", "idx_private_chat_messages_unread", "CREATE INDEX idx_private_chat_messages_unread ON private_chat_messages(recipient_id, read_at)");
     }
 
     private void ensureCommunityUserBlocksTable() {

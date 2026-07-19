@@ -169,6 +169,7 @@ CREATE TABLE IF NOT EXISTS private_chat_messages (
     sender_id BIGINT NOT NULL,
     recipient_id BIGINT NOT NULL,
     content TEXT NOT NULL,
+    read_at DATETIME NULL,
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_private_chat_sender FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT fk_private_chat_recipient FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE CASCADE

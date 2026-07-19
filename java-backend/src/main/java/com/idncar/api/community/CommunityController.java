@@ -72,8 +72,8 @@ public class CommunityController {
     }
 
     @GetMapping({"/private/users", "/private/users/"})
-    public ResponseEntity<List<PrivateChatUserDto>> getOnlinePrivateChatUsers(@RequestAttribute("userId") Long userId) {
-        return ResponseEntity.ok(communityService.getOnlinePrivateChatUsers(userId));
+    public ResponseEntity<List<PrivateChatUserDto>> getPrivateChatUsers(@RequestAttribute("userId") Long userId) {
+        return ResponseEntity.ok(communityService.getPrivateChatUsers(userId));
     }
 
     @GetMapping({"/private/messages/{targetUserId}", "/private/messages/{targetUserId}/"})

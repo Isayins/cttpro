@@ -49,7 +49,7 @@ import {
   blockPrivateChatUser,
   clearChatMessages,
   fetchChatMessages,
-  fetchOnlinePrivateChatUsers,
+  fetchPrivateChatUsers,
   fetchPrivateMessages,
   getChatPresenceMode,
   sendChatMessage,
@@ -202,7 +202,7 @@ export default function ChatRoom() {
       try {
         const [mode, list] = await Promise.all([
           getChatPresenceMode(),
-          fetchOnlinePrivateChatUsers(),
+          fetchPrivateChatUsers(),
         ]);
         if (!isLatestRequest()) {
           return;
@@ -267,6 +267,11 @@ export default function ChatRoom() {
           return;
         }
         setPrivateMessages(list);
+        setUsers((current) =>
+          current.map((item) =>
+            item.id === activeUserId ? { ...item, unreadCount: 0 } : item,
+          ),
+        );
       } catch (error) {
         if (isLatestRequest() && !silent) {
           message.error(getErrorMessage(error, "加载私聊消息失败"));
@@ -931,9 +936,11 @@ export default function ChatRoom() {
 
                 <div className="mt-5 flex items-center justify-between">
                   <div className="text-xs font-semibold tracking-wide text-slate-500">
-                    在线用户
+                    最近会话与在线用户
                   </div>
-                  <Tag color="blue">{users.length}</Tag>
+                  <Tag color="blue">
+                    {users.filter((item) => item.online).length} 在线
+                  </Tag>
                 </div>
 
                 <div className="mt-3 max-h-[460px] space-y-2 overflow-y-auto pr-1">
@@ -946,7 +953,7 @@ export default function ChatRoom() {
                   {!loadingUsers && users.length === 0 ? (
                     <Empty
                       image={Empty.PRESENTED_IMAGE_SIMPLE}
-                      description="暂无可私聊的在线用户"
+                      description="暂无最近会话或在线用户"
                     />
                   ) : null}
 
@@ -986,9 +993,17 @@ export default function ChatRoom() {
                                       已屏蔽
                                     </Tag>
                                   ) : null}
+                                  {item.unreadCount > 0 ? (
+                                    <Tag color="red" className="!mr-0">
+                                      {item.unreadCount} 未读
+                                    </Tag>
+                                  ) : null}
                                 </div>
                                 <div className="truncate text-xs text-slate-500">
-                                  {item.bio || "这个用户很低调，还没写简介。"}
+                                  {item.online ? "在线" : "离线"}
+                                  {item.lastMessageAt
+                                    ? ` · 最近 ${formatMessageTime(item.lastMessageAt)}`
+                                    : ""}
                                 </div>
                               </div>
                             </div>

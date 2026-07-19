@@ -52,6 +52,10 @@ management:
   endpoint:
     health:
       show-details: when_authorized
+      group:
+        vmq:
+          include: vmqPayment
+          show-details: always
 
 jwt:
   secret: ${JWT_SECRET}

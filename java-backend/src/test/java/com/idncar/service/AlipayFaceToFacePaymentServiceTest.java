@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
+import java.math.BigDecimal;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Date;
@@ -212,6 +213,47 @@ class AlipayFaceToFacePaymentServiceTest {
         setField("userAccessService", userAccessService);
 
         assertThat(service.getAdminOrderStats(1L).getOpenSupport()).isEqualTo(4L);
+    }
+
+    @Test
+    void paymentOrderExportUsesCurrentFiltersAndEscapesCsvCells() throws Exception {
+        PaymentOrderMapper orderMapper = mock(PaymentOrderMapper.class);
+        UserMapper userMapper = mock(UserMapper.class);
+        UserAccessService userAccessService = mock(UserAccessService.class);
+        PaymentOrder order = new PaymentOrder();
+        order.setOutTradeNo("202607190002");
+        order.setSubject("商品,高级版");
+        order.setTotalAmount(new BigDecimal("9.90"));
+        order.setStatus("TRADE_SUCCESS");
+        when(orderMapper.selectList(any())).thenReturn(List.of(order));
+        when(userMapper.selectList(any())).thenReturn(List.of());
+        setField("paymentOrderMapper", orderMapper);
+        setField("userMapper", userMapper);
+        setField("userAccessService", userAccessService);
+
+        String csv = service.exportAdminOrdersCsv(1L, "高级", "TRADE_SUCCESS", "PRODUCT", null, null, null);
+
+        assertThat(csv).startsWith("\ufeff订单号,")
+                .contains("\"202607190002\"")
+                .contains("\"商品,高级版\"")
+                .contains("\"9.90\"");
+    }
+
+    @Test
+    void expiredVmqOrdersAreClosedAndReleaseTheirCoupon() throws Exception {
+        PaymentOrderMapper orderMapper = mock(PaymentOrderMapper.class);
+        ProductCouponCodeService couponCodeService = mock(ProductCouponCodeService.class);
+        PaymentOrder order = new PaymentOrder();
+        order.setId(18L);
+        order.setOutTradeNo("202607190001");
+        when(orderMapper.selectList(any())).thenReturn(List.of(order));
+        when(orderMapper.update(any(), any())).thenReturn(1);
+        setField("paymentOrderMapper", orderMapper);
+        setField("productCouponCodeService", couponCodeService);
+
+        service.closeExpiredVmqOrders();
+
+        verify(couponCodeService).releaseCouponForOrder(order);
     }
 
     private String resolveDeliveryEmail(Product product, String deliveryEmail) throws Throwable {

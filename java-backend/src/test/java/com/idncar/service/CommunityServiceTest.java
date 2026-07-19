@@ -23,6 +23,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class CommunityServiceTest {
@@ -67,6 +68,28 @@ class CommunityServiceTest {
                 new CreatePrivateChatMessageRequest(9L, "hello")
         )).isInstanceOf(ApiException.class)
                 .hasMessage("你们之间已启用屏蔽，无法发送消息");
+    }
+
+    @Test
+    void openingPrivateConversationMarksIncomingMessagesAsRead() {
+        CommunityService service = new CommunityService();
+        UserAccessService userAccessService = mock(UserAccessService.class);
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        when(jdbcTemplate.query(
+                anyString(),
+                any(org.springframework.jdbc.core.RowMapper.class),
+                eq(7L), eq(9L), eq(9L), eq(7L)
+        )).thenReturn(List.of());
+        ReflectionTestUtils.setField(service, "userAccessService", userAccessService);
+        ReflectionTestUtils.setField(service, "jdbcTemplate", jdbcTemplate);
+
+        service.getPrivateMessages(7L, 9L);
+
+        verify(jdbcTemplate).update(
+                "UPDATE private_chat_messages SET read_at = CURRENT_TIMESTAMP WHERE sender_id = ? AND recipient_id = ? AND read_at IS NULL",
+                9L,
+                7L
+        );
     }
 
     @Test

@@ -30,6 +30,9 @@ import java.util.Map;
 @Service
 public class InternalVmqPaymentService {
 
+    public record VmqMonitorHealth(boolean enabled, String state, Date lastHeartTime) {
+    }
+
     public record VmqOrderDraft(int payType, String payUrl, BigDecimal reallyPrice, Date expireTime) {
     }
 
@@ -82,6 +85,15 @@ public class InternalVmqPaymentService {
         userAccessService.requireAdmin(adminUserId);
         PaymentVmqSetting setting = refreshMonitorState(getOrCreateSetting());
         return VmqPaymentSettingsDto.fromEntity(setting, normalizedMonitorBaseUrl());
+    }
+
+    public VmqMonitorHealth getMonitorHealth() {
+        PaymentVmqSetting setting = refreshMonitorState(getOrCreateSetting());
+        return new VmqMonitorHealth(
+                Boolean.TRUE.equals(setting.getEnabled()),
+                setting.getMonitorState(),
+                setting.getLastHeartTime()
+        );
     }
 
     public VmqPaymentSettingsDto saveAdminSettings(Long adminUserId, SaveVmqPaymentSettingsRequest request) {

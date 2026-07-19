@@ -41,6 +41,52 @@ import type {
 import { getAuthToken } from "../authToken";
 import { apiRequest, buildApiRequestUrl } from "./client";
 
+type PaymentOrderQueryParams = {
+  page?: number;
+  size?: number;
+  keyword?: string;
+  status?: string;
+  resourceType?: string;
+  hasError?: boolean;
+  hasCoupon?: boolean;
+  supportStatus?: string;
+};
+
+function buildPaymentOrderQuery(params: PaymentOrderQueryParams, paged: boolean) {
+  const query = new URLSearchParams();
+  if (paged) {
+    query.set("page", String(params.page ?? 1));
+    query.set("size", String(params.size ?? 8));
+  }
+  if (params.keyword?.trim()) query.set("keyword", params.keyword.trim());
+  if (params.status && params.status !== "ALL") query.set("status", params.status);
+  if (params.resourceType && params.resourceType !== "ALL") query.set("resourceType", params.resourceType);
+  if (typeof params.hasError === "boolean") query.set("hasError", String(params.hasError));
+  if (typeof params.hasCoupon === "boolean") query.set("hasCoupon", String(params.hasCoupon));
+  if (params.supportStatus && params.supportStatus !== "ALL") query.set("supportStatus", params.supportStatus);
+  return query;
+}
+
+async function fetchAdminBlob(path: string, fallback: string) {
+  const token = getAuthToken();
+  if (!token) throw new Error("请先登录");
+  const response = await fetch(buildApiRequestUrl(path), {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    if (!text) throw new Error(response.statusText || fallback);
+    try {
+      const error = JSON.parse(text) as { message?: string; detail?: string; error?: string };
+      throw new Error(error.message || error.detail || error.error || text);
+    } catch (error) {
+      if (error instanceof SyntaxError) throw new Error(text);
+      throw error;
+    }
+  }
+  return response.blob();
+}
+
 export const adminApi = {
   getUsers: () =>
     apiRequest<User[]>("/api/admin/users", {
@@ -72,11 +118,6 @@ export const adminApi = {
       method: "PUT",
       authMode: "required",
       body: payload,
-    }),
-  deleteUser: (userId: number) =>
-    apiRequest<void>(`/api/admin/users/${userId}`, {
-      method: "DELETE",
-      authMode: "required",
     }),
   getInviteCodes: () =>
     apiRequest<InviteCode[]>("/api/admin/invite-codes", {
@@ -248,10 +289,6 @@ export const adminApi = {
       authMode: "required",
     }),
   exportProductDeliveryCodes: async (params: { keyword?: string; productId?: number | string; status?: string } = {}) => {
-    const token = getAuthToken();
-    if (!token) {
-      throw new Error("请先登录");
-    }
     const query = new URLSearchParams();
     if (params.keyword?.trim()) {
       query.set("keyword", params.keyword.trim());
@@ -262,24 +299,7 @@ export const adminApi = {
     if (params.status && params.status !== "ALL") {
       query.set("status", params.status);
     }
-    const response = await fetch(buildApiRequestUrl(`/api/admin/product-delivery-codes/export?${query.toString()}`), {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      if (!text) {
-        throw new Error(response.statusText || "导出CDK失败");
-      }
-      let errorMessage = text;
-      try {
-        const errorData = JSON.parse(text) as { message?: string; detail?: string; error?: string };
-        errorMessage = errorData.message || errorData.detail || errorData.error || errorMessage;
-      } catch {
-        // Keep plain text errors readable.
-      }
-      throw new Error(errorMessage);
-    }
-    return response.blob();
+    return fetchAdminBlob(`/api/admin/product-delivery-codes/export?${query.toString()}`, "导出CDK失败");
   },
   getProductCouponCodes: (params: { page?: number; size?: number; keyword?: string; productId?: number | string; status?: string } = {}) => {
     const query = new URLSearchParams();
@@ -319,10 +339,6 @@ export const adminApi = {
       authMode: "required",
     }),
   exportProductCouponCodes: async (params: { keyword?: string; productId?: number | string; status?: string } = {}) => {
-    const token = getAuthToken();
-    if (!token) {
-      throw new Error("请先登录");
-    }
     const query = new URLSearchParams();
     if (params.keyword?.trim()) {
       query.set("keyword", params.keyword.trim());
@@ -333,51 +349,19 @@ export const adminApi = {
     if (params.status && params.status !== "ALL") {
       query.set("status", params.status);
     }
-    const response = await fetch(buildApiRequestUrl(`/api/admin/product-coupon-codes/export?${query.toString()}`), {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      if (!text) {
-        throw new Error(response.statusText || "导出优惠码失败");
-      }
-      let errorMessage = text;
-      try {
-        const errorData = JSON.parse(text) as { message?: string; detail?: string; error?: string };
-        errorMessage = errorData.message || errorData.detail || errorData.error || errorMessage;
-      } catch {
-        // Keep plain text errors readable.
-      }
-      throw new Error(errorMessage);
-    }
-    return response.blob();
+    return fetchAdminBlob(`/api/admin/product-coupon-codes/export?${query.toString()}`, "导出优惠码失败");
   },
-  getPaymentOrders: (params: { page?: number; size?: number; keyword?: string; status?: string; resourceType?: string; hasError?: boolean; hasCoupon?: boolean; supportStatus?: string } = {}) => {
-    const query = new URLSearchParams();
-    query.set("page", String(params.page ?? 1));
-    query.set("size", String(params.size ?? 8));
-    if (params.keyword?.trim()) {
-      query.set("keyword", params.keyword.trim());
-    }
-    if (params.status && params.status !== "ALL") {
-      query.set("status", params.status);
-    }
-    if (params.resourceType && params.resourceType !== "ALL") {
-      query.set("resourceType", params.resourceType);
-    }
-    if (typeof params.hasError === "boolean") {
-      query.set("hasError", String(params.hasError));
-    }
-    if (typeof params.hasCoupon === "boolean") {
-      query.set("hasCoupon", String(params.hasCoupon));
-    }
-    if (params.supportStatus && params.supportStatus !== "ALL") {
-      query.set("supportStatus", params.supportStatus);
-    }
+  getPaymentOrders: (params: PaymentOrderQueryParams = {}) => {
+    const query = buildPaymentOrderQuery(params, true);
     return apiRequest<PageResult<AdminPaymentOrder>>(`/api/admin/payment-orders?${query.toString()}`, {
       authMode: "required",
     });
   },
+  exportPaymentOrders: (params: PaymentOrderQueryParams = {}) =>
+    fetchAdminBlob(
+      `/api/admin/payment-orders/export?${buildPaymentOrderQuery(params, false).toString()}`,
+      "导出支付订单失败",
+    ),
   getPaymentOrderStats: () =>
     apiRequest<AdminPaymentOrderStats>("/api/admin/payment-orders/stats", {
       authMode: "required",

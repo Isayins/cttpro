@@ -183,31 +183,32 @@ public class CommunityService {
         throw ApiException.badRequest("该举报类型不支持直接删除内容");
     }
 
-    public List<PrivateChatUserDto> getOnlinePrivateChatUsers(Long currentUserId) {
+    public List<PrivateChatUserDto> getPrivateChatUsers(Long currentUserId) {
         userAccessService.requireActiveUser(currentUserId);
 
         List<PrivateChatUserDto> users = jdbcTemplate.query(
                 """
                 SELECT u.id, u.nickname, u.avatar_url, u.bio,
                        COALESCE(u.chat_visibility, 'ONLINE') AS chat_visibility,
-                       b.blocker_id IS NOT NULL AS blocked
+                       b.blocker_id IS NOT NULL AS blocked,
+                       COUNT(CASE WHEN m.recipient_id = ? AND m.read_at IS NULL THEN 1 END) AS unread_count,
+                       MAX(m.create_time) AS last_message_at
                 FROM users u
                 LEFT JOIN community_user_blocks b ON b.blocker_id = ? AND b.blocked_id = u.id
-                WHERE u.status = 'ACTIVE'
-                ORDER BY u.nickname ASC, u.id ASC
+                LEFT JOIN private_chat_messages m
+                  ON (m.sender_id = u.id AND m.recipient_id = ?)
+                  OR (m.sender_id = ? AND m.recipient_id = u.id)
+                WHERE u.status = 'ACTIVE' AND u.id <> ?
+                GROUP BY u.id, u.nickname, u.avatar_url, u.bio, u.chat_visibility, b.blocker_id
+                ORDER BY last_message_at DESC, u.nickname ASC, u.id ASC
                 """,
                 (rs, rowNum) -> {
                     Long userId = rs.getLong("id");
-                    if (Objects.equals(userId, currentUserId)) {
-                        return null;
-                    }
-
-                    if (!isUserOnline(userId)) {
-                        return null;
-                    }
-
+                    Timestamp lastMessageAt = rs.getTimestamp("last_message_at");
+                    boolean hasConversation = lastMessageAt != null;
+                    boolean online = isUserOnline(userId);
                     String visibility = normalizePresenceMode(rs.getString("chat_visibility"), false);
-                    if (VISIBILITY_INVISIBLE.equals(visibility)) {
+                    if (!hasConversation && (!online || VISIBILITY_INVISIBLE.equals(visibility))) {
                         return null;
                     }
 
@@ -216,19 +217,32 @@ public class CommunityService {
                             defaultIfBlank(rs.getString("nickname"), "用户"),
                             rs.getString("avatar_url"),
                             rs.getString("bio"),
-                            true,
-                            rs.getBoolean("blocked")
+                            online && !VISIBILITY_INVISIBLE.equals(visibility),
+                            rs.getBoolean("blocked"),
+                            rs.getLong("unread_count"),
+                            lastMessageAt == null ? null : lastMessageAt.getTime()
                     );
                 },
+                currentUserId,
+                currentUserId,
+                currentUserId,
+                currentUserId,
                 currentUserId
         );
 
         return users.stream().filter(Objects::nonNull).toList();
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public List<PrivateChatMessageDto> getPrivateMessages(Long currentUserId, Long targetUserId) {
         userAccessService.requireActiveUser(currentUserId);
         Long safeTargetUserId = requirePrivateTarget(currentUserId, targetUserId);
+
+        jdbcTemplate.update(
+                "UPDATE private_chat_messages SET read_at = CURRENT_TIMESTAMP WHERE sender_id = ? AND recipient_id = ? AND read_at IS NULL",
+                safeTargetUserId,
+                currentUserId
+        );
 
         return jdbcTemplate.query(
                 """

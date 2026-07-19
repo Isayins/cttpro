@@ -71,13 +71,6 @@ public class AdminController {
         return ResponseEntity.ok(adminService.updateUser(userId, id, request));
     }
 
-    @DeleteMapping("/users/{id}")
-    public ResponseEntity<Void> deleteUser(@RequestAttribute("userId") Long userId,
-                                           @PathVariable Long id) {
-        adminService.deleteUser(userId, id);
-        return ResponseEntity.noContent().build();
-    }
-
     @GetMapping("/invite-codes")
     public ResponseEntity<List<InviteCodeDto>> getInviteCodes(@RequestAttribute("userId") Long userId) {
         return ResponseEntity.ok(adminService.getInviteCodes(userId));

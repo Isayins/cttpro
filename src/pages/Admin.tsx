@@ -468,6 +468,15 @@ const deliveryCodeImportTemplate = [
   "IDNCAR-2026-0003",
 ].join("\n");
 
+function saveBlob(blob: Blob, filename: string) {
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  window.URL.revokeObjectURL(url);
+}
+
 export default function Admin() {
   const { user, isOwner } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -479,6 +488,7 @@ export default function Admin() {
   const [logsLoading, setLogsLoading] = useState(false);
   const [mailLogsLoading, setMailLogsLoading] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentExporting, setPaymentExporting] = useState(false);
   const [systemHealthLoading, setSystemHealthLoading] = useState(false);
   const [vmqLoading, setVmqLoading] = useState(false);
   const [couponLoading, setCouponLoading] = useState(false);
@@ -2392,9 +2402,10 @@ export default function Admin() {
     !!user &&
     (user.role === "OWNER" ? target.role !== "OWNER" : target.role === "USER");
 
-  const canDeleteUser = (target: User) =>
+  const canDisableUser = (target: User) =>
     !!user &&
     user.id !== target.id &&
+    target.status !== "DISABLED" &&
     (user.role === "OWNER" ? target.role !== "OWNER" : target.role === "USER");
 
   async function handleReportFilter(status: string) {
@@ -2530,16 +2541,14 @@ export default function Admin() {
     }
   }
 
-  async function handleDeleteUser(id: number) {
+  async function handleDisableUser(id: number) {
     setSubmitting(true);
     try {
-      await adminApi.deleteUser(id);
-      const nextPage =
-        users.length <= 1 && userPage > 1 ? userPage - 1 : userPage;
-      message.success("用户已删除");
+      await adminApi.updateUser(id, { status: "DISABLED" });
+      message.success("用户已禁用，当前登录会话已撤销");
       await Promise.all([
         loadUsers(
-          nextPage,
+          userPage,
           userPageSizeRef.current,
           userKeyword,
           userRoleFilter,
@@ -2549,7 +2558,7 @@ export default function Admin() {
       ]);
       await refreshLogs();
     } catch (error) {
-      message.error(textError(error, "删除用户失败"));
+      message.error(textError(error, "禁用用户失败"));
     } finally {
       setSubmitting(false);
     }
@@ -3362,14 +3371,7 @@ export default function Admin() {
         productId: couponProductFilter,
         status: couponStatusFilter,
       });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `product-coupon-codes-${Date.now()}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      saveBlob(blob, `product-coupon-codes-${Date.now()}.csv`);
       message.success("优惠码已导出");
     } catch (error) {
       message.error(textError(error, "导出优惠码失败"));
@@ -3386,19 +3388,32 @@ export default function Admin() {
         productId: deliveryCodeProductFilter,
         status: deliveryCodeStatusFilter,
       });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `product-delivery-codes-${Date.now()}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      saveBlob(blob, `product-delivery-codes-${Date.now()}.csv`);
       message.success("CDK已导出");
     } catch (error) {
       message.error(textError(error, "导出CDK失败"));
     } finally {
       setDeliveryCodeLoading(false);
+    }
+  }
+
+  async function handleExportPaymentOrders() {
+    setPaymentExporting(true);
+    try {
+      const blob = await adminApi.exportPaymentOrders({
+        keyword: paymentKeyword,
+        status: paymentStatusFilter,
+        resourceType: paymentResourceFilter,
+        hasError: paymentErrorFilterValue(paymentErrorFilter),
+        hasCoupon: paymentCouponFilterValue(paymentCouponFilter),
+        supportStatus: paymentSupportFilter,
+      });
+      saveBlob(blob, `payment-orders-${Date.now()}.csv`);
+      message.success("支付订单已导出");
+    } catch (error) {
+      message.error(textError(error, "导出支付订单失败"));
+    } finally {
+      setPaymentExporting(false);
     }
   }
 
@@ -3968,13 +3983,13 @@ export default function Admin() {
           ) : (
             <Tag>不可编辑</Tag>
           )}
-          {canDeleteUser(record) ? (
+          {canDisableUser(record) ? (
             <Popconfirm
-              title="确认删除这个用户吗？"
-              onConfirm={() => void handleDeleteUser(record.id)}
+              title="确认禁用这个用户并撤销其登录会话吗？"
+              onConfirm={() => void handleDisableUser(record.id)}
             >
               <Button type="link" danger>
-                删除
+                禁用
               </Button>
             </Popconfirm>
           ) : null}
@@ -6579,6 +6594,13 @@ export default function Admin() {
                           />
                         </Space>
                         <Space>
+                          <Button
+                            icon={<DownloadOutlined />}
+                            loading={paymentExporting}
+                            onClick={() => void handleExportPaymentOrders()}
+                          >
+                            导出当前筛选
+                          </Button>
                           <Button
                             icon={<ClearOutlined />}
                             disabled={!hasPaymentFilters}

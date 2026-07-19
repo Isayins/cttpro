@@ -107,6 +107,9 @@ public class AdminService {
     @Autowired
     private CommunityService communityService;
 
+    @Autowired
+    private AuthService authService;
+
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     public List<UserDto> getUsers(Long adminUserId) {
@@ -151,6 +154,7 @@ public class AdminService {
 
         String oldRole = targetUser.getRole();
         String oldStatus = targetUser.getStatus();
+        boolean invalidateSession = false;
 
         if (request.getNickname() != null) {
             String nickname = request.getNickname().trim();
@@ -188,6 +192,7 @@ public class AdminService {
                 throw ApiException.forbidden("管理员只能修改普通用户状态");
             }
             targetUser.setStatus(status);
+            invalidateSession = "DISABLED".equals(status);
         }
 
         if (request.getPassword() != null && !request.getPassword().trim().isEmpty()) {
@@ -196,9 +201,13 @@ public class AdminService {
             }
             validatePassword(request.getPassword().trim());
             targetUser.setPassword(passwordEncoder.encode(request.getPassword().trim()));
+            invalidateSession = true;
         }
 
         userMapper.updateById(targetUser);
+        if (invalidateSession) {
+            authService.invalidateUserSession(targetUserId);
+        }
         User updatedUser = userMapper.selectById(targetUserId);
 
         logOperation(
@@ -210,19 +219,6 @@ public class AdminService {
                 "更新用户资料，角色: " + oldRole + " -> " + updatedUser.getRole() + "，状态: " + oldStatus + " -> " + updatedUser.getStatus()
         );
         return UserDto.fromEntity(updatedUser);
-    }
-
-    public void deleteUser(Long adminUserId, Long targetUserId) {
-        User operator = userAccessService.requireAdmin(adminUserId);
-        User targetUser = requireTargetUser(targetUserId);
-
-        if (adminUserId.equals(targetUserId)) {
-            throw ApiException.badRequest("不能删除当前登录账号");
-        }
-
-        validateUserManagementPermission(operator, targetUser, false);
-        userMapper.deleteById(targetUserId);
-        logOperation(operator, "USER_DELETED", "USER", targetUser.getId(), targetUser.getNickname(), "删除用户 " + targetUser.getUsername());
     }
 
     public List<InviteCodeDto> getInviteCodes(Long adminUserId) {
@@ -1006,7 +1002,7 @@ public class AdminService {
                 + limitText(notice.getTitle(), 40)
                 + "》";
 
-        notificationService.createNotifications(activeUserIds, "SITE_NOTICE", title, content, "/#site-notices");
+        notificationService.createNotifications(activeUserIds, "SITE_NOTICE", title, content, "/lc#site-notices");
     }
 
     private String generateUniqueCode() {

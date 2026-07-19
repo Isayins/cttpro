@@ -17,6 +17,7 @@ import com.alipay.api.response.AlipayTradeCloseResponse;
 import com.alipay.api.response.AlipayTradePrecreateResponse;
 import com.alipay.api.response.AlipayTradeQueryResponse;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -45,7 +46,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
@@ -405,6 +408,37 @@ public class AlipayFaceToFacePaymentService {
         return PageResultDto.of(toAdminPaymentOrderDtos(result.getRecords()), result.getTotal(), safePage, safeSize);
     }
 
+    public String exportAdminOrdersCsv(Long adminUserId, String keyword, String status, String resourceType,
+                                       Boolean hasError, Boolean hasCoupon, String supportStatus) {
+        userAccessService.requireAdmin(adminUserId);
+        QueryWrapper<PaymentOrder> queryWrapper = new QueryWrapper<>();
+        applyAdminOrderFilters(queryWrapper, keyword, status, resourceType, hasError, hasCoupon, supportStatus);
+        List<AdminPaymentOrderDto> records = toAdminPaymentOrderDtos(
+                paymentOrderMapper.selectList(queryWrapper.orderByDesc("create_time")));
+
+        StringBuilder csv = new StringBuilder("\ufeff");
+        csv.append("订单号,支付流水号,渠道,商品,付款人,用户名,收货邮箱,原价,优惠金额,优惠码,实付金额,状态,支付时间,售后状态,异常原因,创建时间\n");
+        for (AdminPaymentOrderDto record : records) {
+            csv.append(csvCell(record.getOutTradeNo())).append(',')
+                    .append(csvCell(record.getTradeNo())).append(',')
+                    .append(csvCell(record.getChannel())).append(',')
+                    .append(csvCell(record.getSubject())).append(',')
+                    .append(csvCell(record.getPayerName())).append(',')
+                    .append(csvCell(record.getPayerUsername())).append(',')
+                    .append(csvCell(record.getDeliveryEmail())).append(',')
+                    .append(csvCell(record.getOriginalAmount())).append(',')
+                    .append(csvCell(record.getDiscountAmount())).append(',')
+                    .append(csvCell(record.getCouponCode())).append(',')
+                    .append(csvCell(record.getTotalAmount())).append(',')
+                    .append(csvCell(record.getStatus())).append(',')
+                    .append(csvCell(record.getPaidTime())).append(',')
+                    .append(csvCell(record.getSupportStatus())).append(',')
+                    .append(csvCell(record.getLastError())).append(',')
+                    .append(csvCell(record.getCreateTime())).append('\n');
+        }
+        return csv.toString();
+    }
+
     public AdminPaymentOrderStatsDto getAdminOrderStats(Long adminUserId) {
         userAccessService.requireAdmin(adminUserId);
         Long total = paymentOrderMapper.selectCount(new QueryWrapper<>());
@@ -417,6 +451,35 @@ public class AlipayFaceToFacePaymentService {
         Long errors = paymentOrderMapper.selectCount(new QueryWrapper<PaymentOrder>().isNotNull("last_error").ne("last_error", ""));
         Long openSupport = paymentOrderMapper.selectCount(new QueryWrapper<PaymentOrder>().eq("support_status", "OPEN"));
         return AdminPaymentOrderStatsDto.of(total, created, waiting, paid, closed, failed, errors, openSupport);
+    }
+
+    @Scheduled(fixedDelay = 60_000L)
+    @Transactional(rollbackFor = Exception.class)
+    public void closeExpiredVmqOrders() {
+        Date now = new Date();
+        List<PaymentOrder> expiredOrders = paymentOrderMapper.selectList(new QueryWrapper<PaymentOrder>()
+                .likeRight("channel", CHANNEL_VMQ_PREFIX)
+                .in("status", List.of(STATUS_CREATED, STATUS_WAIT_BUYER_PAY))
+                .isNotNull("expire_time")
+                .lt("expire_time", now)
+                .orderByAsc("expire_time")
+                .last("LIMIT 200"));
+
+        int closed = 0;
+        for (PaymentOrder order : expiredOrders) {
+            int updated = paymentOrderMapper.update(null, new UpdateWrapper<PaymentOrder>()
+                    .set("status", STATUS_TRADE_CLOSED)
+                    .set("closed_time", now)
+                    .eq("id", order.getId())
+                    .in("status", List.of(STATUS_CREATED, STATUS_WAIT_BUYER_PAY)));
+            if (updated > 0) {
+                productCouponCodeService.releaseCouponForOrder(order);
+                closed++;
+            }
+        }
+        if (closed > 0) {
+            log.info("Closed {} expired V免签 orders", closed);
+        }
     }
 
     public AdminPaymentOrderDto adminQuery(Long adminUserId, String outTradeNo) {
@@ -1422,6 +1485,10 @@ public class AlipayFaceToFacePaymentService {
         }
         String normalized = value.trim();
         return normalized.isEmpty() ? null : normalized;
+    }
+
+    private String csvCell(String value) {
+        return "\"" + (value == null ? "" : value.replace("\"", "\"\"")) + "\"";
     }
 
     private String requireText(String value, String message) {
