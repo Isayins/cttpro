@@ -25,7 +25,7 @@ import {
   SearchOutlined,
   ShoppingCartOutlined,
 } from "@ant-design/icons";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import MainLayout from "../layouts/MainLayout";
 import { getErrorMessage } from "../lib/errorMessage";
@@ -223,6 +223,7 @@ function OrderMobileCard({
 
 export default function Orders() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [orders, setOrders] = useState<PaymentOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -239,6 +240,7 @@ export default function Orders() {
   const [supportSubmitting, setSupportSubmitting] = useState(false);
   const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([]);
   const loadOrdersRequestRef = useRef(0);
+  const linkedOrderRequestRef = useRef<string | null>(null);
   const completedNoticeOrderNosRef = useRef<Set<string>>(new Set());
 
   const loadOrders = useCallback(
@@ -317,6 +319,46 @@ export default function Orders() {
       current?.outTradeNo === updated.outTradeNo ? updated : current,
     );
   }, []);
+
+  const linkedOrderNo = searchParams.get("order")?.trim() ?? "";
+  useEffect(() => {
+    if (!linkedOrderNo) {
+      linkedOrderRequestRef.current = null;
+      return;
+    }
+    if (linkedOrderRequestRef.current === linkedOrderNo) {
+      return;
+    }
+
+    linkedOrderRequestRef.current = linkedOrderNo;
+    let cancelled = false;
+    void paymentApi.queryAlipayFaceToFaceOrder(linkedOrderNo)
+      .then((order) => {
+        if (!cancelled) {
+          updateOrder(order);
+          setSelectedOrder(order);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          message.error(getErrorMessage(error, "订单详情加载失败"));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [linkedOrderNo, updateOrder]);
+
+  function closeOrderDetail() {
+    setSelectedOrder(null);
+    if (!searchParams.has("order")) {
+      return;
+    }
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("order");
+    setSearchParams(nextParams, { replace: true });
+  }
 
   const notifyCompletedOrder = useCallback(
     (order: PaymentOrder, suffix = "") => {
@@ -996,7 +1038,7 @@ export default function Orders() {
               : "扫码支付"
           }
           open={Boolean(selectedOrder)}
-          onCancel={() => setSelectedOrder(null)}
+          onCancel={closeOrderDetail}
           footer={null}
           destroyOnClose
         >
@@ -1257,7 +1299,7 @@ export default function Orders() {
                       ? "售后处理中"
                       : "提交售后"}
                   </Button>
-                  <Button onClick={() => setSelectedOrder(null)}>
+                  <Button onClick={closeOrderDetail}>
                     关闭详情
                   </Button>
                 </Space>
@@ -1299,7 +1341,7 @@ export default function Orders() {
                         ? "再次提交售后"
                         : "提交售后"}
                   </Button>
-                  <Button onClick={() => setSelectedOrder(null)}>
+                  <Button onClick={closeOrderDetail}>
                     关闭详情
                   </Button>
                 </Space>

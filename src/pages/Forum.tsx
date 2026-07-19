@@ -1063,17 +1063,18 @@ export default function Forum() {
     setSearchParams(nextParams, { replace: true });
   }, [searchParams, setSearchParams]);
 
-  const openPost = useCallback(async (post: Post, syncQuery = true) => {
+  const openPost = useCallback(async (post: Post | number, syncQuery = true) => {
+    const postId = typeof post === "number" ? post : post.id;
     const requestSeq = detailRequestSeqRef.current + 1;
     detailRequestSeqRef.current = requestSeq;
-    setQueryPostHandled(post.id);
+    setQueryPostHandled(postId);
     if (syncQuery) {
       updateSearchParams((params) => {
-        params.set("post", String(post.id));
+        params.set("post", String(postId));
       });
     }
 
-    setActivePost(post);
+    setActivePost(typeof post === "number" ? null : post);
     setReplies([]);
     setReplyPage(1);
     setHasMoreReplies(false);
@@ -1083,7 +1084,7 @@ export default function Forum() {
     setDetailLoading(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
     try {
-      const [detail, replyList] = await Promise.all([forumApi.getPost(post.id), forumApi.getReplies(post.id, 1, 20)]);
+      const [detail, replyList] = await Promise.all([forumApi.getPost(postId), forumApi.getReplies(postId, 1, 20)]);
       if (requestSeq !== detailRequestSeqRef.current) {
         return;
       }
@@ -1097,6 +1098,11 @@ export default function Forum() {
         return;
       }
       message.error(getFriendlyMessage(error, "帖子详情加载失败"));
+      if (typeof post === "number") {
+        setDetailOpen(false);
+        setQueryPostHandled(null);
+        updateSearchParams((params) => params.delete("post"));
+      }
     } finally {
       if (requestSeq === detailRequestSeqRef.current) {
         setDetailLoading(false);
@@ -1125,11 +1131,8 @@ export default function Forum() {
       return;
     }
     const targetPost = posts.find((item) => item.id === postId);
-    if (!targetPost) {
-      return;
-    }
     setQueryPostHandled(postId);
-    void openPost(targetPost, false);
+    void openPost(targetPost ?? postId, false);
   }, [detailOpen, loading, openPost, posts, queryPostHandled, searchParams]);
 
   function closeDetailView() {

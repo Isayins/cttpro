@@ -147,7 +147,7 @@ class AlipayFaceToFacePaymentServiceTest {
                 "DELIVERY_RESENT",
                 "发货邮件已重新发送",
                 "订单 202607180001 的发货邮件已重新发送，请查收邮箱和垃圾箱。",
-                "/orders"
+                "/orders?order=202607180001"
         );
     }
 
@@ -199,7 +199,7 @@ class AlipayFaceToFacePaymentServiceTest {
                 "ORDER_SUPPORT_REPLIED",
                 "订单售后已回复",
                 "订单 202607180002：已补发，请检查垃圾箱",
-                "/orders"
+                "/orders?order=202607180002"
         );
     }
 

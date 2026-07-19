@@ -340,7 +340,7 @@ public class AlipayFaceToFacePaymentService {
                 "DELIVERY_RESENT",
                 "发货邮件已重新发送",
                 "订单 " + order.getOutTradeNo() + " 的发货邮件已重新发送，请查收邮箱和垃圾箱。",
-                "/orders"
+                "/orders?order=" + order.getOutTradeNo()
         );
         return PaymentOrderDto.fromEntity(paymentOrderMapper.selectById(order.getId()));
     }
@@ -565,7 +565,7 @@ public class AlipayFaceToFacePaymentService {
                     "ORDER_SUPPORT_REPLIED",
                     "订单售后已回复",
                     "订单 " + order.getOutTradeNo() + "：" + reply,
-                    "/orders"
+                    "/orders?order=" + order.getOutTradeNo()
             );
         }
         PaymentOrder saved = paymentOrderMapper.selectById(order.getId());
@@ -1030,7 +1030,7 @@ public class AlipayFaceToFacePaymentService {
                 "PAYMENT_SUCCESS",
                 freeOrder ? "商品领取成功" : "订单支付成功",
                 "订单 " + order.getOutTradeNo() + (freeOrder ? " 已领取成功。" : " 已支付成功。"),
-                "/orders"
+                "/orders?order=" + order.getOutTradeNo()
         );
         notificationService.createNotification(
                 order.getPayerUserId(),
@@ -1039,7 +1039,7 @@ public class AlipayFaceToFacePaymentService {
                 deliveryError == null
                         ? "订单 " + order.getOutTradeNo() + " 的发货邮件已发送，请查收邮箱和垃圾箱。"
                         : "订单 " + order.getOutTradeNo() + " 发货未完成：" + deliveryError,
-                "/orders"
+                "/orders?order=" + order.getOutTradeNo()
         );
     }
 

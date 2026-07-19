@@ -299,7 +299,7 @@ public class ForumService {
                     "FORUM_REPLY",
                     "你的帖子收到新回复",
                     user.getNickname() + " 回复了你的帖子：" + limitText(post.getTitle(), 40),
-                    "/forum"
+                    "/forum?post=" + postId
             );
         }
 
@@ -354,7 +354,7 @@ public class ForumService {
                     "FORUM_LIKE",
                     "你的帖子收到新点赞",
                     nickname + " 点赞了你的帖子：" + limitText(post.getTitle(), 40),
-                    "/forum"
+                    "/forum?post=" + postId
             );
         } else {
             postLikeMapper.deleteById(existingLike.getId());
