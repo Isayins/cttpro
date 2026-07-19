@@ -21,14 +21,18 @@ public class NotificationService {
     @Autowired
     private UserAccessService userAccessService;
 
-    public List<UserNotificationDto> getNotifications(Long userId, Integer limit) {
+    public List<UserNotificationDto> getNotifications(Long userId, Integer limit, Long beforeId) {
         userAccessService.requireActiveUser(userId);
         int safeLimit = limit == null ? 20 : Math.max(1, Math.min(limit, 100));
+        QueryWrapper<UserNotification> query = new QueryWrapper<UserNotification>()
+                .eq("user_id", userId)
+                .orderByDesc("id")
+                .last("LIMIT " + safeLimit);
+        if (beforeId != null) {
+            query.lt("id", beforeId);
+        }
 
-        return userNotificationMapper.selectList(new QueryWrapper<UserNotification>()
-                        .eq("user_id", userId)
-                        .orderByDesc("create_time")
-                        .last("LIMIT " + safeLimit))
+        return userNotificationMapper.selectList(query)
                 .stream()
                 .map(UserNotificationDto::fromEntity)
                 .collect(Collectors.toList());

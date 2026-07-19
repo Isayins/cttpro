@@ -24,8 +24,9 @@ public class NotificationController {
 
     @GetMapping
     public ResponseEntity<List<UserNotificationDto>> getNotifications(@RequestAttribute("userId") Long userId,
-                                                                      @RequestParam(required = false) Integer limit) {
-        return ResponseEntity.ok(notificationService.getNotifications(userId, limit));
+                                                                      @RequestParam(required = false) Integer limit,
+                                                                      @RequestParam(required = false) Long beforeId) {
+        return ResponseEntity.ok(notificationService.getNotifications(userId, limit, beforeId));
     }
 
     @GetMapping("/unread-count")

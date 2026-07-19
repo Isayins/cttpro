@@ -46,6 +46,7 @@ interface NotificationListItem {
 }
 
 type NotificationFilter = "ALL" | "UNREAD" | "MESSAGE" | "NOTICE";
+const NOTIFICATION_PAGE_SIZE = 20;
 
 export default function NotificationCenterDrawer({
   open,
@@ -60,6 +61,8 @@ export default function NotificationCenterDrawer({
   const [selectedNotificationIds, setSelectedNotificationIds] = useState<
     number[]
   >([]);
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [loadingMoreMessages, setLoadingMoreMessages] = useState(false);
   const loadRequestRef = useRef(0);
 
   const navigateToPath = useCallback(
@@ -93,6 +96,8 @@ export default function NotificationCenterDrawer({
       setLoading(false);
       setItems([]);
       setSelectedNotificationIds([]);
+      setHasMoreMessages(false);
+      setLoadingMoreMessages(false);
       onUnreadCountChange(0);
       return;
     }
@@ -100,7 +105,7 @@ export default function NotificationCenterDrawer({
     setLoading(true);
     try {
       const [notifications, unread, notices] = await Promise.all([
-        notificationApi.getNotifications(20),
+        notificationApi.getNotifications(NOTIFICATION_PAGE_SIZE),
         notificationApi.getUnreadCount(),
         siteNoticeApi.getSiteNotices().catch(() => [] as SiteNotice[]),
       ]);
@@ -142,6 +147,7 @@ export default function NotificationCenterDrawer({
         ),
       );
       setSelectedNotificationIds([]);
+      setHasMoreMessages(notifications.length === NOTIFICATION_PAGE_SIZE);
       onUnreadCountChange(unread.count ?? 0);
     } catch (error) {
       if (isLatestRequest()) {
@@ -163,6 +169,56 @@ export default function NotificationCenterDrawer({
       loadRequestRef.current += 1;
     };
   }, [loadNotificationCenter, open]);
+
+  async function handleLoadMoreMessages() {
+    if (loadingMoreMessages || !hasMoreMessages) {
+      return;
+    }
+    const beforeId = items.reduce(
+      (oldestId, item) => item.notificationId ? Math.min(oldestId, item.notificationId) : oldestId,
+      Number.MAX_SAFE_INTEGER,
+    );
+    if (beforeId === Number.MAX_SAFE_INTEGER) {
+      setHasMoreMessages(false);
+      return;
+    }
+
+    const requestId = loadRequestRef.current + 1;
+    loadRequestRef.current = requestId;
+    setLoadingMoreMessages(true);
+    try {
+      const notifications = await notificationApi.getNotifications(NOTIFICATION_PAGE_SIZE, beforeId);
+      if (loadRequestRef.current !== requestId) {
+        return;
+      }
+      const nextItems: NotificationListItem[] = notifications.map((item) => ({
+        key: `message-${item.id}`,
+        title: item.title,
+        content: item.content,
+        createTime: item.createTime,
+        path: item.relatedPath,
+        read: item.read,
+        source: "message",
+        notificationId: item.id,
+      }));
+      setItems((current) => {
+        const merged = new Map(current.map((item) => [item.key, item]));
+        nextItems.forEach((item) => merged.set(item.key, item));
+        return [...merged.values()].sort(
+          (a, b) => new Date(b.createTime ?? 0).getTime() - new Date(a.createTime ?? 0).getTime(),
+        );
+      });
+      setHasMoreMessages(notifications.length === NOTIFICATION_PAGE_SIZE);
+    } catch (error) {
+      if (loadRequestRef.current === requestId) {
+        message.error(getErrorMessage(error, "加载更多消息失败"));
+      }
+    } finally {
+      if (loadRequestRef.current === requestId) {
+        setLoadingMoreMessages(false);
+      }
+    }
+  }
 
   async function handleNotificationClick(item: NotificationListItem) {
     if (item.source === "message" && item.notificationId && !item.read) {
@@ -418,6 +474,13 @@ export default function NotificationCenterDrawer({
               )}
             />
           )}
+          {filter !== "NOTICE" && hasMoreMessages ? (
+            <div className="flex justify-center pt-4">
+              <Button loading={loadingMoreMessages} onClick={() => void handleLoadMoreMessages()}>
+                加载更多消息
+              </Button>
+            </div>
+          ) : null}
         </>
       )}
     </Drawer>
