@@ -43,6 +43,23 @@ PATH="${FAKE_BIN}:${PATH}" APP_HOME="${APP_HOME}" bash "${SCRIPT_DIR}/backup.sh"
 grep -q '^status=SUCCESS$' "${APP_HOME}/backup-status.properties"
 grep -q '^remoteSynced=true$' "${APP_HOME}/backup-status.properties"
 [[ -s "${TEST_ROOT}/rsync-call" ]]
+BACKUP_DIR="$(find "${APP_HOME}/backups" -mindepth 1 -maxdepth 1 -type d -print -quit)"
+bash "${SCRIPT_DIR}/verify-backup.sh" "${BACKUP_DIR}"
+
+cp "${BACKUP_DIR}/database.sql.gz" "${TEST_ROOT}/database.sql.gz"
+gzip < /dev/null > "${BACKUP_DIR}/database.sql.gz"
+(cd "${BACKUP_DIR}" && sha256sum database.sql.gz uploads.tar.gz > SHA256SUMS)
+if bash "${SCRIPT_DIR}/verify-backup.sh" "${BACKUP_DIR}"; then
+  echo "Empty database backup passed verification." >&2
+  exit 1
+fi
+mv "${TEST_ROOT}/database.sql.gz" "${BACKUP_DIR}/database.sql.gz"
+printf 'not a tar archive\n' > "${BACKUP_DIR}/uploads.tar.gz"
+(cd "${BACKUP_DIR}" && sha256sum database.sql.gz uploads.tar.gz > SHA256SUMS)
+if bash "${SCRIPT_DIR}/verify-backup.sh" "${BACKUP_DIR}"; then
+  echo "Invalid upload backup passed verification." >&2
+  exit 1
+fi
 
 printf 'DOWN\n' > "${TEST_ROOT}/health-mode"
 PATH="${FAKE_BIN}:${PATH}" APP_HOME="${APP_HOME}" bash "${SCRIPT_DIR}/ops-health-check.sh" && exit 1 || true

@@ -96,6 +96,7 @@ tar -C "${UPLOAD_DIR}" -czf "${TEMP_DIR}/uploads.tar.gz" .
   cd "${TEMP_DIR}"
   sha256sum database.sql.gz uploads.tar.gz > SHA256SUMS
 )
+bash "${SCRIPT_DIR}/verify-backup.sh" "${TEMP_DIR}"
 
 mv "${TEMP_DIR}" "${FINAL_DIR}"
 TEMP_DIR=""
@@ -105,5 +106,5 @@ if [[ -n "${BACKUP_REMOTE_TARGET}" ]]; then
 fi
 find "${BACKUP_ROOT}" -mindepth 1 -maxdepth 1 -type d -mtime "+${BACKUP_RETENTION_DAYS}" -exec rm -rf -- {} +
 
-write_status "SUCCESS" "Backup completed"
+write_status "SUCCESS" "Backup completed and verified"
 echo "Backup created: ${FINAL_DIR}"

@@ -116,10 +116,17 @@ docker compose --env-file deploy/ubuntu/.env -f deploy/ubuntu/docker-compose.yml
 `rsync` 和可免交互登录的 SSH 密钥。
 
 备份运行中的 MySQL 和上传文件，默认写入 `/opt/cttpro/backups/<时间>/`，
-并生成 SHA-256 校验文件；默认删除超过 14 天的备份：
+并生成 SHA-256 校验文件；写入完成前还会验证数据库内容非空且两个归档均可读取。
+默认删除超过 14 天的备份：
 
 ```bash
 bash deploy/ubuntu/backup.sh
+```
+
+需要在不停止服务、不连接数据库的情况下复查已有备份时执行：
+
+```bash
+bash deploy/ubuntu/verify-backup.sh /srv/cttpro-backups/20260718-030000
 ```
 
 可通过环境变量调整位置和保留天数：
@@ -155,7 +162,7 @@ journalctl -u cttpro-backup.service -u cttpro-health.service
 0 3 * * * BACKUP_ROOT=/srv/cttpro-backups BACKUP_RETENTION_DAYS=30 /bin/bash /opt/cttpro/deploy/ubuntu/backup.sh >> /var/log/cttpro-backup.log 2>&1
 ```
 
-恢复会校验归档、停止 Java 后端、重建数据库与上传目录、清理 Redis 会话，
+恢复会先执行同一套只读校验，再停止 Java 后端、重建数据库与上传目录、清理 Redis 会话，
 必须显式确认。默认通过 systemd 管理 `java-backend` 服务；nohup 部署设置
 `APP_CONTROL=nohup`。失败时后端保持停止，先检查数据后再手动启动：
 

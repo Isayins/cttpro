@@ -121,7 +121,7 @@ deploy_release() {
     install -d -m 0755 "${APP_HOME}/deploy/ubuntu"
     install -m 0755 "${incoming}/ops/"*.sh "${APP_HOME}/deploy/ubuntu/"
     if [[ -d "${APP_HOME}/bin" ]]; then
-      for script in backup.sh ops-alert.sh ops-health-check.sh; do
+      for script in verify-backup.sh backup.sh ops-alert.sh ops-health-check.sh; do
         [[ ! -f "${incoming}/ops/${script}" ]] || install -m 0755 "${incoming}/ops/${script}" "${APP_HOME}/bin/${script}"
       done
     fi

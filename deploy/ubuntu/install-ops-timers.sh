@@ -12,6 +12,7 @@ fi
 [[ -f "${APP_HOME}/.env" ]] || { echo "Missing environment file: ${APP_HOME}/.env" >&2; exit 1; }
 
 install -d -m 0755 "${BIN_DIR}"
+install -m 0755 "${SCRIPT_DIR}/verify-backup.sh" "${BIN_DIR}/verify-backup.sh"
 install -m 0755 "${SCRIPT_DIR}/backup.sh" "${BIN_DIR}/backup.sh"
 install -m 0755 "${SCRIPT_DIR}/ops-alert.sh" "${BIN_DIR}/ops-alert.sh"
 install -m 0755 "${SCRIPT_DIR}/ops-health-check.sh" "${BIN_DIR}/ops-health-check.sh"

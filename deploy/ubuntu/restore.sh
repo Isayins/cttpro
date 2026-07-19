@@ -30,13 +30,7 @@ for command in mysql tar gzip sha256sum redis-cli; do
 done
 
 BACKUP_DIR="$(cd "${BACKUP_DIR}" && pwd)"
-for file in database.sql.gz uploads.tar.gz SHA256SUMS; do
-  [[ -f "${BACKUP_DIR}/${file}" ]] || { echo "Missing backup file: ${file}" >&2; exit 1; }
-done
-(
-  cd "${BACKUP_DIR}"
-  sha256sum -c SHA256SUMS
-)
+bash "${SCRIPT_DIR}/verify-backup.sh" "${BACKUP_DIR}"
 
 JDBC_URL="${SPRING_DATASOURCE_URL:-jdbc:mysql://127.0.0.1:3306/idncar}"
 if [[ ! "${JDBC_URL}" =~ ^jdbc:mysql://([^/:]+)(:([0-9]+))?/([^?]+) ]]; then

@@ -54,7 +54,7 @@ jobs:
 
       - name: Validate deployment scripts
         run: |
-          bash -n deploy/ubuntu/backup.sh deploy/ubuntu/restore.sh deploy/ubuntu/deploy-host-release.sh deploy/ubuntu/install-backend-service.sh deploy/ubuntu/test-host-release.sh deploy/ubuntu/ops-alert.sh deploy/ubuntu/ops-health-check.sh deploy/ubuntu/install-ops-timers.sh deploy/ubuntu/test-ops-scripts.sh
+          bash -n deploy/ubuntu/backup.sh deploy/ubuntu/verify-backup.sh deploy/ubuntu/restore.sh deploy/ubuntu/deploy-host-release.sh deploy/ubuntu/install-backend-service.sh deploy/ubuntu/test-host-release.sh deploy/ubuntu/ops-alert.sh deploy/ubuntu/ops-health-check.sh deploy/ubuntu/install-ops-timers.sh deploy/ubuntu/test-ops-scripts.sh
           bash deploy/ubuntu/test-host-release.sh
           bash deploy/ubuntu/test-ops-scripts.sh
 
