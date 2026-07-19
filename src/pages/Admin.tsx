@@ -687,6 +687,7 @@ export default function Admin() {
   const [deliveryCodeForm] = Form.useForm<ImportProductDeliveryCodesPayload>();
   const [noticeForm] = Form.useForm<SaveSiteNoticePayload>();
   const [reviewForm] = Form.useForm<ReviewPostReportPayload>();
+  const reportReviewStatus = Form.useWatch("status", reviewForm);
   const [paymentResolveForm] = Form.useForm<{ note?: string }>();
 
   useEffect(() => {
@@ -4742,6 +4743,7 @@ export default function Admin() {
                   ? record.status
                   : "RESOLVED",
               reviewNote: record.reviewNote ?? "",
+              deleteTarget: false,
             });
           }}
         >
@@ -7875,6 +7877,19 @@ export default function Admin() {
             <Form.Item name="reviewNote" label="处理备注">
               <Input.TextArea rows={4} />
             </Form.Item>
+            {reviewingReport &&
+            (reviewingReport.targetType === "CHAT_MESSAGE" ||
+              reviewingReport.targetType === "TALK_POST") &&
+            reportReviewStatus === "RESOLVED" ? (
+              <Form.Item
+                name="deleteTarget"
+                label="内容处置"
+                valuePropName="checked"
+                preserve={false}
+              >
+                <Switch checkedChildren="同时删除" unCheckedChildren="保留内容" />
+              </Form.Item>
+            ) : null}
             <Space>
               <Button onClick={() => setReviewingReport(null)}>取消</Button>
               <Button type="primary" htmlType="submit" loading={submitting}>

@@ -12,6 +12,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.List;
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -88,5 +89,23 @@ class CommunityServiceTest {
                 new CreateCommunityReportRequest("TALK_POST", 12L, "垃圾广告", null)
         )).isInstanceOf(ApiException.class)
                 .hasMessage("你已经举报过这条内容");
+    }
+
+    @Test
+    void deletingReportedTalkAlsoDeletesItsComments() {
+        CommunityService service = new CommunityService();
+        UserAccessService userAccessService = mock(UserAccessService.class);
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        when(jdbcTemplate.update("DELETE FROM community_talk_posts WHERE id = ?", 12L)).thenReturn(1);
+        ReflectionTestUtils.setField(service, "userAccessService", userAccessService);
+        ReflectionTestUtils.setField(service, "jdbcTemplate", jdbcTemplate);
+
+        boolean deleted = service.deleteReportedContent(7L, "TALK_POST", 12L);
+
+        var ordered = inOrder(userAccessService, jdbcTemplate);
+        ordered.verify(userAccessService).requireAdmin(7L);
+        ordered.verify(jdbcTemplate).update("DELETE FROM community_talk_comments WHERE post_id = ?", 12L);
+        ordered.verify(jdbcTemplate).update("DELETE FROM community_talk_posts WHERE id = ?", 12L);
+        assertThat(deleted).isTrue();
     }
 }

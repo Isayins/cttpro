@@ -620,6 +620,7 @@ export interface AdminPostReportStats {
 export interface ReviewPostReportPayload {
   status: "PENDING" | "RESOLVED" | "REJECTED";
   reviewNote?: string;
+  deleteTarget?: boolean;
 }
 
 export interface AdminOperationLog {

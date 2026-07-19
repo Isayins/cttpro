@@ -7,4 +7,5 @@ public class ReviewPostReportRequest {
 
     private String status;
     private String reviewNote;
+    private Boolean deleteTarget;
 }

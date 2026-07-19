@@ -104,6 +104,9 @@ public class AdminService {
     @Autowired
     private NotificationService notificationService;
 
+    @Autowired
+    private CommunityService communityService;
+
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     public List<UserDto> getUsers(Long adminUserId) {
@@ -570,6 +573,16 @@ public class AdminService {
             throw ApiException.badRequest("处理状态仅支持 PENDING、RESOLVED 或 REJECTED");
         }
 
+        boolean deleteTarget = Boolean.TRUE.equals(request.getDeleteTarget());
+        if (deleteTarget && !"RESOLVED".equals(status)) {
+            throw ApiException.badRequest("删除举报内容时，处理状态必须为已处理");
+        }
+        boolean targetDeleted = deleteTarget && communityService.deleteReportedContent(
+                adminUserId,
+                report.getTargetType(),
+                report.getTargetId()
+        );
+
         report.setStatus(status);
         report.setReviewNote(limitText(normalizeNullableText(request.getReviewNote()), 500));
         report.setReviewedBy(operator.getId());
@@ -581,7 +594,11 @@ public class AdminService {
                 .findFirst()
                 .orElseThrow(() -> ApiException.notFound("举报记录不存在"));
 
-        logOperation(operator, "POST_REPORT_REVIEWED", "POST_REPORT", dto.getId(), dto.getPostTitle(), "处理举报，状态更新为 " + status);
+        String operationDetail = "处理举报，状态更新为 " + status;
+        if (deleteTarget) {
+            operationDetail += targetDeleted ? "，并删除被举报内容" : "，被举报内容已不存在";
+        }
+        logOperation(operator, "POST_REPORT_REVIEWED", "POST_REPORT", dto.getId(), dto.getPostTitle(), operationDetail);
         notificationService.createNotification(
                 dto.getReporterId(),
                 "REPORT_REVIEW",

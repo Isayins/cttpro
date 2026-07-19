@@ -153,6 +153,22 @@ public class CommunityService {
         );
     }
 
+    @Transactional(rollbackFor = Exception.class)
+    public boolean deleteReportedContent(Long adminUserId, String targetType, Long targetId) {
+        userAccessService.requireAdmin(adminUserId);
+        if (targetId == null || targetId <= 0) {
+            throw ApiException.badRequest("举报目标无效");
+        }
+        if ("CHAT_MESSAGE".equals(targetType)) {
+            return jdbcTemplate.update("DELETE FROM community_chat_messages WHERE id = ?", targetId) > 0;
+        }
+        if ("TALK_POST".equals(targetType)) {
+            jdbcTemplate.update("DELETE FROM community_talk_comments WHERE post_id = ?", targetId);
+            return jdbcTemplate.update("DELETE FROM community_talk_posts WHERE id = ?", targetId) > 0;
+        }
+        throw ApiException.badRequest("该举报类型不支持直接删除内容");
+    }
+
     public List<PrivateChatUserDto> getOnlinePrivateChatUsers(Long currentUserId) {
         userAccessService.requireActiveUser(currentUserId);
 
