@@ -38,6 +38,8 @@ interface HeaderProps {
   contentWidth?: LayoutContentWidth;
 }
 
+const NOTIFICATION_REFRESH_INTERVAL_MS = 60_000;
+
 export default function Header({
   variant = "default",
   contentWidth = "default",
@@ -78,21 +80,37 @@ export default function Header({
     }
 
     let cancelled = false;
-    void import("../services/api/notification")
-      .then(({ notificationApi }) => notificationApi.getUnreadCount())
-      .then((unread) => {
-        if (!cancelled) {
-          setUnreadCount(unread.count ?? 0);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setUnreadCount(0);
-        }
-      });
+    let requestId = 0;
+    const refreshUnreadCount = () => {
+      const currentRequestId = requestId + 1;
+      requestId = currentRequestId;
+      void import("../services/api/notification")
+        .then(({ notificationApi }) => notificationApi.getUnreadCount())
+        .then((unread) => {
+          if (!cancelled && requestId === currentRequestId) {
+            setUnreadCount(unread.count ?? 0);
+          }
+        })
+        .catch(() => {
+          // Keep the last known count when a background refresh fails.
+        });
+    };
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        refreshUnreadCount();
+      }
+    };
+
+    refreshUnreadCount();
+    const timerId = window.setInterval(refreshWhenVisible, NOTIFICATION_REFRESH_INTERVAL_MS);
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
 
     return () => {
       cancelled = true;
+      window.clearInterval(timerId);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, [isAuthenticated, isClean]);
 

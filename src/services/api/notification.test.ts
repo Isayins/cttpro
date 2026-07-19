@@ -18,7 +18,11 @@ describe("notification API pagination", () => {
     setAuthToken("test-token");
 
     await notificationApi.getNotifications(20, 99);
+    await notificationApi.getUnreadCount();
 
-    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/notifications?limit=20&beforeId=99");
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      "/api/notifications?limit=20&beforeId=99",
+      "/api/notifications/unread-count",
+    ]);
   });
 });
