@@ -694,7 +694,13 @@ export default function Forum() {
   const [loading, setLoading] = useState(true);
   const [postsLoadingSlow, setPostsLoadingSlow] = useState(false);
   const [postsLoadError, setPostsLoadError] = useState<string | null>(null);
+  const [postPage, setPostPage] = useState(1);
+  const [hasMorePosts, setHasMorePosts] = useState(false);
+  const [loadingMorePosts, setLoadingMorePosts] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [replyPage, setReplyPage] = useState(1);
+  const [hasMoreReplies, setHasMoreReplies] = useState(false);
+  const [loadingMoreReplies, setLoadingMoreReplies] = useState(false);
   const [savingPost, setSavingPost] = useState(false);
   const [savingReply, setSavingReply] = useState(false);
   const [reporting, setReporting] = useState(false);
@@ -922,14 +928,20 @@ export default function Forum() {
     }
   }, [selectedSignInBoardId]);
 
-  const loadPosts = useCallback(async (currentFilters = filters) => {
+  const loadPosts = useCallback(async (currentFilters = filters, page = 1, append = false) => {
     const requestSeq = postsRequestSeqRef.current + 1;
     postsRequestSeqRef.current = requestSeq;
-    setLoading(true);
-    setPostsLoadingSlow(false);
-    setPostsLoadError(null);
+    if (append) {
+      setLoadingMorePosts(true);
+    } else {
+      setLoading(true);
+      setPostsLoadingSlow(false);
+      setPostsLoadError(null);
+    }
     try {
       const data = await forumApi.getPosts({
+        page,
+        size: 30,
         keyword: currentFilters.keyword,
         category: currentFilters.category === ALL_BOARD_OPTION ? undefined : currentFilters.category,
         mine: currentFilters.mine,
@@ -938,7 +950,16 @@ export default function Forum() {
       if (requestSeq !== postsRequestSeqRef.current) {
         return;
       }
-      setPosts(data);
+      setPosts((current) => {
+        if (!append) {
+          return data;
+        }
+        const items = new Map(current.map((item) => [item.id, item]));
+        data.forEach((item) => items.set(item.id, item));
+        return [...items.values()];
+      });
+      setPostPage(page);
+      setHasMorePosts(data.length === 30);
 
       if (user?.id && currentFilters.category && currentFilters.category !== ALL_BOARD_OPTION) {
         const mine = data.find((item) => item.userId === user.id && typeof item.authorExperience === "number");
@@ -950,9 +971,15 @@ export default function Forum() {
       if (requestSeq !== postsRequestSeqRef.current) {
         return;
       }
-      setPostsLoadError(getFriendlyMessage(error, "帖子加载失败"));
+      if (append) {
+        message.error(getFriendlyMessage(error, "更多帖子加载失败"));
+      } else {
+        setPostsLoadError(getFriendlyMessage(error, "帖子加载失败"));
+      }
     } finally {
-      if (requestSeq === postsRequestSeqRef.current) {
+      if (append) {
+        setLoadingMorePosts(false);
+      } else if (requestSeq === postsRequestSeqRef.current) {
         setLoading(false);
       }
     }
@@ -1048,18 +1075,22 @@ export default function Forum() {
 
     setActivePost(post);
     setReplies([]);
+    setReplyPage(1);
+    setHasMoreReplies(false);
     setReplyFilter("all");
     setReplySort("latest");
     setDetailOpen(true);
     setDetailLoading(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
     try {
-      const [detail, replyList] = await Promise.all([forumApi.getPost(post.id), forumApi.getReplies(post.id)]);
+      const [detail, replyList] = await Promise.all([forumApi.getPost(post.id), forumApi.getReplies(post.id, 1, 20)]);
       if (requestSeq !== detailRequestSeqRef.current) {
         return;
       }
       setActivePost(detail);
       setReplies(replyList);
+      setReplyPage(1);
+      setHasMoreReplies(replyList.length === 20 && replyList.length < (detail.replyCount ?? Number.MAX_SAFE_INTEGER));
       setPosts((current) => replacePostById(current, detail));
     } catch (error) {
       if (requestSeq !== detailRequestSeqRef.current) {
@@ -1082,6 +1113,8 @@ export default function Forum() {
         setDetailOpen(false);
         setActivePost(null);
         setReplies([]);
+        setReplyPage(1);
+        setHasMoreReplies(false);
         setReplyFilter("all");
         setReplySort("latest");
         window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1111,6 +1144,8 @@ export default function Forum() {
     setDetailOpen(false);
     setActivePost(null);
     setReplies([]);
+    setReplyPage(1);
+    setHasMoreReplies(false);
     setReplyFilter("all");
     setReplySort("latest");
     if (shouldScroll) {
@@ -1715,6 +1750,35 @@ export default function Forum() {
     }
   }
 
+  async function handleLoadMoreReplies() {
+    if (!activePost || loadingMoreReplies) {
+      return;
+    }
+    const postId = activePost.id;
+    const requestSeq = detailRequestSeqRef.current;
+    const nextPage = replyPage + 1;
+    setLoadingMoreReplies(true);
+    try {
+      const nextReplies = await forumApi.getReplies(postId, nextPage, 20);
+      if (requestSeq !== detailRequestSeqRef.current) {
+        return;
+      }
+      setReplies((current) => {
+        const items = new Map(current.map((item) => [item.id, item]));
+        nextReplies.forEach((item) => items.set(item.id, item));
+        return [...items.values()];
+      });
+      setReplyPage(nextPage);
+      const loadedReplyIds = new Set(replies.map((reply) => reply.id));
+      nextReplies.forEach((reply) => loadedReplyIds.add(reply.id));
+      setHasMoreReplies(nextReplies.length === 20 && loadedReplyIds.size < (activePost.replyCount ?? Number.MAX_SAFE_INTEGER));
+    } catch (error) {
+      message.error(getFriendlyMessage(error, "更多回复加载失败"));
+    } finally {
+      setLoadingMoreReplies(false);
+    }
+  }
+
   async function handleSignIn() {
     if (!requireForumLogin("签到")) {
       return;
@@ -1982,8 +2046,9 @@ export default function Forum() {
 
   const replyFloorById = useMemo(() => {
     const orderedReplies = [...replies].sort((a, b) => getTimeValue(a.createTime) - getTimeValue(b.createTime));
-    return new Map(orderedReplies.map((reply, index) => [reply.id, index + 2]));
-  }, [replies]);
+    const firstFloor = Math.max(2, (activePost?.replyCount ?? orderedReplies.length) - orderedReplies.length + 2);
+    return new Map(orderedReplies.map((reply, index) => [reply.id, index + firstFloor]));
+  }, [activePost?.replyCount, replies]);
 
   const displayReplies = useMemo(() => {
     const filteredReplies = replyFilter === "author" && activePost
@@ -2452,6 +2517,13 @@ export default function Forum() {
                           </article>
                         );
                       })}
+                      {hasMorePosts ? (
+                        <div className="flex justify-center pt-5">
+                          <Button loading={loadingMorePosts} onClick={() => void loadPosts(filters, postPage + 1, true)}>
+                            加载更多主题
+                          </Button>
+                        </div>
+                      ) : null}
                     </div>
                   )}
                 </section>
@@ -2584,7 +2656,7 @@ export default function Forum() {
                           replyFilter === "all" ? "border-[#346cff] text-[#111827]" : "border-transparent text-[#8b95a5] hover:text-[#346cff]"
                         }`}
                       >
-                        全部回复（{replies.length}）
+                        全部回复（{activePost.replyCount ?? replies.length}）
                       </button>
                       <button
                         type="button"
@@ -2717,6 +2789,13 @@ export default function Forum() {
                       ))}
                     </div>
                   )}
+                  {hasMoreReplies ? (
+                    <div className="flex justify-center pt-6">
+                      <Button loading={loadingMoreReplies} onClick={() => void handleLoadMoreReplies()}>
+                        加载更多回复
+                      </Button>
+                    </div>
+                  ) : null}
                 </section>
               ) : (
                 <div className="flex justify-center py-20">

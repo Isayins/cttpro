@@ -89,7 +89,8 @@ export const forumApi = {
   },
   getPosts: (filters: ForumPostFilters = {}) => {
     const params = new URLSearchParams();
-    params.set("size", "30");
+    params.set("page", String(filters.page ?? 1));
+    params.set("size", String(filters.size ?? 30));
     if (filters.keyword) params.set("keyword", filters.keyword);
     if (filters.category) params.set("category", filters.category);
     if (filters.mine) params.set("mine", "true");
@@ -122,8 +123,8 @@ export const forumApi = {
       method: "DELETE",
       authMode: "required",
     }),
-  getReplies: (postId: number) =>
-    apiRequest<Reply[]>(`/api/forum/posts/${postId}/replies`, {
+  getReplies: (postId: number, page = 1, size = 20) =>
+    apiRequest<Reply[]>(`/api/forum/posts/${postId}/replies?page=${page}&size=${size}`, {
       authMode: "optional",
     }),
   createReply: (postId: number, payload: { content: string }) =>

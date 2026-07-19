@@ -150,6 +150,8 @@ export interface ForumBoardOwnerApplication {
 }
 
 export interface ForumPostFilters {
+  page?: number;
+  size?: number;
   keyword?: string;
   category?: string;
   mine?: boolean;
