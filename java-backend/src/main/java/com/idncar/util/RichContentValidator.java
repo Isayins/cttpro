@@ -7,6 +7,7 @@ import java.net.URISyntaxException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -22,14 +23,24 @@ public final class RichContentValidator {
             return content;
         }
 
-        String[] lines = content.split("\\R", -1);
-        for (String line : lines) {
-            Matcher matcher = IMAGE_MARKUP_PATTERN.matcher(line.trim());
-            if (matcher.matches() && !isSafeImageUrl(matcher.group(1))) {
+        for (String imageUrl : extractImageMarkupUrls(content)) {
+            if (!isSafeImageUrl(imageUrl)) {
                 throw ApiException.badRequest("图片地址不安全，请重新上传图片");
             }
         }
         return content;
+    }
+
+    public static List<String> extractImageMarkupUrls(String content) {
+        if (content == null || content.isBlank()) {
+            return List.of();
+        }
+        return content.lines()
+                .map(String::trim)
+                .map(IMAGE_MARKUP_PATTERN::matcher)
+                .filter(Matcher::matches)
+                .map(matcher -> matcher.group(1))
+                .toList();
     }
 
     private static boolean isSafeImageUrl(String url) {

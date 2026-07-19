@@ -1,10 +1,16 @@
 package com.idncar.util;
 
 import com.idncar.exception.ApiException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -13,6 +19,7 @@ import java.util.UUID;
 
 public final class ImageUploadHelper {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(ImageUploadHelper.class);
     private static final long DEFAULT_MAX_IMAGE_SIZE_BYTES = 8L * 1024 * 1024;
 
     private ImageUploadHelper() {
@@ -82,6 +89,67 @@ public final class ImageUploadHelper {
     public static Path resolveUploadDir(String uploadBaseDir, String uploadSubDir, String featureName) {
         String imageSubDir = normalizePathSegment(uploadSubDir, featureName);
         return Paths.get(uploadBaseDir).toAbsolutePath().normalize().resolve(imageSubDir).normalize();
+    }
+
+    public static void deleteLocalImageAfterCommit(String imageUrl,
+                                                   String uploadBaseDir,
+                                                   String uploadSubDir,
+                                                   String featureName) {
+        Path targetPath = resolveLocalImage(imageUrl, uploadBaseDir, uploadSubDir, featureName);
+        if (targetPath == null) {
+            return;
+        }
+        Runnable delete = () -> {
+            try {
+                Files.deleteIfExists(targetPath);
+            } catch (IOException exception) {
+                LOGGER.warn("Failed to delete unused {} image: {}", featureName, targetPath, exception);
+            }
+        };
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    delete.run();
+                }
+            });
+            return;
+        }
+        delete.run();
+    }
+
+    public static String extractLocalImageFileName(String imageUrl, String uploadSubDir, String featureName) {
+        if (imageUrl == null || imageUrl.isBlank()) {
+            return null;
+        }
+        String path;
+        try {
+            path = new URI(imageUrl.trim()).getPath();
+        } catch (URISyntaxException exception) {
+            return null;
+        }
+        String imageSubDir = normalizePathSegment(uploadSubDir, featureName);
+        String apiPrefix = "/api/uploads/" + imageSubDir + "/";
+        String publicPrefix = "/uploads/" + imageSubDir + "/";
+        String fileName = path != null && path.startsWith(apiPrefix)
+                ? path.substring(apiPrefix.length())
+                : path != null && path.startsWith(publicPrefix) ? path.substring(publicPrefix.length()) : null;
+        return fileName == null || fileName.isBlank() || fileName.contains("/") || fileName.contains("\\")
+                ? null
+                : fileName;
+    }
+
+    private static Path resolveLocalImage(String imageUrl,
+                                          String uploadBaseDir,
+                                          String uploadSubDir,
+                                          String featureName) {
+        String fileName = extractLocalImageFileName(imageUrl, uploadSubDir, featureName);
+        if (fileName == null) {
+            return null;
+        }
+        Path uploadDir = resolveUploadDir(uploadBaseDir, uploadSubDir, featureName);
+        Path targetPath = uploadDir.resolve(fileName).normalize();
+        return targetPath.startsWith(uploadDir) ? targetPath : null;
     }
 
     public static String normalizePathSegment(String value, String featureName) {

@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -125,11 +126,15 @@ public class ProductService {
         User operator = userAccessService.requireAdmin(adminUserId);
         Product product = requireProduct(productId);
         String oldTitle = product.getTitle();
+        String oldImageUrl = product.getImageUrl();
         fillProduct(product, request);
         product.setUpdateTime(new Date());
         productMapper.updateById(product);
         Product saved = productMapper.selectById(productId);
         logOperation(operator, "PRODUCT_UPDATED", saved.getId(), saved.getTitle(), "更新商品 " + oldTitle + " -> " + saved.getTitle());
+        if (!Objects.equals(oldImageUrl, saved.getImageUrl())) {
+            deleteProductImageIfUnused(oldImageUrl);
+        }
         return toAdminProductDto(saved);
     }
 
@@ -146,6 +151,7 @@ public class ProductService {
         Product product = requireProduct(productId);
         productMapper.deleteById(productId);
         logOperation(operator, "PRODUCT_DELETED", product.getId(), product.getTitle(), "删除商品");
+        deleteProductImageIfUnused(product.getImageUrl());
     }
 
     public Product requirePurchasableProduct(Long productId) {
@@ -177,6 +183,22 @@ public class ProductService {
             throw ApiException.notFound("商品不存在");
         }
         return product;
+    }
+
+    private void deleteProductImageIfUnused(String imageUrl) {
+        if (imageUrl == null || imageUrl.isBlank()) {
+            return;
+        }
+        Long references = productMapper.selectCount(new QueryWrapper<Product>().eq("image_url", imageUrl));
+        if (references != null && references > 0) {
+            return;
+        }
+        ImageUploadHelper.deleteLocalImageAfterCommit(
+                imageUrl,
+                uploadBaseDir,
+                productImageSubDir,
+                "商品"
+        );
     }
 
     private ProductDto toAdminProductDto(Product product) {
