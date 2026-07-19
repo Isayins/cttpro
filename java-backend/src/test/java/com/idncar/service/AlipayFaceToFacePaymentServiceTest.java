@@ -152,6 +152,33 @@ class AlipayFaceToFacePaymentServiceTest {
     }
 
     @Test
+    void paidOrderNotificationsOpenTheCompletedOrder() throws Exception {
+        NotificationService notificationService = mock(NotificationService.class);
+        PaymentOrder order = new PaymentOrder();
+        order.setPayerUserId(7L);
+        order.setOutTradeNo("202607200001");
+        order.setTotalAmount(new BigDecimal("9.90"));
+        setField("notificationService", notificationService);
+
+        notifyPaidOrder(order, null);
+
+        verify(notificationService).createNotification(
+                7L,
+                "PAYMENT_SUCCESS",
+                "订单支付成功",
+                "订单 202607200001 已支付成功。",
+                "/orders?order=202607200001"
+        );
+        verify(notificationService).createNotification(
+                7L,
+                "DELIVERY_SUCCESS",
+                "商品发货成功",
+                "订单 202607200001 的发货邮件已发送，请查收邮箱和垃圾箱。",
+                "/orders?order=202607200001"
+        );
+    }
+
+    @Test
     void orderSupportCanBeSubmittedAndResolved() throws Exception {
         PaymentOrderMapper orderMapper = mock(PaymentOrderMapper.class);
         AdminOperationLogMapper operationLogMapper = mock(AdminOperationLogMapper.class);
@@ -278,6 +305,16 @@ class AlipayFaceToFacePaymentServiceTest {
         );
         method.setAccessible(true);
         return (boolean) method.invoke(service, order, paidAt);
+    }
+
+    private void notifyPaidOrder(PaymentOrder order, String deliveryError) throws Exception {
+        Method method = AlipayFaceToFacePaymentService.class.getDeclaredMethod(
+                "notifyPaidOrder",
+                PaymentOrder.class,
+                String.class
+        );
+        method.setAccessible(true);
+        method.invoke(service, order, deliveryError);
     }
 
     private void setField(String fieldName, Object value) throws Exception {
