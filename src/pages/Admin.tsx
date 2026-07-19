@@ -3914,7 +3914,7 @@ export default function Admin() {
         icon: <KeyOutlined />,
       },
       {
-        label: "站点访问",
+        label: "近90日访问",
         value: `${analytics?.totalVisits ?? 0}`,
         meta: `今日 ${analytics?.todayVisits ?? 0} / 下载 ${downloadSummary.total}`,
         toneClass: "border-sky-100 bg-sky-50 text-sky-700",
@@ -5048,7 +5048,7 @@ export default function Admin() {
                     <Row gutter={[20, 20]}>
                       <Col xs={24} md={12} xl={6}>
                         <Card className="rounded-[24px] border-slate-100 shadow-sm">
-                          总访问量
+                          近90日访问量
                           <div className="mt-3 text-3xl font-semibold">
                             {analytics?.totalVisits ?? 0}
                           </div>
@@ -5056,7 +5056,7 @@ export default function Admin() {
                       </Col>
                       <Col xs={24} md={12} xl={6}>
                         <Card className="rounded-[24px] border-slate-100 shadow-sm">
-                          独立访客
+                          近90日独立访客
                           <div className="mt-3 text-3xl font-semibold">
                             {analytics?.uniqueVisitors ?? 0}
                           </div>

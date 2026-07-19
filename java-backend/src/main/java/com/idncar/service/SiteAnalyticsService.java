@@ -69,10 +69,10 @@ public class SiteAnalyticsService {
         userAccessService.requireAdmin(adminUserId);
 
         SiteAnalyticsOverviewDto overview = new SiteAnalyticsOverviewDto();
-        overview.setTotalVisits(queryForLong("SELECT COUNT(*) FROM site_visit_logs"));
-        overview.setUniqueVisitors(queryForLong("SELECT COUNT(DISTINCT visitor_id) FROM site_visit_logs"));
+        overview.setTotalVisits(queryForLong("SELECT COUNT(*) FROM site_visit_logs WHERE create_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 90 DAY)"));
+        overview.setUniqueVisitors(queryForLong("SELECT COUNT(DISTINCT visitor_id) FROM site_visit_logs WHERE create_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 90 DAY)"));
         overview.setTodayVisits(queryForLong("SELECT COUNT(*) FROM site_visit_logs WHERE DATE(create_time) = CURDATE()"));
-        overview.setAuthenticatedVisits(queryForLong("SELECT COUNT(*) FROM site_visit_logs WHERE user_id IS NOT NULL"));
+        overview.setAuthenticatedVisits(queryForLong("SELECT COUNT(*) FROM site_visit_logs WHERE user_id IS NOT NULL AND create_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 90 DAY)"));
         overview.setTopPages(queryTopPages());
         overview.setDailyVisits(queryDailyVisits());
         overview.setRecentVisits(queryRecentVisits());
@@ -87,6 +87,7 @@ public class SiteAnalyticsService {
                     COALESCE(NULLIF(page_title, ''), path) AS title,
                     COUNT(*) AS visit_count
                 FROM site_visit_logs
+                WHERE create_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 90 DAY)
                 GROUP BY path, COALESCE(NULLIF(page_title, ''), path)
                 ORDER BY visit_count DESC, MAX(create_time) DESC
                 LIMIT ?

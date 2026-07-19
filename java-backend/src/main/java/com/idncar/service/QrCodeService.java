@@ -317,6 +317,7 @@ public class QrCodeService {
                     MAX(create_time) AS last_scan_time
                 FROM qr_scan_logs
                 WHERE qr_code_id IN (%s)
+                  AND create_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 90 DAY)
                 GROUP BY qr_code_id
                 """.formatted(placeholders),
                 qrCodeIds.toArray()

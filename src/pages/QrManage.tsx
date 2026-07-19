@@ -265,7 +265,7 @@ export default function QrManage() {
       return;
     }
     const rows = [
-      ["标题", "短码", "短链", "目标链接", "状态", "需要登录", "访问验证码", "过期时间", "累计扫码", "今日扫码", "最近扫码"].map(csvCell).join(","),
+      ["标题", "短码", "短链", "目标链接", "状态", "需要登录", "访问验证码", "过期时间", "近90天扫码", "今日扫码", "最近扫码"].map(csvCell).join(","),
       ...targets.map((item) =>
         [
           item.title,
@@ -346,7 +346,7 @@ export default function QrManage() {
       key: "stats",
       render: (_, record) => (
         <div className="text-sm text-slate-600">
-          <div>总扫码：{record.scanCount ?? 0}</div>
+          <div>近90天：{record.scanCount ?? 0}</div>
           <div>今日扫码：{record.todayScanCount ?? 0}</div>
           <div>最近：{record.lastScanTime || "-"}</div>
         </div>
@@ -398,7 +398,7 @@ export default function QrManage() {
             <Tag color="blue">二维码数量 {items.length}</Tag>
             <Tag color="green">启用 {activeCount}</Tag>
             <Tag color="red">停用 {disabledCount}</Tag>
-            <Tag color="cyan">累计扫码 {totalScanCount}</Tag>
+            <Tag color="cyan">近90天扫码 {totalScanCount}</Tag>
             {hasFilters ? <Tag color="purple">筛选 {filteredItems.length}</Tag> : null}
             {selectedItemIds.length > 0 ? <Tag color="gold">已选 {selectedItemIds.length}</Tag> : null}
           </div>
