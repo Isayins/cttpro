@@ -21,6 +21,7 @@ import com.idncar.model.entity.PostReport;
 import com.idncar.util.RichContentValidator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -39,6 +40,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
@@ -48,6 +50,12 @@ public class CommunityService {
     private static final String VISIBILITY_ONLINE = "ONLINE";
     private static final String VISIBILITY_INVISIBLE = "INVISIBLE";
     private static final List<String> REPORT_TARGET_TYPES = List.of("CHAT_MESSAGE", "TALK_POST");
+    private static final int CHAT_MESSAGES_PER_MINUTE = 30;
+    private static final int CHAT_IMAGES_PER_MINUTE = 10;
+    private static final int PRIVATE_MESSAGES_PER_MINUTE = 30;
+    private static final int TALK_POSTS_PER_MINUTE = 5;
+    private static final int TALK_COMMENTS_PER_MINUTE = 20;
+    private static final int REPORTS_PER_MINUTE = 5;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -126,6 +134,7 @@ public class CommunityService {
         String author = displayName(currentUser);
         String avatarSeed = author;
         String content = RichContentValidator.requireSafeImageMarkupUrls(limitText(requireText(request.content(), "消息内容不能为空"), 500));
+        requireWriteLimit(currentUserId, "chat-message", CHAT_MESSAGES_PER_MINUTE);
         Date now = Date.from(Instant.now());
 
         long id = insertAndReturnKey(
@@ -142,6 +151,11 @@ public class CommunityService {
         );
 
         return new ChatRoomMessageDto(id, roomId, author, avatarSeed, content, now.getTime());
+    }
+
+    public void requireChatImageUploadAllowed(Long currentUserId) {
+        userAccessService.requireActiveUser(currentUserId);
+        requireWriteLimit(currentUserId, "chat-image", CHAT_IMAGES_PER_MINUTE);
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -247,6 +261,7 @@ public class CommunityService {
             throw ApiException.forbidden("你们之间已启用屏蔽，无法发送消息");
         }
         String content = RichContentValidator.requireSafeImageMarkupUrls(limitText(requireText(request.content(), "消息内容不能为空"), 1000));
+        requireWriteLimit(currentUserId, "private-message", PRIVATE_MESSAGES_PER_MINUTE);
         Date now = Date.from(Instant.now());
 
         long id = insertAndReturnKey(
@@ -321,6 +336,7 @@ public class CommunityService {
         }
 
         String reason = limitText(requireText(request.reason(), "举报原因不能为空"), 60);
+        requireWriteLimit(currentUserId, "report", REPORTS_PER_MINUTE);
         PostReport report = new PostReport();
         report.setTargetType(targetType);
         report.setTargetId(targetId);
@@ -392,6 +408,7 @@ public class CommunityService {
         String avatarSeed = author;
         String content = limitText(requireText(request.content(), "帖子内容不能为空"), 500);
         String category = limitText(defaultIfBlank(normalizeNullableText(request.category()), DEFAULT_TALK_CATEGORY), 40);
+        requireWriteLimit(currentUserId, "talk-post", TALK_POSTS_PER_MINUTE);
         Date now = Date.from(Instant.now());
 
         long id = insertAndReturnKey(
@@ -450,6 +467,7 @@ public class CommunityService {
         requireTalkPost(postId);
         String author = displayName(currentUser);
         String content = limitText(requireText(request.content(), "评论内容不能为空"), 300);
+        requireWriteLimit(currentUserId, "talk-comment", TALK_COMMENTS_PER_MINUTE);
         Date now = Date.from(Instant.now());
 
         long id = insertAndReturnKey(
@@ -598,6 +616,19 @@ public class CommunityService {
             return Boolean.TRUE.equals(redisTemplate.hasKey("token:" + userId));
         } catch (Exception ignored) {
             return false;
+        }
+    }
+
+    private void requireWriteLimit(Long userId, String action, int limit) {
+        // ponytail: fixed windows allow boundary bursts; use a sliding-window script only if that becomes measurable.
+        String key = "community:rate:" + action + ":" + userId + ":" + Instant.now().getEpochSecond() / 60;
+        Long count = redisTemplate.opsForValue().increment(key);
+        redisTemplate.expire(key, 2, TimeUnit.MINUTES);
+        if (count == null) {
+            throw new IllegalStateException("Redis did not return a community rate-limit counter");
+        }
+        if (count > limit) {
+            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "操作过于频繁，请稍后再试");
         }
     }
 

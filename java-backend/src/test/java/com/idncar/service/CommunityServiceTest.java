@@ -2,10 +2,14 @@ package com.idncar.service;
 
 import com.idncar.exception.ApiException;
 import com.idncar.mapper.PostReportMapper;
+import com.idncar.model.dto.CreateChatMessageRequest;
 import com.idncar.model.dto.CreateCommunityReportRequest;
 import com.idncar.model.dto.CreatePrivateChatMessageRequest;
 import com.idncar.model.entity.User;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -107,5 +111,25 @@ class CommunityServiceTest {
         ordered.verify(jdbcTemplate).update("DELETE FROM community_talk_comments WHERE post_id = ?", 12L);
         ordered.verify(jdbcTemplate).update("DELETE FROM community_talk_posts WHERE id = ?", 12L);
         assertThat(deleted).isTrue();
+    }
+
+    @Test
+    void chatMessagesAreRateLimitedPerUser() {
+        CommunityService service = new CommunityService();
+        UserAccessService userAccessService = mock(UserAccessService.class);
+        RedisTemplate<String, Object> redisTemplate = mock(RedisTemplate.class);
+        ValueOperations<String, Object> values = mock(ValueOperations.class);
+        User user = new User();
+        user.setId(7L);
+        when(userAccessService.requireActiveUser(7L)).thenReturn(user);
+        when(redisTemplate.opsForValue()).thenReturn(values);
+        when(values.increment(anyString())).thenReturn(31L);
+        ReflectionTestUtils.setField(service, "userAccessService", userAccessService);
+        ReflectionTestUtils.setField(service, "redisTemplate", redisTemplate);
+
+        assertThatThrownBy(() -> service.createChatMessage(7L, new CreateChatMessageRequest("general", "hello")))
+                .isInstanceOf(ApiException.class)
+                .hasMessage("操作过于频繁，请稍后再试")
+                .satisfies(error -> assertThat(((ApiException) error).getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS));
     }
 }

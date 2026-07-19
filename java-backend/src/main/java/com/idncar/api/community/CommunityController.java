@@ -60,6 +60,7 @@ public class CommunityController {
     @PostMapping(value = {"/chat/images", "/chat/images/"}, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, String>> uploadChatImage(@RequestAttribute("userId") Long userId,
                                                                @RequestParam("file") MultipartFile file) {
+        communityService.requireChatImageUploadAllowed(userId);
         return ResponseEntity.ok(ImageUploadHelper.saveImage(file, userId, uploadBaseDir, uploadChatImageSubDir, "chat", "聊天"));
     }
 
