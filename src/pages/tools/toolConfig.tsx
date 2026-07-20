@@ -55,5 +55,5 @@ export const toolConfig: Record<ToolType, ToolConfigItem> = {
   cron: { name: "Cron 表达式生成", description: "生成常用定时表达式", category: "debug", icon: ClockCircleOutlined, color: "#0f766e", bgColor: "bg-teal-100" },
   qrcode: { name: "二维码生成", description: "根据文本或链接生成二维码", category: "codec", icon: QrcodeOutlined, color: "#7c3aed", bgColor: "bg-violet-100" },
   qrdecode: { name: "二维码解析", description: "上传图片解析二维码内容", category: "codec", icon: QrcodeOutlined, color: "#0d9488", bgColor: "bg-teal-100" },
-  javadecompile: { name: "Java 反编译", description: "上传 class 文件查看源码结果", category: "debug", icon: FileTextOutlined, color: "#ea580c", bgColor: "bg-orange-100" },
+  javadecompile: { name: "Java 字节码查看", description: "使用 javap 查看 class 文件结构和指令", category: "debug", icon: FileTextOutlined, color: "#ea580c", bgColor: "bg-orange-100" },
 };

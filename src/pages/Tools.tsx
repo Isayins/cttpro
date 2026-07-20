@@ -519,19 +519,22 @@ export default function Tools() {
     setPasswordLength(length);
     setPasswordCount(count);
 
-    const output = Array.from({ length: count }, () =>
-      generatePassword(length, sets),
-    ).join("\n");
-    setPasswordOutput(output);
-    pushHistory({
-      tool: "password",
-      action: `密码生成 x${count}`,
-      input: `长度 ${length} / ${count} 个 / ${flags}`,
-      output,
-      size: length,
-      count,
-      flags,
-    });
+    try {
+      const output = Array.from({ length: count }, () => generatePassword(length, sets)).join("\n");
+      setPasswordOutput(output);
+      pushHistory({
+        tool: "password",
+        action: `密码生成 x${count}`,
+        input: `长度 ${length} / ${count} 个 / ${flags}`,
+        output,
+        size: length,
+        count,
+        flags,
+      });
+    } catch (error) {
+      setPasswordOutput("");
+      setPasswordError(getErrorMessage(error, "密码生成失败"));
+    }
   };
 
   const handleHtmlConvert = () => {
@@ -708,17 +711,20 @@ export default function Tools() {
     const count = clampNumber(uuidCount, 1, 50);
     setUuidCount(count);
 
-    const output = Array.from({ length: count }, () => createUuidV4()).join(
-      "\n",
-    );
-    setUuidOutput(output);
-    pushHistory({
-      tool: "uuid",
-      action: `UUID 生成 x${count}`,
-      input: `生成 ${count} 个 UUID v4`,
-      output,
-      count,
-    });
+    try {
+      const output = Array.from({ length: count }, () => createUuidV4()).join("\n");
+      setUuidOutput(output);
+      pushHistory({
+        tool: "uuid",
+        action: `UUID 生成 x${count}`,
+        input: `生成 ${count} 个 UUID v4`,
+        output,
+        count,
+      });
+    } catch (error) {
+      setUuidOutput("");
+      message.error(getErrorMessage(error, "UUID 生成失败"));
+    }
   };
 
   const handleHashText = async () => {
@@ -854,8 +860,15 @@ export default function Tools() {
       return;
     }
 
-    if (!file.name.endsWith(".class")) {
+    setJavaClassContent("");
+    setJavaFileName("");
+
+    if (!file.name.toLowerCase().endsWith(".class")) {
       setJavaDecompileError("请上传 .class 文件");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setJavaDecompileError("Class 文件不能超过 2 MB");
       return;
     }
 
@@ -869,6 +882,10 @@ export default function Tools() {
         ? result.split(",")[1]
         : result;
       setJavaClassContent(base64Content);
+    };
+    reader.onerror = () => {
+      setJavaFileName("");
+      setJavaDecompileError("读取 Class 文件失败，请重新选择");
     };
     reader.readAsDataURL(file);
   };
@@ -893,15 +910,15 @@ export default function Tools() {
       setJavaDecompileOutput(result.output);
       pushHistory({
         tool: "javadecompile",
-        action: "Java 反编译",
+        action: "Java 字节码查看",
         input: javaClassContent.trim(),
         output: result.output,
         fileName: result.fileName,
       });
-      message.success(`反编译完成，当前引擎：${result.engine}`);
+      message.success(`查看完成，当前引擎：${result.engine}`);
     } catch (error) {
       setJavaDecompileOutput("");
-      setJavaDecompileError(getErrorMessage(error, "反编译失败"));
+      setJavaDecompileError(getErrorMessage(error, "字节码查看失败"));
     } finally {
       setJavaDecompiling(false);
     }

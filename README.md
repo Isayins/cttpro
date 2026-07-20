@@ -35,7 +35,7 @@ VITE_IDLE_LOGOUT_MINUTES=120
 
 ## Java 后端
 
-后端基于 Spring Boot 3、Java 17、MyBatis Plus、MySQL、Redis 和 JWT。
+后端基于 Spring Boot 3、JDK 17、MyBatis Plus、MySQL、Redis 和 JWT。工具页的 Java 字节码查看依赖 JDK 自带的 `javap`，仅安装 JRE 无法使用。
 
 ```bash
 cd java-backend

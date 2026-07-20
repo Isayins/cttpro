@@ -7,7 +7,7 @@ RUN mvn -B -ntp dependency:go-offline
 COPY src ./src
 RUN mvn -B -ntp -DskipTests package
 
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:17-jdk-alpine
 WORKDIR /app
 
 RUN apk add --no-cache curl

@@ -1,9 +1,10 @@
 import { toolConfig } from "./toolConfig";
-import type { CurlCodeMode, CsvDelimiter, HashAlgorithm, RgbColor, TextTransformMode, ToolHistoryItem } from "./types";
+import type { CurlCodeMode, CsvDelimiter, HashAlgorithm, RgbColor, TextTransformMode, ToolHistoryItem, ToolType } from "./types";
 
 export const TOOL_HISTORY_STORAGE_KEY = "idncar.tools.history";
 export const TOOL_HISTORY_LIMIT = 36;
 export const TOOL_HISTORY_TEXT_LIMIT = 4000;
+const TRANSIENT_HISTORY_TOOLS = new Set<ToolType>(["password", "jwt", "subconvert", "javadecompile"]);
 
 export const weekOptions = [
   { label: "周日", value: 0 },
@@ -198,13 +199,10 @@ export function createUuidV4() {
   }
 
   const bytes = new Uint8Array(16);
-  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
-    crypto.getRandomValues(bytes);
-  } else {
-    bytes.forEach((_, index) => {
-      bytes[index] = Math.floor(Math.random() * 256);
-    });
+  if (typeof crypto === "undefined" || typeof crypto.getRandomValues !== "function") {
+    throw new Error("当前浏览器不支持安全随机数生成");
   }
+  crypto.getRandomValues(bytes);
 
   bytes[6] = (bytes[6] & 0x0f) | 0x40;
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
@@ -430,10 +428,20 @@ function hslToRgb(hue: number, saturation: number, lightness: number): RgbColor 
 
 function parseRgbPart(value: string) {
   const trimmed = value.trim();
-  if (trimmed.endsWith("%")) {
-    return clampNumber((Number(trimmed.slice(0, -1)) / 100) * 255, 0, 255);
+  const numericValue = Number(trimmed.endsWith("%") ? trimmed.slice(0, -1) : trimmed);
+  if (!Number.isFinite(numericValue)) {
+    throw new Error("RGB 颜色通道必须是数字");
   }
-  return clampNumber(Number(trimmed), 0, 255);
+  if (trimmed.endsWith("%")) {
+    if (numericValue < 0 || numericValue > 100) {
+      throw new Error("RGB 百分比必须在 0% 到 100% 之间");
+    }
+    return Math.round((numericValue / 100) * 255);
+  }
+  if (numericValue < 0 || numericValue > 255) {
+    throw new Error("RGB 颜色通道必须在 0 到 255 之间");
+  }
+  return Math.round(numericValue);
 }
 
 export function parseColor(value: string): RgbColor {
@@ -448,22 +456,28 @@ export function parseColor(value: string): RgbColor {
     };
   }
 
-  const rgb = input.match(/^rgba?\(([^)]+)\)$/i);
+  const rgb = input.match(/^rgb\(([^)]+)\)$/i);
   if (rgb) {
     const parts = rgb[1].split(",");
-    if (parts.length < 3) {
-      throw new Error("RGB 至少需要 3 个颜色通道");
+    if (parts.length !== 3) {
+      throw new Error("RGB 需要 3 个颜色通道");
     }
     return { r: parseRgbPart(parts[0]), g: parseRgbPart(parts[1]), b: parseRgbPart(parts[2]) };
   }
 
-  const hsl = input.match(/^hsla?\(([^)]+)\)$/i);
+  const hsl = input.match(/^hsl\(([^)]+)\)$/i);
   if (hsl) {
     const parts = hsl[1].split(",");
-    if (parts.length < 3 || !parts[1].trim().endsWith("%") || !parts[2].trim().endsWith("%")) {
+    if (parts.length !== 3 || !parts[1].trim().endsWith("%") || !parts[2].trim().endsWith("%")) {
       throw new Error("HSL 格式示例：hsl(210, 50%, 40%)");
     }
-    return hslToRgb(Number(parts[0].trim()), Number(parts[1].trim().slice(0, -1)), Number(parts[2].trim().slice(0, -1)));
+    const hue = Number(parts[0].trim());
+    const saturation = Number(parts[1].trim().slice(0, -1));
+    const lightness = Number(parts[2].trim().slice(0, -1));
+    if (![hue, saturation, lightness].every(Number.isFinite) || saturation < 0 || saturation > 100 || lightness < 0 || lightness > 100) {
+      throw new Error("HSL 色相必须是数字，饱和度和亮度必须在 0% 到 100% 之间");
+    }
+    return hslToRgb(hue, saturation, lightness);
   }
 
   throw new Error("支持 #RRGGBB、#RGB、rgb(...)、hsl(...)");
@@ -485,7 +499,11 @@ export function buildColorOutput(rgb: RgbColor) {
 export function buildQueryOutput(value: string) {
   const input = value.trim();
   const withoutHash = input.split("#")[0];
-  const query = withoutHash.includes("?") ? withoutHash.slice(withoutHash.indexOf("?") + 1) : withoutHash.replace(/^\?/, "");
+  const query = /^[a-z][a-z\d+.-]*:\/\//i.test(input)
+    ? new URL(input).search.slice(1)
+    : withoutHash.includes("?")
+      ? withoutHash.slice(withoutHash.indexOf("?") + 1)
+      : withoutHash.replace(/^\?/, "");
   const params = new URLSearchParams(query);
   const entries = Array.from(params.entries());
 
@@ -748,9 +766,13 @@ export function escapeHtml(value: string) {
 }
 
 export function unescapeHtml(value: string) {
+  const decodeCodePoint = (entity: string, rawCode: string, radix: number) => {
+    const code = Number.parseInt(rawCode, radix);
+    return Number.isInteger(code) && code >= 0 && code <= 0x10ffff ? String.fromCodePoint(code) : entity;
+  };
   return value
-    .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, code: string) => String.fromCodePoint(Number.parseInt(code, 16)))
+    .replace(/&#(\d+);/g, (entity, code: string) => decodeCodePoint(entity, code, 10))
+    .replace(/&#x([0-9a-f]+);/gi, (entity, code: string) => decodeCodePoint(entity, code, 16))
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&apos;/g, "'")
@@ -805,6 +827,10 @@ function parseDelimitedRows(value: string, delimiter: string) {
   row.push(field);
   rows.push(row);
 
+  if (inQuotes) {
+    throw new Error("CSV 引号未闭合");
+  }
+
   return rows.filter((item) => item.some((fieldValue) => fieldValue.trim() !== ""));
 }
 
@@ -830,6 +856,11 @@ export function buildCsvJsonOutput(value: string, delimiterMode: CsvDelimiter) {
 
   const usedHeaders = new Set<string>();
   const headers = rows[0].map((header, index) => normalizeHeader(header, index, usedHeaders));
+  rows.slice(1).forEach((row, index) => {
+    if (row.length !== headers.length) {
+      throw new Error(`第 ${index + 2} 行有 ${row.length} 列，表头有 ${headers.length} 列`);
+    }
+  });
   const records = rows.slice(1).map((row) =>
     headers.reduce<Record<string, string>>((current, header, index) => {
       current[header] = row[index] ?? "";
@@ -841,15 +872,19 @@ export function buildCsvJsonOutput(value: string, delimiterMode: CsvDelimiter) {
 }
 
 function randomIndex(max: number) {
-  if (max <= 0) {
-    return 0;
+  if (!Number.isSafeInteger(max) || max <= 0) {
+    throw new Error("随机字符集不能为空");
   }
+  if (typeof crypto === "undefined" || typeof crypto.getRandomValues !== "function") {
+    throw new Error("当前浏览器不支持安全随机数生成");
+  }
+
   const bytes = new Uint32Array(1);
-  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+  const limit = 0x1_0000_0000 - (0x1_0000_0000 % max);
+  do {
     crypto.getRandomValues(bytes);
-    return bytes[0] % max;
-  }
-  return Math.floor(Math.random() * max);
+  } while (bytes[0] >= limit);
+  return bytes[0] % max;
 }
 
 function shuffleText(value: string) {
@@ -921,10 +956,21 @@ export function readToolHistory(): ToolHistoryItem[] {
       return [];
     }
 
-    return parsed.filter(
+    const history = parsed.filter(
       (item): item is ToolHistoryItem =>
-        Boolean(item?.id && item?.tool && item.tool in toolConfig && item?.action && item?.createdAt),
+        Boolean(
+          item?.id &&
+            item?.tool &&
+            item.tool in toolConfig &&
+            !TRANSIENT_HISTORY_TOOLS.has(item.tool) &&
+            item?.action &&
+            item?.createdAt,
+        ),
     );
+    if (history.length !== parsed.length) {
+      writeToolHistory(history);
+    }
+    return history;
   } catch {
     return [];
   }
@@ -934,7 +980,10 @@ export function writeToolHistory(history: ToolHistoryItem[]) {
   if (typeof window === "undefined") {
     return;
   }
-  window.localStorage.setItem(TOOL_HISTORY_STORAGE_KEY, JSON.stringify(history));
+  window.localStorage.setItem(
+    TOOL_HISTORY_STORAGE_KEY,
+    JSON.stringify(history.filter((item) => !TRANSIENT_HISTORY_TOOLS.has(item.tool))),
+  );
 }
 
 export function formatHistoryTime(value: string) {

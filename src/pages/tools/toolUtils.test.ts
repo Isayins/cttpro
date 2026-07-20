@@ -8,10 +8,12 @@ import {
   buildQueryOutput,
   buildRegexOutput,
   buildTypeScriptTypesFromJson,
+  createUuidV4,
   decodeBase64,
   decodeBase64Url,
   encodeBase64,
   escapeHtml,
+  generatePassword,
   getHistoryPreview,
   normalizeRegexFlags,
   parseColor,
@@ -77,6 +79,8 @@ describe("tool utils", () => {
     expect(parseColor("hsl(210, 50%, 40%)")).toEqual({ r: 51, g: 102, b: 153 });
     expect(rgbToHex({ r: 51, g: 102, b: 153 })).toBe("#336699");
     expect(buildColorOutput({ r: 51, g: 102, b: 153 })).toContain("HSL：hsl(210, 50%, 40%)");
+    expect(() => parseColor("rgb(nope, 20, 30)")).toThrow("必须是数字");
+    expect(() => parseColor("hsl(210, 101%, 40%)")).toThrow("0% 到 100%");
   });
 
   it("groups repeated query params and decodes encoded values", () => {
@@ -86,6 +90,7 @@ describe("tool utils", () => {
     expect(output).toContain("1. a = 1");
     expect(output).toContain('"a": [');
     expect(output).toContain('"hello world"');
+    expect(() => buildQueryOutput("https://example.test/search#top")).toThrow("没有解析到 URL 参数");
   });
 
   it("converts quoted CSV rows into JSON records", () => {
@@ -94,6 +99,8 @@ describe("tool utils", () => {
     expect(output).toContain("行数：2");
     expect(output).toContain('"name": "Alice, A"');
     expect(output).toContain('"age": "25"');
+    expect(() => buildCsvJsonOutput('name,age\n"Alice,30', "comma")).toThrow("CSV 引号未闭合");
+    expect(() => buildCsvJsonOutput("name,age\nAlice,30,extra", "comma")).toThrow("第 2 行有 3 列");
   });
 
   it("generates TypeScript interfaces from nested JSON arrays", () => {
@@ -141,12 +148,20 @@ describe("tool utils", () => {
     const escaped = escapeHtml('<div title="x">A&B</div>');
     expect(escaped).toBe("&lt;div title=&quot;x&quot;&gt;A&amp;B&lt;/div&gt;");
     expect(unescapeHtml(escaped)).toBe('<div title="x">A&B</div>');
+    expect(unescapeHtml("&#9999999999;")).toBe("&#9999999999;");
   });
 
   it("keeps history text and previews bounded", () => {
     expect(trimHistoryText("abcdef", 3)).toBe("abc\n...");
     expect(getHistoryPreview("  alpha\n beta\tgamma  ")).toBe("alpha beta gamma");
     expect(getHistoryPreview("")).toBe("暂无结果预览");
+  });
+
+  it("refuses to generate passwords or UUIDs without Web Crypto", () => {
+    vi.stubGlobal("crypto", undefined);
+
+    expect(() => generatePassword(12, ["abc", "123"])).toThrow("不支持安全随机数");
+    expect(() => createUuidV4()).toThrow("不支持安全随机数");
   });
 
   it("writes and reads valid tool history from localStorage", () => {
@@ -188,5 +203,47 @@ describe("tool utils", () => {
 
     stubToolHistoryStorage("{not-json");
     expect(readToolHistory()).toEqual([]);
+  });
+
+  it("never persists sensitive tool history", () => {
+    const storage = stubToolHistoryStorage();
+    const history: ToolHistoryItem[] = [
+      {
+        id: "safe",
+        tool: "json",
+        action: "格式化",
+        input: '{"ok":true}',
+        createdAt: "2026-07-06T00:00:00.000Z",
+      },
+      {
+        id: "secret",
+        tool: "jwt",
+        action: "JWT 解析",
+        input: "secret.jwt.token",
+        createdAt: "2026-07-06T00:00:00.000Z",
+      },
+    ];
+
+    writeToolHistory(history);
+
+    expect(JSON.parse(storage.get(TOOL_HISTORY_STORAGE_KEY) ?? "[]")).toEqual([history[0]]);
+    expect(readToolHistory()).toEqual([history[0]]);
+  });
+
+  it("purges sensitive entries already stored by older versions", () => {
+    const storage = stubToolHistoryStorage(
+      JSON.stringify([
+        {
+          id: "secret",
+          tool: "password",
+          action: "密码生成",
+          input: "secret",
+          createdAt: "2026-07-06T00:00:00.000Z",
+        },
+      ]),
+    );
+
+    expect(readToolHistory()).toEqual([]);
+    expect(storage.get(TOOL_HISTORY_STORAGE_KEY)).toBe("[]");
   });
 });

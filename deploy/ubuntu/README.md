@@ -176,7 +176,7 @@ APP_CONTROL=nohup RESTORE_CONFIRM=RESTORE \
 
 ## 宿主机 Nohup 单独启动 Java 后端
 
-如果只部署 Java 后端 JAR，可以使用：
+如果只部署 Java 后端 JAR，需要 JDK 17（工具页的 Java 字节码查看依赖 `javap`），然后可以使用：
 
 ```bash
 bash deploy/ubuntu/java-backend-nohup.sh start

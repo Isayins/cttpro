@@ -60,7 +60,7 @@ const featureCards: FeatureCard[] = [
   },
   {
     title: "实用工具",
-    description: "常用转换、编码、二维码和反编译等能力统一放在工具页，打开就能直接使用。",
+    description: "常用转换、编码、二维码和 Java 字节码查看等能力统一放在工具页，打开就能直接使用。",
     icon: <ToolOutlined className="text-[#2a6df4]" />,
     to: routePaths.tools,
   },
