@@ -1,5 +1,5 @@
 import { toolConfig } from "./toolConfig";
-import type { CurlCodeMode, CsvDelimiter, HashAlgorithm, RgbColor, TextTransformMode, ToolHistoryItem, ToolType } from "./types";
+import type { CurlCodeMode, CsvDelimiter, HashAlgorithm, RgbColor, TextTransformMode, TimestampUnit, ToolHistoryItem, ToolType } from "./types";
 
 export const TOOL_HISTORY_STORAGE_KEY = "idncar.tools.history";
 export const TOOL_HISTORY_LIMIT = 36;
@@ -44,6 +44,12 @@ export const textTransformOptions: { label: string; value: TextTransformMode }[]
   { label: "转小写", value: "lower" },
   { label: "转大写", value: "upper" },
   { label: "添加行号", value: "lineNumbers" },
+];
+
+export const timestampUnitOptions: { label: string; value: TimestampUnit }[] = [
+  { label: "自动识别", value: "auto" },
+  { label: "秒", value: "seconds" },
+  { label: "毫秒", value: "milliseconds" },
 ];
 
 export function clampNumber(value: number, min: number, max: number) {
@@ -191,6 +197,38 @@ export function formatJwtUnixClaim(label: string, value: unknown) {
   }
 
   return `${label}: ${date.toLocaleString("zh-CN")} / ${date.toISOString()}`;
+}
+
+export function parseUnixTimestamp(value: string, requestedUnit: TimestampUnit) {
+  const trimmed = value.trim();
+  if (!/^[+-]?\d+$/.test(trimmed)) {
+    throw new Error("时间戳必须是整数");
+  }
+
+  const numericValue = Number(trimmed);
+  if (!Number.isSafeInteger(numericValue)) {
+    throw new Error("时间戳超出安全整数范围");
+  }
+
+  let unit = requestedUnit;
+  if (unit === "auto") {
+    const digitCount = trimmed.replace(/^[+-]/, "").length;
+    if (digitCount <= 10) {
+      unit = "seconds";
+    } else if (digitCount >= 13) {
+      unit = "milliseconds";
+    } else {
+      throw new Error("11 或 12 位时间戳单位不明确，请选择秒或毫秒");
+    }
+  }
+
+  const milliseconds = unit === "seconds" ? numericValue * 1000 : numericValue;
+  const date = new Date(milliseconds);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error("时间戳无效");
+  }
+
+  return { date, milliseconds, unit };
 }
 
 export function createUuidV4() {
@@ -597,6 +635,17 @@ function parseCurlHeader(value: string) {
   };
 }
 
+function encodeCurlData(value: string) {
+  if (value.startsWith("@") || /^[^=]+@/.test(value)) {
+    throw new Error("--data-urlencode 的文件读取语法暂不支持");
+  }
+  const equalsIndex = value.indexOf("=");
+  if (equalsIndex > 0) {
+    return `${encodeURIComponent(value.slice(0, equalsIndex))}=${encodeURIComponent(value.slice(equalsIndex + 1))}`;
+  }
+  return encodeURIComponent(value.replace(/^=/, ""));
+}
+
 function parseCurlCommand(value: string) {
   const tokens = tokenizeShellCommand(value);
   if (tokens.length === 0 || !tokens[0].toLowerCase().endsWith("curl")) {
@@ -607,6 +656,36 @@ function parseCurlCommand(value: string) {
   let method = "";
   const headers: Record<string, string> = {};
   const dataParts: string[] = [];
+  let jsonBody = false;
+  const ignoredFlags = new Set([
+    "-L",
+    "--location",
+    "--compressed",
+    "-s",
+    "--silent",
+    "-S",
+    "--show-error",
+    "-k",
+    "--insecure",
+    "--fail",
+    "--fail-with-body",
+  ]);
+
+  const addData = (value: string, isJson = false) => {
+    if ((jsonBody || isJson) && dataParts.length > 0) {
+      throw new Error("--json 不能与其他请求体参数混用");
+    }
+    if (isJson) {
+      jsonBody = true;
+      if (!Object.keys(headers).some((key) => key.toLowerCase() === "content-type")) {
+        headers["Content-Type"] = "application/json";
+      }
+      if (!Object.keys(headers).some((key) => key.toLowerCase() === "accept")) {
+        headers.Accept = "application/json";
+      }
+    }
+    dataParts.push(value);
+  };
 
   const requireNext = (index: number, flag: string) => {
     const next = tokens[index + 1];
@@ -637,14 +716,26 @@ function parseCurlCommand(value: string) {
       const header = parseCurlHeader(token.slice(2));
       headers[header.key] = header.value;
     } else if (["-d", "--data", "--data-raw", "--data-binary", "--data-ascii"].includes(token)) {
-      dataParts.push(requireNext(index, token));
+      addData(requireNext(index, token));
       index += 1;
     } else if (token.startsWith("--data=")) {
-      dataParts.push(token.slice("--data=".length));
+      addData(token.slice("--data=".length));
     } else if (token.startsWith("--data-raw=")) {
-      dataParts.push(token.slice("--data-raw=".length));
+      addData(token.slice("--data-raw=".length));
     } else if (token.startsWith("-d") && token.length > 2) {
-      dataParts.push(token.slice(2));
+      addData(token.slice(2));
+    } else if (token === "--data-urlencode") {
+      addData(encodeCurlData(requireNext(index, token)));
+      index += 1;
+    } else if (token.startsWith("--data-urlencode=")) {
+      addData(encodeCurlData(token.slice("--data-urlencode=".length)));
+    } else if (token === "--json") {
+      addData(requireNext(index, token), true);
+      index += 1;
+    } else if (token.startsWith("--json=")) {
+      addData(token.slice("--json=".length), true);
+    } else if (token === "-F" || token === "--form" || token.startsWith("--form=") || (token.startsWith("-F") && token.length > 2)) {
+      throw new Error("multipart 表单暂不支持，请改用其他工具生成上传代码");
     } else if (token === "--url") {
       url = requireNext(index, token);
       index += 1;
@@ -652,6 +743,12 @@ function parseCurlCommand(value: string) {
       url = token.slice("--url=".length);
     } else if (!token.startsWith("-") && /^https?:\/\//i.test(token)) {
       url = token;
+    } else if (ignoredFlags.has(token)) {
+      continue;
+    } else if (token.startsWith("-")) {
+      throw new Error(`暂不支持 cURL 参数：${token}`);
+    } else {
+      throw new Error(`无法识别 cURL 内容：${token}`);
     }
   }
 
@@ -659,7 +756,7 @@ function parseCurlCommand(value: string) {
     throw new Error("未识别到请求 URL");
   }
 
-  const body = dataParts.length > 0 ? dataParts.join("&") : "";
+  const body = dataParts.length > 0 ? dataParts.join(jsonBody ? "" : "&") : "";
   return {
     url,
     method: method || (body ? "POST" : "GET"),
@@ -792,16 +889,18 @@ function getDelimiter(value: CsvDelimiter) {
 }
 
 function parseDelimitedRows(value: string, delimiter: string) {
-  const rows: string[][] = [];
+  const rows: { fields: string[]; explicit: boolean }[] = [];
   let row: string[] = [];
   let field = "";
   let inQuotes = false;
+  let rowHasExplicitField = false;
 
   for (let index = 0; index < value.length; index += 1) {
     const char = value[index];
     const nextChar = value[index + 1];
 
     if (char === '"') {
+      rowHasExplicitField = true;
       if (inQuotes && nextChar === '"') {
         field += '"';
         index += 1;
@@ -809,6 +908,7 @@ function parseDelimitedRows(value: string, delimiter: string) {
         inQuotes = !inQuotes;
       }
     } else if (char === delimiter && !inQuotes) {
+      rowHasExplicitField = true;
       row.push(field);
       field = "";
     } else if ((char === "\n" || char === "\r") && !inQuotes) {
@@ -816,22 +916,29 @@ function parseDelimitedRows(value: string, delimiter: string) {
         index += 1;
       }
       row.push(field);
-      rows.push(row);
+      rows.push({ fields: row, explicit: rowHasExplicitField });
       row = [];
       field = "";
+      rowHasExplicitField = false;
     } else {
       field += char;
     }
   }
 
   row.push(field);
-  rows.push(row);
+  rows.push({ fields: row, explicit: rowHasExplicitField });
 
   if (inQuotes) {
     throw new Error("CSV 引号未闭合");
   }
 
-  return rows.filter((item) => item.some((fieldValue) => fieldValue.trim() !== ""));
+  return rows
+    .filter(
+      (item) =>
+        item.explicit ||
+        item.fields.some((fieldValue) => fieldValue.trim() !== ""),
+    )
+    .map((item) => item.fields);
 }
 
 function normalizeHeader(value: string, index: number, used: Set<string>) {

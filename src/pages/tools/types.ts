@@ -29,6 +29,7 @@ export type CodecMode = "encode" | "decode";
 export type CurlCodeMode = "fetch" | "axios" | "python";
 export type CronMode = "minutes" | "hourly" | "daily" | "weekly" | "monthly";
 export type HashAlgorithm = "SHA-1" | "SHA-256" | "SHA-384" | "SHA-512";
+export type TimestampUnit = "auto" | "seconds" | "milliseconds";
 export type HistoryScope = "current" | "all";
 export type CsvDelimiter = "comma" | "tab" | "semicolon";
 export type TextTransformMode = "trim" | "dedupe" | "sort" | "lower" | "upper" | "lineNumbers";
@@ -63,6 +64,7 @@ export type ToolHistoryItem = {
   algorithm?: HashAlgorithm;
   delimiter?: CsvDelimiter;
   textMode?: TextTransformMode;
+  timestampUnit?: TimestampUnit;
   subscriptionTarget?: SubscriptionTarget;
   backendUrl?: string;
   shortLinkTemplate?: string;

@@ -1001,10 +1001,12 @@ export default function Tools() {
       return (
         <TimestampToolPanel
           input={timestampTool.input}
+          unit={timestampTool.unit}
           output={timestampTool.output}
           copied={timestampTool.copied}
           error={timestampTool.error}
           onInputChange={timestampTool.setInput}
+          onUnitChange={timestampTool.setUnit}
           onConvert={timestampTool.convert}
           onClear={timestampTool.clear}
           onCopy={() =>

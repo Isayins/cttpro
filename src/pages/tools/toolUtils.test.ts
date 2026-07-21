@@ -17,6 +17,7 @@ import {
   getHistoryPreview,
   normalizeRegexFlags,
   parseColor,
+  parseUnixTimestamp,
   readToolHistory,
   rgbToHex,
   TOOL_HISTORY_STORAGE_KEY,
@@ -101,6 +102,9 @@ describe("tool utils", () => {
     expect(output).toContain('"age": "25"');
     expect(() => buildCsvJsonOutput('name,age\n"Alice,30', "comma")).toThrow("CSV 引号未闭合");
     expect(() => buildCsvJsonOutput("name,age\nAlice,30,extra", "comma")).toThrow("第 2 行有 3 列");
+    expect(buildCsvJsonOutput("name,age\n,", "comma")).toContain('"name": ""');
+    expect(buildCsvJsonOutput('value\n""', "comma")).toContain('"value": ""');
+    expect(buildCsvJsonOutput("name,age\n\nBob,25", "comma")).toContain("行数：1");
   });
 
   it("generates TypeScript interfaces from nested JSON arrays", () => {
@@ -138,6 +142,46 @@ describe("tool utils", () => {
     expect(pythonOutput).toContain("import requests");
     expect(pythonOutput).toContain("response = requests.post(");
     expect(pythonOutput).toContain('json={');
+  });
+
+  it("handles supported cURL body flags and rejects lossy conversions", () => {
+    const jsonOutput = buildCurlCodeOutput(
+      `curl https://api.example.com/users --json '{"name":"Alice"}'`,
+      "fetch",
+    );
+    expect(jsonOutput).toContain('"Content-Type": "application/json"');
+    expect(jsonOutput).toContain('"Accept": "application/json"');
+    expect(jsonOutput).toContain('method: "POST"');
+
+    const encodedOutput = buildCurlCodeOutput(
+      `curl https://api.example.com/search --data-urlencode 'q=hello world'`,
+      "fetch",
+    );
+    expect(encodedOutput).toContain('body: "q=hello%20world"');
+
+    expect(() =>
+      buildCurlCodeOutput("curl https://api.example.com/upload -F file=@demo.txt", "fetch"),
+    ).toThrow("multipart 表单暂不支持");
+    expect(() =>
+      buildCurlCodeOutput("curl https://api.example.com --oauth2-bearer token", "fetch"),
+    ).toThrow("暂不支持 cURL 参数");
+  });
+
+  it("parses explicit timestamp units without guessing ambiguous values", () => {
+    expect(parseUnixTimestamp("946684800", "auto")).toMatchObject({
+      milliseconds: 946684800000,
+      unit: "seconds",
+    });
+    expect(parseUnixTimestamp("-1", "auto")).toMatchObject({
+      milliseconds: -1000,
+      unit: "seconds",
+    });
+    expect(parseUnixTimestamp("1713268800000", "auto")).toMatchObject({
+      milliseconds: 1713268800000,
+      unit: "milliseconds",
+    });
+    expect(() => parseUnixTimestamp("17132688000", "auto")).toThrow("单位不明确");
+    expect(parseUnixTimestamp("17132688000", "seconds").unit).toBe("seconds");
   });
 
   it("transforms text and handles HTML entities", () => {

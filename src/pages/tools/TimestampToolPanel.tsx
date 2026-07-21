@@ -1,14 +1,18 @@
 import { DeleteOutlined, WarningOutlined } from "@ant-design/icons";
-import { Alert, Button, Col, Input, Row } from "antd";
+import { Alert, Button, Col, Input, Row, Select } from "antd";
 
 import { ToolTextResult } from "./ToolResultOutput";
+import { timestampUnitOptions } from "./toolUtils";
+import type { TimestampUnit } from "./types";
 
 type TimestampToolPanelProps = {
   input: string;
+  unit: TimestampUnit;
   output: string;
   copied: boolean;
   error: string | null;
   onInputChange: (value: string) => void;
+  onUnitChange: (value: TimestampUnit) => void;
   onConvert: () => void;
   onClear: () => void;
   onCopy: () => void;
@@ -16,10 +20,12 @@ type TimestampToolPanelProps = {
 
 export function TimestampToolPanel({
   input,
+  unit,
   output,
   copied,
   error,
   onInputChange,
+  onUnitChange,
   onConvert,
   onClear,
   onCopy,
@@ -31,6 +37,13 @@ export function TimestampToolPanel({
         <Col xs={24} lg={12}>
           <label className="mb-2 block text-sm font-medium text-gray-700">输入时间戳或日期</label>
           <Input value={input} onChange={(event) => onInputChange(event.target.value)} placeholder="例如 1713268800000 或 2026-04-24 15:00:00" />
+          <label className="mb-2 mt-4 block text-sm font-medium text-gray-700">数字时间戳单位</label>
+          <Select
+            className="w-full"
+            value={unit}
+            options={timestampUnitOptions}
+            onChange={onUnitChange}
+          />
           <div className="mt-4 flex gap-2">
             <Button type="primary" onClick={onConvert} style={{ flex: 1 }}>
               开始转换
