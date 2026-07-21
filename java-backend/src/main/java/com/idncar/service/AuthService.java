@@ -237,7 +237,7 @@ public class AuthService {
         String username = requireText(request.getUsername(), "请输入用户名");
         String email = requireEmail(request.getEmail());
         String password = requirePassword(request.getPassword());
-        String nickname = requireText(request.getNickname(), "请输入昵称");
+        String nickname = UserProfilePolicy.normalizeNickname(request.getNickname());
         String inviteCodeValue = requireText(request.getInviteCode(), "请输入邀请码").toUpperCase();
         String emailCode = requireText(request.getEmailCode(), "请输入邮箱验证码");
 
@@ -332,20 +332,16 @@ public class AuthService {
         User user = userAccessService.requireActiveUser(userId);
 
         if (request.getNickname() != null) {
-            String nickname = request.getNickname().trim();
-            if (nickname.isEmpty()) {
-                throw ApiException.badRequest("昵称不能为空");
-            }
-            user.setNickname(nickname);
+            user.setNickname(UserProfilePolicy.normalizeNickname(request.getNickname()));
         }
 
         if (request.getAvatarUrl() != null) {
-            String avatarUrl = request.getAvatarUrl().trim();
-            user.setAvatarUrl(avatarUrl.isEmpty() ? defaultAvatar(user.getNickname()) : avatarUrl);
+            String avatarUrl = UserProfilePolicy.normalizeAvatarUrl(request.getAvatarUrl());
+            user.setAvatarUrl(avatarUrl == null ? defaultAvatar(user.getNickname()) : avatarUrl);
         }
 
         if (request.getBio() != null) {
-            user.setBio(request.getBio().trim());
+            user.setBio(UserProfilePolicy.normalizeBio(request.getBio()));
         }
 
         userMapper.updateById(user);

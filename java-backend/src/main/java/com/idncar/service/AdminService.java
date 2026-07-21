@@ -157,19 +157,15 @@ public class AdminService {
         boolean invalidateSession = false;
 
         if (request.getNickname() != null) {
-            String nickname = request.getNickname().trim();
-            if (nickname.isEmpty()) {
-                throw ApiException.badRequest("昵称不能为空");
-            }
-            targetUser.setNickname(nickname);
+            targetUser.setNickname(UserProfilePolicy.normalizeNickname(request.getNickname()));
         }
 
         if (request.getAvatarUrl() != null) {
-            targetUser.setAvatarUrl(normalizeNullableText(request.getAvatarUrl()));
+            targetUser.setAvatarUrl(UserProfilePolicy.normalizeAvatarUrl(request.getAvatarUrl()));
         }
 
         if (request.getBio() != null) {
-            targetUser.setBio(normalizeNullableText(request.getBio()));
+            targetUser.setBio(UserProfilePolicy.normalizeBio(request.getBio()));
         }
 
         if (request.getRole() != null) {
