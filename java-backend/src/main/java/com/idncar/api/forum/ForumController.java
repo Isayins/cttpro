@@ -7,6 +7,7 @@ import com.idncar.model.dto.ForumBoardOwnerApplicationDto;
 import com.idncar.model.dto.ForumLeaderboardDto;
 import com.idncar.model.dto.ForumSignInDto;
 import com.idncar.model.dto.PostDto;
+import com.idncar.model.dto.PageResultDto;
 import com.idncar.model.dto.ReplyDto;
 import com.idncar.model.dto.ReviewForumBoardOwnerApplicationRequest;
 import com.idncar.model.dto.SaveForumBoardLevelTitlesRequest;
@@ -120,13 +121,13 @@ public class ForumController {
     }
 
     @GetMapping("/posts")
-    public ResponseEntity<List<PostDto>> getPosts(@RequestParam(defaultValue = "1") int page,
-                                                  @RequestParam(defaultValue = "10") int size,
-                                                  @RequestParam(required = false) String keyword,
-                                                  @RequestParam(required = false) String category,
-                                                  @RequestParam(required = false) Boolean mine,
-                                                  @RequestParam(required = false) Boolean favorites,
-                                                  @RequestAttribute(value = "userId", required = false) Long userId) {
+    public ResponseEntity<PageResultDto<PostDto>> getPosts(@RequestParam(defaultValue = "1") int page,
+                                                           @RequestParam(defaultValue = "10") int size,
+                                                           @RequestParam(required = false) String keyword,
+                                                           @RequestParam(required = false) String category,
+                                                           @RequestParam(required = false) Boolean mine,
+                                                           @RequestParam(required = false) Boolean favorites,
+                                                           @RequestAttribute(value = "userId", required = false) Long userId) {
         return ResponseEntity.ok(forumService.getPosts(page, size, keyword, category, mine, favorites, userId));
     }
 

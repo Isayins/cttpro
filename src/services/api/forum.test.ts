@@ -22,4 +22,26 @@ describe("forum API pagination", () => {
       "/api/forum/posts/42/replies?page=2&size=20",
     ]);
   });
+
+  it("preserves the total when requesting a post page", async () => {
+    const response = {
+      records: [{ id: 1, title: "最近帖子" }],
+      total: 42,
+      page: 1,
+      size: 3,
+    };
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify(response), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(forumApi.getPostsPage({ mine: true, size: 3 })).resolves.toEqual(response);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/forum/posts?page=1&size=3&mine=true",
+      expect.anything(),
+    );
+  });
 });

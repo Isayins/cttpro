@@ -26,6 +26,7 @@ import com.idncar.model.dto.ForumLeaderboardDto;
 import com.idncar.model.dto.ForumLeaderboardUserDto;
 import com.idncar.model.dto.ForumSignInDto;
 import com.idncar.model.dto.PostDto;
+import com.idncar.model.dto.PageResultDto;
 import com.idncar.model.dto.ReplyDto;
 import com.idncar.model.dto.ReviewForumBoardOwnerApplicationRequest;
 import com.idncar.model.dto.SaveForumBoardLevelTitlesRequest;
@@ -155,11 +156,13 @@ public class ForumService {
         return toPostDto(postMapper.selectById(post.getId()), userId);
     }
 
-    public List<PostDto> getPosts(int page, int size, String keyword, String category, Boolean mineOnly, Boolean favoritesOnly, Long currentUserId) {
+    public PageResultDto<PostDto> getPosts(int page, int size, String keyword, String category, Boolean mineOnly, Boolean favoritesOnly, Long currentUserId) {
         if ((Boolean.TRUE.equals(mineOnly) || Boolean.TRUE.equals(favoritesOnly)) && currentUserId == null) {
             throw ApiException.unauthorized("请先登录");
         }
 
+        int safePage = Math.max(page, 1);
+        int safeSize = Math.max(1, Math.min(size, 100));
         String normalizedKeyword = normalizeNullableText(keyword);
         String normalizedCategory = normalizeCategoryFilter(category);
         boolean cacheablePublicList = currentUserId == null
@@ -169,14 +172,14 @@ public class ForumService {
 
         String publicCacheKey = null;
         if (cacheablePublicList) {
-            publicCacheKey = buildPublicPostCacheKey(page, size, normalizedCategory);
-            List<PostDto> cachedPosts = getCachedPublicPostList(publicCacheKey);
-            if (cachedPosts != null) {
-                return cachedPosts;
+            publicCacheKey = buildPublicPostCacheKey(safePage, safeSize, normalizedCategory);
+            PageResultDto<PostDto> cachedPage = getCachedPublicPostPage(publicCacheKey, safePage, safeSize);
+            if (cachedPage != null) {
+                return cachedPage;
             }
         }
 
-        Page<Post> postPage = new Page<>(Math.max(page, 1), Math.max(size, 1));
+        Page<Post> postPage = new Page<>(safePage, safeSize);
         QueryWrapper<Post> queryWrapper = new QueryWrapper<>();
 
         if (normalizedKeyword != null) {
@@ -204,18 +207,19 @@ public class ForumService {
                     .map(PostFavorite::getPostId)
                     .collect(Collectors.toList());
             if (favoritePostIds.isEmpty()) {
-                return List.of();
+                return PageResultDto.of(List.of(), 0L, safePage, safeSize);
             }
             queryWrapper.in("id", favoritePostIds);
         }
 
         queryWrapper.orderByDesc("pinned").orderByDesc("create_time");
-        List<Post> posts = postMapper.selectPage(postPage, queryWrapper).getRecords();
+        Page<Post> result = postMapper.selectPage(postPage, queryWrapper);
+        List<Post> posts = result.getRecords();
         List<PostDto> postDtos = toPostDtos(posts, currentUserId);
         if (cacheablePublicList && publicCacheKey != null) {
-            cachePublicPostList(publicCacheKey, postDtos);
+            cachePublicPostPage(publicCacheKey, postDtos, result.getTotal());
         }
-        return postDtos;
+        return PageResultDto.of(postDtos, result.getTotal(), safePage, safeSize);
     }
 
     public PostDto getPostById(Long id, Long currentUserId) {
@@ -1589,7 +1593,7 @@ public class ForumService {
         return String.format("%d:%d:%s", Math.max(page, 1), Math.max(size, 1), normalizedCategory);
     }
 
-    private List<PostDto> getCachedPublicPostList(String key) {
+    private PageResultDto<PostDto> getCachedPublicPostPage(String key, int page, int size) {
         TimedPostList cached = publicPostListCache.get(key);
         if (cached == null) {
             return null;
@@ -1598,7 +1602,7 @@ public class ForumService {
             publicPostListCache.remove(key, cached);
             return null;
         }
-        return cached.posts;
+        return PageResultDto.of(cached.posts, cached.total, page, size);
     }
 
     private PostDto getCachedPublicPostDetail(Long postId) {
@@ -1629,14 +1633,14 @@ public class ForumService {
         return copyReplyDtos(cached.replies);
     }
 
-    private void cachePublicPostList(String key, List<PostDto> posts) {
+    private void cachePublicPostPage(String key, List<PostDto> posts, long total) {
         if (posts == null) {
             return;
         }
         if (publicPostListCache.size() >= PUBLIC_POST_LIST_CACHE_MAX_ENTRIES) {
             publicPostListCache.clear();
         }
-        publicPostListCache.put(key, new TimedPostList(List.copyOf(posts), System.currentTimeMillis()));
+        publicPostListCache.put(key, new TimedPostList(List.copyOf(posts), total, System.currentTimeMillis()));
     }
 
     private void cachePublicPostDetail(Long postId, PostDto dto) {
@@ -1724,10 +1728,12 @@ public class ForumService {
 
     private static class TimedPostList {
         private final List<PostDto> posts;
+        private final long total;
         private final long cachedAtMillis;
 
-        private TimedPostList(List<PostDto> posts, long cachedAtMillis) {
+        private TimedPostList(List<PostDto> posts, long total, long cachedAtMillis) {
             this.posts = posts;
+            this.total = total;
             this.cachedAtMillis = cachedAtMillis;
         }
     }

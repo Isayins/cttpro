@@ -45,6 +45,7 @@ import MainLayout from "../layouts/MainLayout";
 import { useAuth } from "../context/useAuth";
 import { getFriendlyMessage as textError } from "../lib/errorMessage";
 import { resolveAssetUrl } from "../lib/media";
+import { PROFILE_LIMITS } from "../lib/profile";
 import {
   formatPrice,
   formatPriceLabel as priceText,
@@ -7814,19 +7815,29 @@ export default function Admin() {
             <Form.Item
               name="nickname"
               label="昵称"
-              rules={[{ required: true, message: "请输入昵称" }]}
+              rules={[
+                { required: true, whitespace: true, message: "请输入昵称" },
+                { max: PROFILE_LIMITS.nickname, message: `昵称不能超过 ${PROFILE_LIMITS.nickname} 个字符` },
+              ]}
             >
-              <Input />
+              <Input maxLength={PROFILE_LIMITS.nickname} showCount />
             </Form.Item>
             <Form.Item
               name="avatarUrl"
               label="头像链接"
-              rules={[{ validator: validateOptionalImageUrl }]}
+              rules={[
+                { max: PROFILE_LIMITS.avatarUrl, message: `头像地址不能超过 ${PROFILE_LIMITS.avatarUrl} 个字符` },
+                { validator: validateOptionalImageUrl },
+              ]}
             >
-              <Input />
+              <Input maxLength={PROFILE_LIMITS.avatarUrl} />
             </Form.Item>
-            <Form.Item name="bio" label="简介">
-              <Input.TextArea rows={4} />
+            <Form.Item
+              name="bio"
+              label="简介"
+              rules={[{ max: PROFILE_LIMITS.bio, message: `简介不能超过 ${PROFILE_LIMITS.bio} 个字符` }]}
+            >
+              <Input.TextArea rows={4} maxLength={PROFILE_LIMITS.bio} showCount />
             </Form.Item>
             <Form.Item name="status" label="状态">
               <Select

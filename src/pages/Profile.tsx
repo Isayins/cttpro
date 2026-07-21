@@ -32,6 +32,7 @@ import MainLayout from "../layouts/MainLayout";
 import { useAuth } from "../context/useAuth";
 import { getFriendlyMessage } from "../lib/errorMessage";
 import { resolveAssetUrl } from "../lib/media";
+import { PROFILE_LIMITS, normalizeProfilePayload } from "../lib/profile";
 import { IMAGE_ACCEPT, isAllowedImageFile } from "../lib/richContent";
 import { isAllowedImageResourceUrl } from "../lib/urlValidation";
 import { authApi } from "../services/api/auth";
@@ -107,15 +108,6 @@ function validateNewPassword(_: unknown, value?: string) {
   return Promise.resolve();
 }
 
-function normalizeProfilePayload(values: UpdateProfilePayload): UpdateProfilePayload {
-  return {
-    ...values,
-    nickname: values.nickname?.trim() ?? "",
-    avatarUrl: values.avatarUrl?.trim() ?? "",
-    bio: values.bio?.trim() ?? "",
-  };
-}
-
 export default function Profile() {
   const { user, updateProfile, changePassword, uploadAvatar, logout } = useAuth();
   const [profileForm] = Form.useForm<UpdateProfilePayload>();
@@ -133,6 +125,8 @@ export default function Profile() {
   const [loginRecords, setLoginRecords] = useState<LoginRecord[]>([]);
   const [myPosts, setMyPosts] = useState<Post[]>([]);
   const [favoritePosts, setFavoritePosts] = useState<Post[]>([]);
+  const [myPostCount, setMyPostCount] = useState(0);
+  const [favoritePostCount, setFavoritePostCount] = useState(0);
   const avatarUploadInFlightRef = useRef(false);
 
   useEffect(() => {
@@ -174,11 +168,13 @@ export default function Profile() {
     setLoadingContent(true);
     try {
       const [mine, favorites] = await Promise.all([
-        forumApi.getPosts({ mine: true }),
-        forumApi.getPosts({ favorites: true }),
+        forumApi.getPostsPage({ mine: true, size: 3 }),
+        forumApi.getPostsPage({ favorites: true, size: 3 }),
       ]);
-      setMyPosts(mine);
-      setFavoritePosts(favorites);
+      setMyPosts(mine.records);
+      setFavoritePosts(favorites.records);
+      setMyPostCount(mine.total);
+      setFavoritePostCount(favorites.total);
     } catch (error) {
       message.error(getFriendlyMessage(error, "加载个人内容失败"));
     } finally {
@@ -187,13 +183,13 @@ export default function Profile() {
   }, []);
 
   useEffect(() => {
-    if (!user) {
+    if (!user?.id) {
       return;
     }
 
     void loadLoginRecords();
     void loadMyContent();
-  }, [loadLoginRecords, loadMyContent, user]);
+  }, [loadLoginRecords, loadMyContent, user?.id]);
 
   const profileChecklist = useMemo(
     () => [
@@ -217,12 +213,12 @@ export default function Profile() {
       },
       {
         label: "我的帖子",
-        value: formatCount(myPosts.length),
+        value: formatCount(myPostCount),
         detail: loadingContent ? "同步中" : "论坛发布内容",
       },
       {
         label: "我的收藏",
-        value: formatCount(favoritePosts.length),
+        value: formatCount(favoritePostCount),
         detail: loadingContent ? "同步中" : "收藏的帖子",
       },
       {
@@ -231,7 +227,7 @@ export default function Profile() {
         detail: latestLoginRecord ? formatDateTime(latestLoginRecord.createTime) : "暂无登录记录",
       },
     ],
-    [completedProfileCount, favoritePosts.length, latestLoginRecord, loadingContent, myPosts.length, profileChecklist.length, profileCompletionRate],
+    [completedProfileCount, favoritePostCount, latestLoginRecord, loadingContent, myPostCount, profileChecklist.length, profileCompletionRate],
   );
 
   async function handleProfileSubmit(values: UpdateProfilePayload) {
@@ -491,8 +487,15 @@ export default function Profile() {
                   layout="vertical"
                   onFinish={(values) => void handleProfileSubmit(values)}
                 >
-                  <Form.Item name="nickname" label="昵称" rules={[{ required: true, message: "请输入昵称" }]}>
-                    <Input placeholder="请输入你的展示昵称" />
+                  <Form.Item
+                    name="nickname"
+                    label="昵称"
+                    rules={[
+                      { required: true, whitespace: true, message: "请输入昵称" },
+                      { max: PROFILE_LIMITS.nickname, message: `昵称不能超过 ${PROFILE_LIMITS.nickname} 个字符` },
+                    ]}
+                  >
+                    <Input maxLength={PROFILE_LIMITS.nickname} showCount placeholder="请输入你的展示昵称" />
                   </Form.Item>
 
                   <Form.Item
@@ -500,16 +503,29 @@ export default function Profile() {
                     label="头像地址"
                     rules={[
                       {
+                        max: PROFILE_LIMITS.avatarUrl,
+                        message: `头像地址不能超过 ${PROFILE_LIMITS.avatarUrl} 个字符`,
+                      },
+                      {
                         validator: (_, value: string | undefined) =>
                           isAllowedImageResourceUrl(value) ? Promise.resolve() : Promise.reject(new Error("请输入有效的头像图片地址，支持 http(s)、上传路径或站内 /images 路径")),
                       },
                     ]}
                   >
-                    <Input placeholder="上传后会自动填写，也可以手动填写外链地址" />
+                    <Input maxLength={PROFILE_LIMITS.avatarUrl} placeholder="上传后会自动填写，也可以手动填写外链地址" />
                   </Form.Item>
 
-                  <Form.Item name="bio" label="个人简介">
-                    <Input.TextArea rows={5} placeholder="写一点你的兴趣、擅长方向或想和大家说的话" />
+                  <Form.Item
+                    name="bio"
+                    label="个人简介"
+                    rules={[{ max: PROFILE_LIMITS.bio, message: `个人简介不能超过 ${PROFILE_LIMITS.bio} 个字符` }]}
+                  >
+                    <Input.TextArea
+                      rows={5}
+                      maxLength={PROFILE_LIMITS.bio}
+                      showCount
+                      placeholder="写一点你的兴趣、擅长方向或想和大家说的话"
+                    />
                   </Form.Item>
 
                   <Button type="primary" htmlType="submit" loading={savingProfile}>
@@ -695,7 +711,7 @@ export default function Profile() {
                   </div>
                   <div>
                     <div className="text-sm text-slate-500">我的帖子</div>
-                    <div className="text-2xl font-semibold text-slate-900">{formatCount(myPosts.length)}</div>
+                    <div className="text-2xl font-semibold text-slate-900">{formatCount(myPostCount)}</div>
                   </div>
                 </div>
                 <Link to="/forum?view=mine" className="mt-4 inline-flex items-center text-sm text-[#2a6df4]">
@@ -711,7 +727,7 @@ export default function Profile() {
                   </div>
                   <div>
                     <div className="text-sm text-slate-500">我的收藏</div>
-                    <div className="text-2xl font-semibold text-slate-900">{formatCount(favoritePosts.length)}</div>
+                    <div className="text-2xl font-semibold text-slate-900">{formatCount(favoritePostCount)}</div>
                   </div>
                 </div>
                 <Link to="/forum?view=favorites" className="mt-4 inline-flex items-center text-sm text-[#d48806]">

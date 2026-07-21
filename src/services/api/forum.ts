@@ -19,6 +19,38 @@ function normalizePostsResponse(response: PageResult<Post> | Post[]) {
   return Array.isArray(response) ? response : Array.isArray(response.records) ? response.records : [];
 }
 
+function getPostsResponse(filters: ForumPostFilters = {}) {
+  const params = new URLSearchParams();
+  params.set("page", String(filters.page ?? 1));
+  params.set("size", String(filters.size ?? 30));
+  if (filters.keyword) params.set("keyword", filters.keyword);
+  if (filters.category) params.set("category", filters.category);
+  if (filters.mine) params.set("mine", "true");
+  if (filters.favorites) params.set("favorites", "true");
+
+  return apiRequest<PageResult<Post> | Post[]>(`/api/forum/posts?${params.toString()}`, {
+    authMode: "optional",
+    timeoutMs: 7000,
+  });
+}
+
+function normalizePostsPage(response: PageResult<Post> | Post[], filters: ForumPostFilters): PageResult<Post> {
+  if (Array.isArray(response)) {
+    return {
+      records: response,
+      total: response.length,
+      page: filters.page ?? 1,
+      size: filters.size ?? 30,
+    };
+  }
+  return {
+    records: Array.isArray(response.records) ? response.records : [],
+    total: Number.isFinite(response.total) ? response.total : 0,
+    page: response.page ?? filters.page ?? 1,
+    size: response.size ?? filters.size ?? 30,
+  };
+}
+
 export const forumApi = {
   getBoards: (options: { includeInactive?: boolean } = {}) => {
     const params = new URLSearchParams();
@@ -87,21 +119,9 @@ export const forumApi = {
       timeoutMs: 60_000,
     });
   },
-  getPosts: (filters: ForumPostFilters = {}) => {
-    const params = new URLSearchParams();
-    params.set("page", String(filters.page ?? 1));
-    params.set("size", String(filters.size ?? 30));
-    if (filters.keyword) params.set("keyword", filters.keyword);
-    if (filters.category) params.set("category", filters.category);
-    if (filters.mine) params.set("mine", "true");
-    if (filters.favorites) params.set("favorites", "true");
-
-    const query = params.toString();
-    return apiRequest<PageResult<Post> | Post[]>(`/api/forum/posts${query ? `?${query}` : ""}`, {
-      authMode: "optional",
-      timeoutMs: 7000,
-    }).then(normalizePostsResponse);
-  },
+  getPosts: (filters: ForumPostFilters = {}) => getPostsResponse(filters).then(normalizePostsResponse),
+  getPostsPage: (filters: ForumPostFilters = {}) =>
+    getPostsResponse(filters).then((response) => normalizePostsPage(response, filters)),
   getPost: (postId: number) =>
     apiRequest<Post>(`/api/forum/posts/${postId}`, {
       authMode: "optional",
