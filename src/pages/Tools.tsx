@@ -336,6 +336,10 @@ export default function Tools() {
   };
 
   const restoreHistoryItem = (item: ToolHistoryItem) => {
+    if (item.restorable === false) {
+      message.warning("该记录内容过长，仅保留预览，无法恢复");
+      return;
+    }
     resetCopiedStates();
     setActiveTool(item.tool);
 
@@ -433,6 +437,12 @@ export default function Tools() {
       case "cron":
         setCronDescription(item.input);
         setCronOutput(item.output ?? "");
+        setCronMode(item.cronMode ?? "minutes");
+        setCronIntervalMinutes(item.cronIntervalMinutes ?? 5);
+        setCronMinute(item.cronMinute ?? 0);
+        setCronHour(item.cronHour ?? 9);
+        setCronWeekday(item.cronWeekday ?? 1);
+        setCronMonthDay(item.cronMonthDay ?? 1);
         setCronError(null);
         break;
       case "qrcode":
@@ -802,6 +812,12 @@ export default function Tools() {
         action: "Cron 表达式生成",
         input: description,
         output: expression,
+        cronMode,
+        cronIntervalMinutes: clampNumber(cronIntervalMinutes, 1, 59),
+        cronMinute: clampNumber(cronMinute, 0, 59),
+        cronHour: clampNumber(cronHour, 0, 23),
+        cronWeekday: clampNumber(cronWeekday, 0, 6),
+        cronMonthDay: clampNumber(cronMonthDay, 1, 31),
       });
     } catch (error) {
       setCronOutput("");

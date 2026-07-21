@@ -153,7 +153,12 @@ export function ToolsSidebar({
                 {visibleHistoryItems.map((item) => (
                   <div key={item.id} className="min-w-0 overflow-hidden rounded-xl border border-slate-100 bg-slate-50 p-2.5 transition hover:border-slate-200 hover:bg-white">
                     <div className="flex min-w-0 items-start gap-2">
-                      <button type="button" className="min-w-0 flex-1 overflow-hidden text-left" onClick={() => onRestoreHistoryItem(item)}>
+                      <button
+                        type="button"
+                        disabled={item.restorable === false}
+                        className="min-w-0 flex-1 overflow-hidden text-left disabled:cursor-not-allowed disabled:opacity-60"
+                        onClick={() => onRestoreHistoryItem(item)}
+                      >
                         <div className="flex min-w-0 items-center gap-2">
                           <span className="truncate text-sm font-medium text-slate-800">{item.action}</span>
                           {item.tool !== activeTool || historyScope === "all" ? (
@@ -162,7 +167,7 @@ export function ToolsSidebar({
                         </div>
                         <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-400">
                           <span>{formatHistoryTime(item.createdAt)}</span>
-                          <span>点击恢复</span>
+                          <span>{item.restorable === false ? "内容过长，仅保留预览" : "点击恢复"}</span>
                         </div>
                         <div className="mt-1 max-w-full truncate text-xs text-slate-500">{getHistoryPreview(item.output ?? item.input, 56)}</div>
                       </button>

@@ -179,7 +179,13 @@ describe("tool utils", () => {
 
     writeToolHistory(history);
 
-    expect(readToolHistory()).toEqual(history);
+    expect(readToolHistory()).toEqual([
+      expect.objectContaining({
+        ...history[0],
+        restorable: true,
+        historyKey: expect.any(String),
+      }),
+    ]);
   });
 
   it("ignores malformed or unknown history entries", () => {
@@ -199,7 +205,13 @@ describe("tool utils", () => {
       ]),
     );
 
-    expect(readToolHistory()).toEqual([validItem]);
+    expect(readToolHistory()).toEqual([
+      expect.objectContaining({
+        ...validItem,
+        restorable: true,
+        historyKey: expect.any(String),
+      }),
+    ]);
 
     stubToolHistoryStorage("{not-json");
     expect(readToolHistory()).toEqual([]);
@@ -227,7 +239,13 @@ describe("tool utils", () => {
     writeToolHistory(history);
 
     expect(JSON.parse(storage.get(TOOL_HISTORY_STORAGE_KEY) ?? "[]")).toEqual([history[0]]);
-    expect(readToolHistory()).toEqual([history[0]]);
+    expect(readToolHistory()).toEqual([
+      expect.objectContaining({
+        ...history[0],
+        restorable: true,
+        historyKey: expect.any(String),
+      }),
+    ]);
   });
 
   it("purges sensitive entries already stored by older versions", () => {

@@ -940,6 +940,70 @@ export function trimHistoryText(value: string, limit = TOOL_HISTORY_TEXT_LIMIT) 
   return `${value.slice(0, limit)}\n...`;
 }
 
+export function buildToolHistoryKey(
+  item: Omit<ToolHistoryItem, "id" | "createdAt" | "historyKey" | "restorable">,
+) {
+  const excludedFields = new Set(["id", "createdAt", "historyKey", "restorable"]);
+  return JSON.stringify(
+    Object.fromEntries(
+      Object.entries(item)
+        .filter(([field]) => !excludedFields.has(field))
+        .sort(([left], [right]) => left.localeCompare(right)),
+    ),
+  );
+}
+
+function normalizeStoredHistoryItem(value: unknown): ToolHistoryItem | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const item = value as Record<string, unknown>;
+  if (
+    typeof item.id !== "string" ||
+    typeof item.tool !== "string" ||
+    !(item.tool in toolConfig) ||
+    !PERSISTED_HISTORY_TOOLS.has(item.tool as ToolType) ||
+    typeof item.action !== "string" ||
+    typeof item.input !== "string" ||
+    typeof item.createdAt !== "string" ||
+    (item.output !== undefined && typeof item.output !== "string") ||
+    (item.secondaryInput !== undefined && typeof item.secondaryInput !== "string")
+  ) {
+    return null;
+  }
+
+  const numericFields = [
+    "size",
+    "count",
+    "cronIntervalMinutes",
+    "cronMinute",
+    "cronHour",
+    "cronWeekday",
+    "cronMonthDay",
+  ];
+  if (
+    numericFields.some(
+      (field) =>
+        item[field] !== undefined &&
+        (typeof item[field] !== "number" || !Number.isFinite(item[field])),
+    )
+  ) {
+    return null;
+  }
+
+  const normalized = item as ToolHistoryItem;
+  const historyKey =
+    typeof normalized.historyKey === "string"
+      ? normalized.historyKey
+      : buildToolHistoryKey(normalized);
+  return {
+    ...normalized,
+    historyKey,
+    restorable: normalized.restorable !== false,
+  };
+}
+
 export function readToolHistory(): ToolHistoryItem[] {
   if (typeof window === "undefined") {
     return [];
@@ -956,17 +1020,9 @@ export function readToolHistory(): ToolHistoryItem[] {
       return [];
     }
 
-    const history = parsed.filter(
-      (item): item is ToolHistoryItem =>
-        Boolean(
-          item?.id &&
-            item?.tool &&
-            item.tool in toolConfig &&
-            PERSISTED_HISTORY_TOOLS.has(item.tool) &&
-            item?.action &&
-            item?.createdAt,
-        ),
-    );
+    const history = parsed
+      .map(normalizeStoredHistoryItem)
+      .filter((item): item is ToolHistoryItem => item !== null);
     if (history.length !== parsed.length) {
       writeToolHistory(history);
     }

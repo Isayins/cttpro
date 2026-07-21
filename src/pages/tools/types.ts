@@ -51,6 +51,8 @@ export type ToolCategory = "data" | "codec" | "text" | "security" | "debug" | "n
 
 export type ToolHistoryItem = {
   id: string;
+  historyKey?: string;
+  restorable?: boolean;
   tool: ToolType;
   action: string;
   input: string;
@@ -74,6 +76,12 @@ export type ToolHistoryItem = {
   size?: number;
   count?: number;
   fileName?: string;
+  cronMode?: CronMode;
+  cronIntervalMinutes?: number;
+  cronMinute?: number;
+  cronHour?: number;
+  cronWeekday?: number;
+  cronMonthDay?: number;
   createdAt: string;
 };
 
