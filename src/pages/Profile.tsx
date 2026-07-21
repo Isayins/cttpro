@@ -34,7 +34,7 @@ import MainLayout from "../layouts/MainLayout";
 import { useAuth } from "../context/useAuth";
 import { getFriendlyMessage } from "../lib/errorMessage";
 import { resolveAssetUrl } from "../lib/media";
-import { PROFILE_LIMITS, normalizeProfilePayload } from "../lib/profile";
+import { PROFILE_LIMITS, hasProfileChanges, loadProfileContentPages, normalizeProfilePayload } from "../lib/profile";
 import { IMAGE_ACCEPT, isAllowedImageFile } from "../lib/richContent";
 import { authApi } from "../services/api/auth";
 import { forumApi } from "../services/api/forum";
@@ -114,6 +114,8 @@ export default function Profile() {
   const [profileForm] = Form.useForm<UpdateProfilePayload>();
   const [passwordForm] = Form.useForm<ChangePasswordPayload>();
   const [emailForm] = Form.useForm<ChangeEmailPayload>();
+  const watchedNickname = Form.useWatch("nickname", profileForm);
+  const watchedBio = Form.useWatch("bio", profileForm);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
   const [savingEmail, setSavingEmail] = useState(false);
@@ -168,16 +170,26 @@ export default function Profile() {
   const loadMyContent = useCallback(async () => {
     setLoadingContent(true);
     try {
-      const [mine, favorites] = await Promise.all([
-        forumApi.getPostsPage({ mine: true, size: 3 }),
-        forumApi.getPostsPage({ favorites: true, size: 3 }),
-      ]);
-      setMyPosts(mine.records);
-      setFavoritePosts(favorites.records);
-      setMyPostCount(mine.total);
-      setFavoritePostCount(favorites.total);
-    } catch (error) {
-      message.error(getFriendlyMessage(error, "加载个人内容失败"));
+      const { mine, favorites } = await loadProfileContentPages(
+        () => forumApi.getPostsPage({ mine: true, size: 3 }),
+        () => forumApi.getPostsPage({ favorites: true, size: 3 }),
+      );
+      const loadErrors: string[] = [];
+      if (mine.status === "fulfilled") {
+        setMyPosts(mine.value.records);
+        setMyPostCount(mine.value.total);
+      } else {
+        loadErrors.push(getFriendlyMessage(mine.reason, "我的帖子加载失败"));
+      }
+      if (favorites.status === "fulfilled") {
+        setFavoritePosts(favorites.value.records);
+        setFavoritePostCount(favorites.value.total);
+      } else {
+        loadErrors.push(getFriendlyMessage(favorites.reason, "我的收藏加载失败"));
+      }
+      if (loadErrors.length > 0) {
+        message.warning(loadErrors.join("；"));
+      }
     } finally {
       setLoadingContent(false);
     }
@@ -204,6 +216,8 @@ export default function Profile() {
 
   const completedProfileCount = profileChecklist.filter((item) => item.done).length;
   const profileCompletionRate = Math.round((completedProfileCount / profileChecklist.length) * 100);
+  const profileDirty = watchedNickname !== undefined
+    && hasProfileChanges(user, { nickname: watchedNickname, bio: watchedBio });
   const latestLoginRecord = loginRecords[0];
   const overviewCards = useMemo(
     () => [
@@ -536,7 +550,7 @@ export default function Profile() {
                     />
                   </Form.Item>
 
-                  <Button type="primary" htmlType="submit" loading={savingProfile}>
+                  <Button type="primary" htmlType="submit" loading={savingProfile} disabled={!profileDirty}>
                     保存资料
                   </Button>
                 </Form>
@@ -568,7 +582,7 @@ export default function Profile() {
                         label="当前密码"
                         rules={[{ required: true, message: "请输入当前密码" }]}
                       >
-                        <Input.Password prefix={<LockOutlined />} placeholder="请输入当前密码" />
+                        <Input.Password prefix={<LockOutlined />} autoComplete="current-password" placeholder="请输入当前密码" />
                       </Form.Item>
                     </Col>
                     <Col xs={24} md={12}>
@@ -577,7 +591,7 @@ export default function Profile() {
                         label="新密码"
                         rules={[{ required: true, message: "请输入新密码" }, { validator: validateNewPassword }]}
                       >
-                        <Input.Password prefix={<LockOutlined />} placeholder="请输入新密码" />
+                        <Input.Password prefix={<LockOutlined />} autoComplete="new-password" placeholder="请输入新密码" />
                       </Form.Item>
                     </Col>
                   </Row>
@@ -598,7 +612,7 @@ export default function Profile() {
                       }),
                     ]}
                   >
-                    <Input.Password prefix={<LockOutlined />} placeholder="请再次输入新密码" />
+                    <Input.Password prefix={<LockOutlined />} autoComplete="new-password" placeholder="请再次输入新密码" />
                   </Form.Item>
 
                   <Space>
