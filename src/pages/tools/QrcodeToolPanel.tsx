@@ -31,16 +31,16 @@ export function QrcodeToolPanel({ input, size, value, onInputChange, onSizeChang
     <Row gutter={[16, 16]}>
       <Col xs={24} lg={9}>
         <label className="mb-2 block text-sm font-medium text-gray-700">二维码内容</label>
-        <TextArea rows={6} value={input} onChange={(event) => onInputChange(event.target.value)} placeholder="输入链接、文本或任意内容" />
+        <TextArea aria-label="二维码内容" rows={6} value={input} onChange={(event) => onInputChange(event.target.value)} placeholder="输入链接、文本或任意内容" />
         <div className="mt-4">
           <label className="mb-2 block text-sm font-medium text-gray-700">尺寸：{size}px</label>
-          <Slider min={100} max={320} value={size} onChange={(value) => onSizeChange(Number(value))} />
+          <Slider aria-label="二维码尺寸" min={100} max={320} value={size} onChange={(value) => onSizeChange(Number(value))} />
         </div>
         <div className="mt-4 flex gap-2">
           <Button type="primary" onClick={onGenerate} style={{ flex: 1 }}>
             生成二维码
           </Button>
-          <Button icon={<DeleteOutlined />} onClick={onClear} />
+          <Button aria-label="清空" title="清空" icon={<DeleteOutlined />} onClick={onClear} />
         </div>
       </Col>
       <Col xs={24} lg={15}>

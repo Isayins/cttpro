@@ -33,6 +33,7 @@ export function QueryParamsToolPanel({
         <Col xs={24} lg={12}>
           <label className="mb-2 block text-sm font-medium text-gray-700">URL 或查询字符串</label>
           <TextArea
+            aria-label="URL 或查询字符串"
             rows={7}
             value={input}
             onChange={(event) => onInputChange(event.target.value)}
@@ -42,7 +43,7 @@ export function QueryParamsToolPanel({
             <Button type="primary" onClick={onParse} style={{ flex: 1 }}>
               解析参数
             </Button>
-            <Button icon={<DeleteOutlined />} onClick={onClear} />
+            <Button aria-label="清空" title="清空" icon={<DeleteOutlined />} onClick={onClear} />
           </div>
         </Col>
         <Col xs={24} lg={12}>

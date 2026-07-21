@@ -171,7 +171,14 @@ export function ToolsSidebar({
                         </div>
                         <div className="mt-1 max-w-full truncate text-xs text-slate-500">{getHistoryPreview(item.output ?? item.input, 56)}</div>
                       </button>
-                      <Button type="text" size="small" icon={<DeleteOutlined />} onClick={() => onRemoveHistoryItem(item.id)} />
+                      <Button
+                        type="text"
+                        size="small"
+                        aria-label="删除历史记录"
+                        title="删除历史记录"
+                        icon={<DeleteOutlined />}
+                        onClick={() => onRemoveHistoryItem(item.id)}
+                      />
                     </div>
                   </div>
                 ))}

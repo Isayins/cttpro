@@ -42,20 +42,20 @@ export function RegexToolPanel({
           <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_120px]">
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-700">表达式</label>
-              <Input value={pattern} onChange={(event) => onPatternChange(event.target.value)} placeholder="例如 \\b\\w+@\\w+\\.com\\b" />
+              <Input aria-label="正则表达式" value={pattern} onChange={(event) => onPatternChange(event.target.value)} placeholder="例如 \\b\\w+@\\w+\\.com\\b" />
             </div>
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-700">Flags</label>
-              <Input value={flags} onChange={(event) => onFlagsChange(event.target.value)} placeholder="gim" />
+              <Input aria-label="正则 Flags" value={flags} onChange={(event) => onFlagsChange(event.target.value)} placeholder="gim" />
             </div>
           </div>
           <label className="mb-2 mt-4 block text-sm font-medium text-gray-700">测试文本</label>
-          <TextArea rows={8} value={sample} onChange={(event) => onSampleChange(event.target.value)} placeholder="输入要匹配的文本" />
+          <TextArea aria-label="正则测试文本" rows={8} value={sample} onChange={(event) => onSampleChange(event.target.value)} placeholder="输入要匹配的文本" />
           <div className="mt-4 flex gap-2">
             <Button type="primary" onClick={onTest} style={{ flex: 1 }}>
               开始测试
             </Button>
-            <Button icon={<DeleteOutlined />} onClick={onClear} />
+            <Button aria-label="清空" title="清空" icon={<DeleteOutlined />} onClick={onClear} />
           </div>
         </Col>
         <Col xs={24} lg={12}>

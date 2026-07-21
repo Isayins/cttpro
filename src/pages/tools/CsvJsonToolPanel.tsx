@@ -39,15 +39,15 @@ export function CsvJsonToolPanel({
         <Col xs={24} lg={12}>
           <div className="mb-3">
             <label className="mb-2 block text-sm font-medium text-gray-700">分隔符</label>
-            <Select className="w-full" value={delimiter} onChange={(value: CsvDelimiter) => onDelimiterChange(value)} options={csvDelimiterOptions} />
+            <Select aria-label="分隔符" className="w-full" value={delimiter} onChange={(value: CsvDelimiter) => onDelimiterChange(value)} options={csvDelimiterOptions} />
           </div>
           <label className="mb-2 block text-sm font-medium text-gray-700">CSV/TSV 内容</label>
-          <TextArea rows={10} value={input} onChange={(event) => onInputChange(event.target.value)} placeholder={'name,age\nAlice,18\nBob,20'} />
+          <TextArea aria-label="CSV 或 TSV 内容" rows={10} value={input} onChange={(event) => onInputChange(event.target.value)} placeholder={'name,age\nAlice,18\nBob,20'} />
           <div className="mt-4 flex gap-2">
             <Button type="primary" onClick={onConvert} style={{ flex: 1 }}>
               转为 JSON
             </Button>
-            <Button icon={<DeleteOutlined />} onClick={onClear} />
+            <Button aria-label="清空" title="清空" icon={<DeleteOutlined />} onClick={onClear} />
           </div>
         </Col>
         <Col xs={24} lg={12}>

@@ -23,12 +23,12 @@ export function JwtToolPanel({ input, output, copied, error, onInputChange, onPa
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={12}>
           <label className="mb-2 block text-sm font-medium text-gray-700">JWT Token</label>
-          <TextArea rows={8} value={input} onChange={(event) => onInputChange(event.target.value)} placeholder="粘贴 Bearer Token 或 JWT 字符串" />
+          <TextArea aria-label="JWT Token" rows={8} value={input} onChange={(event) => onInputChange(event.target.value)} placeholder="粘贴 Bearer Token 或 JWT 字符串" />
           <div className="mt-4 flex gap-2">
             <Button type="primary" onClick={onParse} style={{ flex: 1 }}>
               解析 Token
             </Button>
-            <Button icon={<DeleteOutlined />} onClick={onClear} />
+            <Button aria-label="清空" title="清空" icon={<DeleteOutlined />} onClick={onClear} />
           </div>
         </Col>
         <Col xs={24} lg={12}>

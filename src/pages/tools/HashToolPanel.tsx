@@ -39,15 +39,15 @@ export function HashToolPanel({
         <Col xs={24} lg={12}>
           <div className="mb-3">
             <label className="mb-2 block text-sm font-medium text-gray-700">算法</label>
-            <Select className="w-full" value={algorithm} onChange={(value: HashAlgorithm) => onAlgorithmChange(value)} options={hashAlgorithmOptions} />
+            <Select aria-label="哈希算法" className="w-full" value={algorithm} onChange={(value: HashAlgorithm) => onAlgorithmChange(value)} options={hashAlgorithmOptions} />
           </div>
           <label className="mb-2 block text-sm font-medium text-gray-700">输入文本</label>
-          <TextArea rows={8} value={input} onChange={(event) => onInputChange(event.target.value)} placeholder="输入要计算摘要的文本" />
+          <TextArea aria-label="哈希输入文本" rows={8} value={input} onChange={(event) => onInputChange(event.target.value)} placeholder="输入要计算摘要的文本" />
           <div className="mt-4 flex gap-2">
             <Button type="primary" onClick={onRun} style={{ flex: 1 }}>
               计算哈希
             </Button>
-            <Button icon={<DeleteOutlined />} onClick={onClear} />
+            <Button aria-label="清空" title="清空" icon={<DeleteOutlined />} onClick={onClear} />
           </div>
         </Col>
         <Col xs={24} lg={12}>

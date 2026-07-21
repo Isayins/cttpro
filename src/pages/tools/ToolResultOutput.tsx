@@ -1,5 +1,6 @@
 import { CheckCircleOutlined, CopyOutlined } from "@ant-design/icons";
 import { Button, Input } from "antd";
+import { useId } from "react";
 
 const { TextArea } = Input;
 
@@ -24,13 +25,15 @@ export function CopyResultButton({ value, copied, onCopy }: CopyResultButtonProp
 }
 
 export function ToolTextResult({ label, value, copied, onCopy, rows, placeholder }: ToolTextResultProps) {
+  const resultId = useId();
+
   return (
     <>
       <div className="mb-2 flex items-center justify-between">
-        <label className="block text-sm font-medium text-gray-700">{label}</label>
+        <label htmlFor={resultId} className="block text-sm font-medium text-gray-700">{label}</label>
         <CopyResultButton value={value} copied={copied} onCopy={onCopy} />
       </div>
-      <TextArea rows={rows} readOnly value={value} placeholder={placeholder} className="bg-gray-50 font-mono" />
+      <TextArea id={resultId} rows={rows} readOnly value={value} placeholder={placeholder} className="bg-gray-50 font-mono" />
     </>
   );
 }

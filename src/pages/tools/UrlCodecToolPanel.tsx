@@ -40,12 +40,12 @@ export function UrlCodecToolPanel({
             解码
           </Button>
         </div>
-        <TextArea rows={6} value={input} onChange={(event) => onInputChange(event.target.value)} placeholder="输入 URL 或待处理字符串" />
+        <TextArea aria-label="URL 或待处理字符串" rows={6} value={input} onChange={(event) => onInputChange(event.target.value)} placeholder="输入 URL 或待处理字符串" />
         <div className="mt-4 flex gap-2">
           <Button type="primary" onClick={onConvert} style={{ flex: 1 }}>
             执行转换
           </Button>
-          <Button icon={<DeleteOutlined />} onClick={onClear} />
+          <Button aria-label="清空" title="清空" icon={<DeleteOutlined />} onClick={onClear} />
         </div>
       </Col>
       <Col xs={24} lg={12}>

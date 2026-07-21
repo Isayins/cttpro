@@ -32,7 +32,7 @@ export function ColorToolPanel({
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={10}>
           <label className="mb-2 block text-sm font-medium text-gray-700">颜色值</label>
-          <Input value={input} onChange={(event) => onInputChange(event.target.value)} placeholder="#336699 或 rgb(51, 102, 153)" />
+          <Input aria-label="颜色值" value={input} onChange={(event) => onInputChange(event.target.value)} placeholder="#336699 或 rgb(51, 102, 153)" />
           <div className="mt-4 flex items-center gap-3">
             <span className="h-12 w-12 rounded-lg border border-slate-200" style={{ backgroundColor: swatch }} />
             <span className="font-mono text-sm text-slate-500">{swatch}</span>
@@ -41,7 +41,7 @@ export function ColorToolPanel({
             <Button type="primary" onClick={onConvert} style={{ flex: 1 }}>
               转换颜色
             </Button>
-            <Button icon={<DeleteOutlined />} onClick={onClear} />
+            <Button aria-label="清空" title="清空" icon={<DeleteOutlined />} onClick={onClear} />
           </div>
         </Col>
         <Col xs={24} lg={14}>

@@ -50,9 +50,9 @@ export function PasswordToolPanel({
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={10}>
           <label className="mb-2 block text-sm font-medium text-gray-700">密码长度：{length}</label>
-          <Slider min={6} max={64} value={length} onChange={(value) => onLengthChange(Number(value))} />
+          <Slider aria-label="密码长度" min={6} max={64} value={length} onChange={(value) => onLengthChange(Number(value))} />
           <label className="mb-2 mt-4 block text-sm font-medium text-gray-700">生成数量：{count}</label>
-          <Slider min={1} max={30} value={count} onChange={(value) => onCountChange(Number(value))} />
+          <Slider aria-label="密码生成数量" min={1} max={30} value={count} onChange={(value) => onCountChange(Number(value))} />
           <div className="mt-4 grid grid-cols-2 gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4">
             <Checkbox checked={useUpper} onChange={(event) => onUseUpperChange(event.target.checked)}>
               大写字母
@@ -71,7 +71,7 @@ export function PasswordToolPanel({
             <Button type="primary" onClick={onGenerate} style={{ flex: 1 }}>
               生成密码
             </Button>
-            <Button icon={<DeleteOutlined />} onClick={onClear} />
+            <Button aria-label="清空" title="清空" icon={<DeleteOutlined />} onClick={onClear} />
           </div>
         </Col>
         <Col xs={24} lg={14}>

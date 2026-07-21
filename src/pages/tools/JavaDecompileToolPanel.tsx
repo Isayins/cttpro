@@ -54,14 +54,14 @@ export function JavaDecompileToolPanel({
 
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-700">或直接输入 Base64 字节码</label>
-              <TextArea rows={8} value={classContent} onChange={(event) => onClassContentChange(event.target.value)} placeholder="粘贴 .class 文件对应的 Base64 内容" />
+              <TextArea aria-label="Base64 字节码" rows={8} value={classContent} onChange={(event) => onClassContentChange(event.target.value)} placeholder="粘贴 .class 文件对应的 Base64 内容" />
             </div>
 
             <div className="flex gap-2">
               <Button type="primary" icon={<FileTextOutlined />} loading={decompiling} onClick={onRun} style={{ flex: 1 }}>
                 查看字节码
               </Button>
-              <Button icon={<DeleteOutlined />} onClick={onClear} />
+              <Button aria-label="清空" title="清空" icon={<DeleteOutlined />} onClick={onClear} />
             </div>
           </div>
         </Col>

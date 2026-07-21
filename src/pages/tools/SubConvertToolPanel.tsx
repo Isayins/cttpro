@@ -47,10 +47,10 @@ function UrlResult({ label, value, placeholder }: UrlResultProps) {
       <div className="mb-2 flex items-center justify-between gap-2">
         <label className="text-sm font-medium text-slate-700">{label}</label>
         <Space size={4}>
-          <Button type="text" size="small" disabled={!value} icon={<CopyOutlined />} onClick={() => void copyValue(value)}>
+          <Button type="text" size="small" disabled={!value} aria-label={`复制${label}`} title={`复制${label}`} icon={<CopyOutlined />} onClick={() => void copyValue(value)}>
             复制
           </Button>
-          <Button type="text" size="small" disabled={!value} icon={<ExportOutlined />} onClick={() => openUrl(value)}>
+          <Button type="text" size="small" disabled={!value} aria-label={`打开${label}`} title={`打开${label}`} icon={<ExportOutlined />} onClick={() => openUrl(value)}>
             打开
           </Button>
         </Space>
@@ -238,8 +238,8 @@ export function SubConvertToolPanel({
                   <div key={item.label} className="flex min-w-0 items-center justify-between gap-2 rounded-xl border border-slate-100 bg-white px-3 py-2">
                     <span className="min-w-0 truncate text-sm text-slate-700">{item.label}</span>
                     <Space size={2}>
-                      <Button type="text" size="small" icon={<CopyOutlined />} onClick={() => void copyValue(item.value)} />
-                      <Button type="text" size="small" icon={<ExportOutlined />} onClick={() => openUrl(item.value)} />
+                      <Button type="text" size="small" aria-label={`复制 ${item.label} 导入链接`} title="复制导入链接" icon={<CopyOutlined />} onClick={() => void copyValue(item.value)} />
+                      <Button type="text" size="small" aria-label={`打开 ${item.label}`} title="打开客户端" icon={<ExportOutlined />} onClick={() => openUrl(item.value)} />
                     </Space>
                   </div>
                 ))

@@ -32,7 +32,7 @@ export function JsonFormatToolPanel({
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={12}>
           <label className="mb-2 block text-sm font-medium text-gray-700">输入</label>
-          <TextArea rows={10} value={input} onChange={(event) => onInputChange(event.target.value)} placeholder='{"name":"demo"}' />
+          <TextArea aria-label="JSON 输入" rows={10} value={input} onChange={(event) => onInputChange(event.target.value)} placeholder='{"name":"demo"}' />
           <div className="mt-4 flex gap-2">
             <Button type="primary" onClick={() => onFormat(true)} style={{ flex: 1 }}>
               格式化
@@ -40,7 +40,7 @@ export function JsonFormatToolPanel({
             <Button onClick={() => onFormat(false)} style={{ flex: 1 }}>
               压缩
             </Button>
-            <Button icon={<DeleteOutlined />} onClick={onClear} />
+            <Button aria-label="清空" title="清空" icon={<DeleteOutlined />} onClick={onClear} />
           </div>
         </Col>
         <Col xs={24} lg={12}>

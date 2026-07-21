@@ -18,15 +18,15 @@ export function UuidToolPanel({ count, output, copied, onCountChange, onGenerate
     <Row gutter={[16, 16]}>
       <Col xs={24} lg={10}>
         <label className="mb-2 block text-sm font-medium text-gray-700">生成数量（1 - 50）</label>
-        <Input type="number" min={1} max={50} value={count} onChange={(event) => onCountChange(Number(event.target.value))} />
+        <Input aria-label="UUID 生成数量" type="number" min={1} max={50} value={count} onChange={(event) => onCountChange(Number(event.target.value))} />
         <div className="mt-4">
-          <Slider min={1} max={50} value={count} onChange={(value) => onCountChange(Number(value))} />
+          <Slider aria-label="UUID 生成数量" min={1} max={50} value={count} onChange={(value) => onCountChange(Number(value))} />
         </div>
         <div className="mt-4 flex gap-2">
           <Button type="primary" onClick={onGenerate} style={{ flex: 1 }}>
             生成 UUID
           </Button>
-          <Button icon={<DeleteOutlined />} onClick={onClear} />
+          <Button aria-label="清空" title="清空" icon={<DeleteOutlined />} onClick={onClear} />
         </div>
       </Col>
       <Col xs={24} lg={14}>

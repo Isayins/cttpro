@@ -36,9 +36,10 @@ export function TimestampToolPanel({
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={12}>
           <label className="mb-2 block text-sm font-medium text-gray-700">输入时间戳或日期</label>
-          <Input value={input} onChange={(event) => onInputChange(event.target.value)} placeholder="例如 1713268800000 或 2026-04-24 15:00:00" />
+          <Input aria-label="时间戳或日期" value={input} onChange={(event) => onInputChange(event.target.value)} placeholder="例如 1713268800000 或 2026-04-24 15:00:00" />
           <label className="mb-2 mt-4 block text-sm font-medium text-gray-700">数字时间戳单位</label>
           <Select
+            aria-label="数字时间戳单位"
             className="w-full"
             value={unit}
             options={timestampUnitOptions}
@@ -48,7 +49,7 @@ export function TimestampToolPanel({
             <Button type="primary" onClick={onConvert} style={{ flex: 1 }}>
               开始转换
             </Button>
-            <Button icon={<DeleteOutlined />} onClick={onClear} />
+            <Button aria-label="清空" title="清空" icon={<DeleteOutlined />} onClick={onClear} />
           </div>
         </Col>
         <Col xs={24} lg={12}>

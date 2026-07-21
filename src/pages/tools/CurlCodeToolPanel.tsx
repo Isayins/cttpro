@@ -50,6 +50,7 @@ export function CurlCodeToolPanel({
             ))}
           </div>
           <TextArea
+            aria-label="cURL 命令"
             rows={10}
             value={input}
             onChange={(event) => onInputChange(event.target.value)}
@@ -59,7 +60,7 @@ export function CurlCodeToolPanel({
             <Button type="primary" onClick={onGenerate} style={{ flex: 1 }}>
               生成代码
             </Button>
-            <Button icon={<DeleteOutlined />} onClick={onClear} />
+            <Button aria-label="清空" title="清空" icon={<DeleteOutlined />} onClick={onClear} />
           </div>
         </Col>
         <Col xs={24} lg={12}>

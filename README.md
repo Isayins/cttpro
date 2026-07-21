@@ -33,6 +33,8 @@ VITE_API_TIMEOUT_MS=15000
 VITE_IDLE_LOGOUT_MINUTES=120
 ```
 
+实用工具页在浏览器本地完成大部分转换。正则测试通过限时 Worker 执行，二维码解析仅在使用时加载并限制图片大小与分辨率；时间戳支持自动、秒和毫秒三种单位。为避免凭据或业务数据残留，只有颜色、Cron 和 UUID 记录会跨会话保存在浏览器中，其他工具历史仅在当前页面会话内可用。
+
 ## Java 后端
 
 后端基于 Spring Boot 3、JDK 17、MyBatis Plus、MySQL、Redis 和 JWT。工具页的 Java 字节码查看依赖 JDK 自带的 `javap`，仅安装 JRE 无法使用。

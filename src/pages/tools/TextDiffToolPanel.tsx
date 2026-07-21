@@ -33,18 +33,18 @@ export function TextDiffToolPanel({
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={12}>
           <label className="mb-2 block text-sm font-medium text-gray-700">原文本</label>
-          <TextArea rows={10} value={left} onChange={(event) => onLeftChange(event.target.value)} placeholder="粘贴原始文本" />
+          <TextArea aria-label="原文本" rows={10} value={left} onChange={(event) => onLeftChange(event.target.value)} placeholder="粘贴原始文本" />
         </Col>
         <Col xs={24} lg={12}>
           <label className="mb-2 block text-sm font-medium text-gray-700">新文本</label>
-          <TextArea rows={10} value={right} onChange={(event) => onRightChange(event.target.value)} placeholder="粘贴对比文本" />
+          <TextArea aria-label="新文本" rows={10} value={right} onChange={(event) => onRightChange(event.target.value)} placeholder="粘贴对比文本" />
         </Col>
       </Row>
       <div className="flex gap-2">
         <Button type="primary" onClick={onDiff} style={{ flex: 1 }}>
           生成 Diff
         </Button>
-        <Button icon={<DeleteOutlined />} onClick={onClear} />
+        <Button aria-label="清空" title="清空" icon={<DeleteOutlined />} onClick={onClear} />
       </div>
       <ToolTextResult label="差异结果" value={output} copied={copied} onCopy={onCopy} rows={14} placeholder="+ 新增，- 删除，空格表示相同" />
     </div>

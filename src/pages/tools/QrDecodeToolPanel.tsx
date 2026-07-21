@@ -37,7 +37,7 @@ export function QrDecodeToolPanel({
     event.target.value = "";
   };
 
-  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+  const handleDrop = (event: DragEvent<HTMLButtonElement>) => {
     event.preventDefault();
     const file = event.dataTransfer.files?.[0];
     if (file) {
@@ -53,8 +53,9 @@ export function QrDecodeToolPanel({
           <div className="space-y-4">
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-700">上传二维码图片</label>
-              <div
-                className="cursor-pointer rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 p-8 text-center transition-colors hover:border-blue-400"
+              <button
+                type="button"
+                className="w-full cursor-pointer rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 p-8 text-center transition-colors hover:border-blue-400 focus-visible:border-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200"
                 onClick={() => inputRef.current?.click()}
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={handleDrop}
@@ -63,8 +64,8 @@ export function QrDecodeToolPanel({
                 <div className="font-medium text-gray-700">点击或拖入图片</div>
                 <div className="mt-1 text-sm text-gray-400">支持 PNG、JPG、WebP 等常见图片</div>
                 {fileName ? <div className="mt-3 break-all text-sm text-green-600">已选择：{fileName}</div> : null}
-                <input ref={inputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
-              </div>
+              </button>
+              <input ref={inputRef} type="file" accept="image/*" aria-label="选择二维码图片" onChange={handleFileChange} className="hidden" />
             </div>
 
             <div className="flex min-h-[260px] items-center justify-center overflow-hidden rounded-xl border border-gray-100 bg-gray-50">
