@@ -13,6 +13,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -50,7 +51,37 @@ class AuthServiceEmailChangeTest {
         verify(userMapper).updateById(user);
         verify(redisTemplate).delete("email:change:code:7:new@example.com");
         verify(redisTemplate).delete("email:change:cooldown:7");
+        verify(redisTemplate).delete("email:change:attempts:7:new@example.com");
         verify(values).set("token:blacklist:old-token", "1", 60_000L, TimeUnit.MILLISECONDS);
         verify(redisTemplate).delete("token:7");
+    }
+
+    @Test
+    void fifthInvalidEmailCodeRemovesTheActiveCode() {
+        AuthService service = new AuthService();
+        UserMapper userMapper = mock(UserMapper.class);
+        UserAccessService userAccessService = mock(UserAccessService.class);
+        @SuppressWarnings("unchecked")
+        RedisTemplate<String, Object> redisTemplate = mock(RedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, Object> values = mock(ValueOperations.class);
+        ReflectionTestUtils.setField(service, "userMapper", userMapper);
+        ReflectionTestUtils.setField(service, "userAccessService", userAccessService);
+        ReflectionTestUtils.setField(service, "redisTemplate", redisTemplate);
+
+        User user = new User();
+        user.setId(7L);
+        user.setEmail("old@example.com");
+        user.setPassword(new BCryptPasswordEncoder().encode("old123"));
+        when(userAccessService.requireActiveUser(7L)).thenReturn(user);
+        when(redisTemplate.opsForValue()).thenReturn(values);
+        when(values.get("email:change:code:7:new@example.com")).thenReturn("123456");
+        when(values.increment("email:change:attempts:7:new@example.com")).thenReturn(5L);
+
+        assertThatThrownBy(() -> service.changeEmail(
+                7L, new ChangeEmailRequest("old123", "new@example.com", "000000")))
+                .hasMessage("邮箱验证码错误或已过期");
+
+        verify(redisTemplate).delete("email:change:code:7:new@example.com");
     }
 }

@@ -59,6 +59,7 @@ public class AuthService {
     private static final String EMAIL_PURPOSE_REGISTER = "REGISTER";
     private static final String EMAIL_PURPOSE_PASSWORD_RESET = "PASSWORD_RESET";
     private static final String EMAIL_PURPOSE_CHANGE = "EMAIL_CHANGE";
+    private static final long MAX_EMAIL_CODE_ATTEMPTS = 5;
 
     private static final Logger log = LoggerFactory.getLogger(AuthService.class);
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
@@ -190,8 +191,10 @@ public class AuthService {
         if (userMapper.selectByEmail(email) != null) {
             throw ApiException.badRequest("该邮箱已被其他账号使用");
         }
-        return sendVerificationEmail(
+        SendEmailCodeResponse response = sendVerificationEmail(
                 email, emailChangeCodeKey(userId, email), emailChangeCooldownKey(userId), EMAIL_PURPOSE_CHANGE);
+        redisTemplate.delete(emailChangeAttemptsKey(userId, email));
+        return response;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -418,6 +421,7 @@ public class AuthService {
         }
         Object storedCode = redisTemplate.opsForValue().get(emailChangeCodeKey(userId, newEmail));
         if (storedCode == null || !emailCode.equals(String.valueOf(storedCode))) {
+            recordFailedEmailChangeAttempt(userId, newEmail);
             throw ApiException.badRequest("邮箱验证码错误或已过期");
         }
 
@@ -425,6 +429,7 @@ public class AuthService {
         userMapper.updateById(user);
         redisTemplate.delete(emailChangeCodeKey(userId, newEmail));
         redisTemplate.delete(emailChangeCooldownKey(userId));
+        redisTemplate.delete(emailChangeAttemptsKey(userId, newEmail));
         invalidateUserSession(userId);
     }
 
@@ -527,6 +532,21 @@ public class AuthService {
 
     private String emailChangeCooldownKey(Long userId) {
         return "email:change:cooldown:" + userId;
+    }
+
+    private String emailChangeAttemptsKey(Long userId, String email) {
+        return "email:change:attempts:" + userId + ":" + email.toLowerCase();
+    }
+
+    private void recordFailedEmailChangeAttempt(Long userId, String email) {
+        String attemptsKey = emailChangeAttemptsKey(userId, email);
+        Long failedAttempts = redisTemplate.opsForValue().increment(attemptsKey);
+        if (failedAttempts != null && failedAttempts == 1L) {
+            redisTemplate.expire(attemptsKey, emailCodeExpireMinutes, TimeUnit.MINUTES);
+        }
+        if (failedAttempts != null && failedAttempts >= MAX_EMAIL_CODE_ATTEMPTS) {
+            redisTemplate.delete(emailChangeCodeKey(userId, email));
+        }
     }
 
     private int nextUsageCount(Integer usageCount) {
