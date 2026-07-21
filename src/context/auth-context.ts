@@ -1,6 +1,6 @@
 import { createContext } from "react";
 
-import type { ChangePasswordPayload, LoginPayload, RegisterPayload, UpdateProfilePayload, User } from "../types/app";
+import type { ChangeEmailPayload, ChangePasswordPayload, LoginPayload, RegisterPayload, UpdateProfilePayload, User } from "../types/app";
 
 export interface AuthContextValue {
   user: User | null;
@@ -16,6 +16,7 @@ export interface AuthContextValue {
   updateProfile: (payload: UpdateProfilePayload) => Promise<User>;
   uploadAvatar: (file: File) => Promise<User>;
   changePassword: (payload: ChangePasswordPayload) => Promise<void>;
+  changeEmail: (payload: ChangeEmailPayload) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);

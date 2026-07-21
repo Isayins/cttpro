@@ -110,7 +110,7 @@ function validateNewPassword(_: unknown, value?: string) {
 }
 
 export default function Profile() {
-  const { user, updateProfile, changePassword, uploadAvatar, logout } = useAuth();
+  const { user, updateProfile, changePassword, changeEmail, uploadAvatar } = useAuth();
   const [profileForm] = Form.useForm<UpdateProfilePayload>();
   const [passwordForm] = Form.useForm<ChangePasswordPayload>();
   const [emailForm] = Form.useForm<ChangeEmailPayload>();
@@ -284,7 +284,7 @@ export default function Profile() {
   async function handleChangeEmail(values: ChangeEmailPayload) {
     setSavingEmail(true);
     try {
-      await authApi.changeEmail({
+      await changeEmail({
         ...values,
         newEmail: values.newEmail.trim().toLowerCase(),
         emailCode: values.emailCode.trim(),
@@ -292,7 +292,6 @@ export default function Profile() {
       emailForm.resetFields();
       setEmailCodeCountdown(0);
       message.success("邮箱更换成功，请使用新邮箱重新登录");
-      await logout();
     } catch (error) {
       message.error(getFriendlyMessage(error, "邮箱更换失败"));
     } finally {

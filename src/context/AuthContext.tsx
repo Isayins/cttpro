@@ -9,8 +9,9 @@ import {
 import { message } from "antd";
 
 import { addAuthSessionExpiredListener, clearAuthToken, getAuthToken, setAuthToken } from "../services/authToken";
-import type { ChangePasswordPayload, LoginPayload, RegisterPayload, UpdateProfilePayload, User } from "../types/app";
+import type { ChangeEmailPayload, ChangePasswordPayload, LoginPayload, RegisterPayload, UpdateProfilePayload, User } from "../types/app";
 import { AuthContext, type AuthContextValue } from "./auth-context";
+import { runSessionInvalidatingMutation } from "./sessionMutation";
 
 const idleLogoutMinutes = Number(import.meta.env.VITE_IDLE_LOGOUT_MINUTES ?? 120);
 const idleLogoutMs = Math.max(1, idleLogoutMinutes) * 60 * 1000;
@@ -34,6 +35,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
   }, []);
 
+  const clearLocalSession = useCallback(() => {
+    clearIdleTimer();
+    clearAuthToken();
+    setToken(null);
+    setUser(null);
+  }, [clearIdleTimer]);
+
   const logout = useCallback(async () => {
     try {
       if (token || getAuthToken()) {
@@ -43,12 +51,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
     } catch {
       // Ignore logout network failures and clear local session anyway.
     } finally {
-      clearIdleTimer();
-      clearAuthToken();
-      setToken(null);
-      setUser(null);
+      clearLocalSession();
     }
-  }, [clearIdleTimer, token]);
+  }, [clearLocalSession, token]);
 
   const resetIdleTimer = useCallback((activeToken = token) => {
     if (!activeToken && !getAuthToken()) {
@@ -169,12 +174,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const changePassword = useCallback(async (payload: ChangePasswordPayload) => {
     const authApi = await loadAuthApi();
-    await authApi.changePassword(payload);
-    clearIdleTimer();
-    clearAuthToken();
-    setToken(null);
-    setUser(null);
-  }, [clearIdleTimer]);
+    await runSessionInvalidatingMutation(() => authApi.changePassword(payload), clearLocalSession);
+  }, [clearLocalSession]);
+
+  const changeEmail = useCallback(async (payload: ChangeEmailPayload) => {
+    const authApi = await loadAuthApi();
+    await runSessionInvalidatingMutation(() => authApi.changeEmail(payload), clearLocalSession);
+  }, [clearLocalSession]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -191,8 +197,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
       updateProfile,
       uploadAvatar,
       changePassword,
+      changeEmail,
     }),
-    [changePassword, initializing, login, logout, refreshUser, register, token, updateProfile, uploadAvatar, user],
+    [changeEmail, changePassword, initializing, login, logout, refreshUser, register, token, updateProfile, uploadAvatar, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
