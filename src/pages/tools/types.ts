@@ -1,29 +1,32 @@
 import type { ComponentType, CSSProperties } from "react";
 
-export type ToolType =
-  | "json"
-  | "jsontypes"
-  | "subconvert"
-  | "timestamp"
-  | "base64"
-  | "url"
-  | "query"
-  | "curlcode"
-  | "regex"
-  | "diff"
-  | "color"
-  | "password"
-  | "html"
-  | "csv"
-  | "text"
-  | "diagnostics"
-  | "jwt"
-  | "uuid"
-  | "hash"
-  | "cron"
-  | "qrcode"
-  | "qrdecode"
-  | "javadecompile";
+export const toolTypes = [
+  "json",
+  "jsontypes",
+  "subconvert",
+  "timestamp",
+  "base64",
+  "url",
+  "query",
+  "curlcode",
+  "regex",
+  "diff",
+  "color",
+  "password",
+  "html",
+  "csv",
+  "text",
+  "diagnostics",
+  "jwt",
+  "uuid",
+  "hash",
+  "cron",
+  "qrcode",
+  "qrdecode",
+  "javadecompile",
+] as const;
+
+export type ToolType = (typeof toolTypes)[number];
 
 export type CodecMode = "encode" | "decode";
 export type CurlCodeMode = "fetch" | "axios" | "python";

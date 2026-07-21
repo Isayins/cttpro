@@ -41,7 +41,6 @@ import { useCurlCodeTool } from "./tools/useCurlCodeTool";
 import { useJsonTool } from "./tools/useJsonTool";
 import { useJsonTypesTool } from "./tools/useJsonTypesTool";
 import { useQueryParamsTool } from "./tools/useQueryParamsTool";
-import { decodeQrCodeFromFile } from "./tools/qrDecodeUtils";
 import { useRegexTool } from "./tools/useRegexTool";
 import { useSubConvertTool } from "./tools/useSubConvertTool";
 import { useTimestampTool } from "./tools/useTimestampTool";
@@ -854,6 +853,7 @@ export default function Tools() {
 
     try {
       setQrDecoding(true);
+      const { decodeQrCodeFromFile } = await import("./tools/qrDecodeUtils");
       const result = await decodeQrCodeFromFile(file);
       if (requestId !== qrDecodeRequestId.current) {
         return;

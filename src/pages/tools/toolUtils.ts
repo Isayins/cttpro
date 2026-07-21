@@ -1,10 +1,11 @@
-import { toolConfig } from "./toolConfig";
+import { toolTypes } from "./types";
 import type { CurlCodeMode, CsvDelimiter, HashAlgorithm, RgbColor, TextTransformMode, TimestampUnit, ToolHistoryItem, ToolType } from "./types";
 
 export const TOOL_HISTORY_STORAGE_KEY = "idncar.tools.history";
 export const TOOL_HISTORY_LIMIT = 36;
 export const TOOL_HISTORY_TEXT_LIMIT = 4000;
 const PERSISTED_HISTORY_TOOLS = new Set<ToolType>(["color", "cron", "uuid"]);
+const TOOL_TYPES = new Set<string>(toolTypes);
 
 export const weekOptions = [
   { label: "周日", value: 0 },
@@ -1069,7 +1070,7 @@ function normalizeStoredHistoryItem(value: unknown): ToolHistoryItem | null {
   if (
     typeof item.id !== "string" ||
     typeof item.tool !== "string" ||
-    !(item.tool in toolConfig) ||
+    !TOOL_TYPES.has(item.tool) ||
     !PERSISTED_HISTORY_TOOLS.has(item.tool as ToolType) ||
     typeof item.action !== "string" ||
     typeof item.input !== "string" ||
