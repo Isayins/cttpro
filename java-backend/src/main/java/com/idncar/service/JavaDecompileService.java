@@ -24,6 +24,7 @@ public class JavaDecompileService {
     private static final int MAX_CLASS_BYTES = 2 * 1024 * 1024;
     private static final int MAX_BASE64_CHARS = 4 * ((MAX_CLASS_BYTES + 2) / 3);
     private static final long MAX_OUTPUT_BYTES = 4L * 1024 * 1024;
+    private static final Duration PROCESS_TIMEOUT = Duration.ofSeconds(15);
     private static final byte[] CLASS_MAGIC = new byte[]{
             (byte) 0xCA, (byte) 0xFE, (byte) 0xBA, (byte) 0xBE
     };
@@ -54,16 +55,7 @@ public class JavaDecompileService {
                     .redirectOutput(outputFile.toFile())
                     .start();
 
-            boolean completed = process.waitFor(Duration.ofSeconds(15).toMillis(), TimeUnit.MILLISECONDS);
-            if (!completed) {
-                process.destroyForcibly();
-                process.waitFor(1, TimeUnit.SECONDS);
-                throw ApiException.badRequest("字节码查看超时，请检查 Class 文件是否已损坏");
-            }
-
-            if (Files.size(outputFile) > MAX_OUTPUT_BYTES) {
-                throw ApiException.badRequest("字节码输出超过 4 MB，请使用本地 javap 处理");
-            }
+            waitForProcess(process, outputFile);
             String output = new String(Files.readAllBytes(outputFile), Charset.defaultCharset()).trim();
             if (process.exitValue() != 0 || output.isEmpty()) {
                 throw ApiException.badRequest(output.isEmpty() ? "字节码查看失败，请确认当前环境可用 javap" : output);
@@ -83,6 +75,29 @@ public class JavaDecompileService {
             deleteQuietly(tempDirectory);
             processSlots.release();
         }
+    }
+
+    private void waitForProcess(Process process, Path outputFile) throws IOException, InterruptedException {
+        long deadline = System.nanoTime() + PROCESS_TIMEOUT.toNanos();
+        while (!process.waitFor(100, TimeUnit.MILLISECONDS)) {
+            if (Files.size(outputFile) > MAX_OUTPUT_BYTES) {
+                stopProcess(process);
+                throw ApiException.badRequest("字节码输出超过 4 MB，请使用本地 javap 处理");
+            }
+            if (System.nanoTime() >= deadline) {
+                stopProcess(process);
+                throw ApiException.badRequest("字节码查看超时，请检查 Class 文件是否已损坏");
+            }
+        }
+
+        if (Files.size(outputFile) > MAX_OUTPUT_BYTES) {
+            throw ApiException.badRequest("字节码输出超过 4 MB，请使用本地 javap 处理");
+        }
+    }
+
+    private void stopProcess(Process process) throws InterruptedException {
+        process.destroyForcibly();
+        process.waitFor(1, TimeUnit.SECONDS);
     }
 
     private List<String> buildJavapCommand(Path classFile) {

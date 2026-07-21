@@ -4,7 +4,7 @@ import type { CurlCodeMode, CsvDelimiter, HashAlgorithm, RgbColor, TextTransform
 export const TOOL_HISTORY_STORAGE_KEY = "idncar.tools.history";
 export const TOOL_HISTORY_LIMIT = 36;
 export const TOOL_HISTORY_TEXT_LIMIT = 4000;
-const TRANSIENT_HISTORY_TOOLS = new Set<ToolType>(["password", "jwt", "subconvert", "javadecompile"]);
+const PERSISTED_HISTORY_TOOLS = new Set<ToolType>(["color", "cron", "uuid"]);
 
 export const weekOptions = [
   { label: "周日", value: 0 },
@@ -962,7 +962,7 @@ export function readToolHistory(): ToolHistoryItem[] {
           item?.id &&
             item?.tool &&
             item.tool in toolConfig &&
-            !TRANSIENT_HISTORY_TOOLS.has(item.tool) &&
+            PERSISTED_HISTORY_TOOLS.has(item.tool) &&
             item?.action &&
             item?.createdAt,
         ),
@@ -982,7 +982,7 @@ export function writeToolHistory(history: ToolHistoryItem[]) {
   }
   window.localStorage.setItem(
     TOOL_HISTORY_STORAGE_KEY,
-    JSON.stringify(history.filter((item) => !TRANSIENT_HISTORY_TOOLS.has(item.tool))),
+    JSON.stringify(history.filter((item) => PERSISTED_HISTORY_TOOLS.has(item.tool))),
   );
 }
 

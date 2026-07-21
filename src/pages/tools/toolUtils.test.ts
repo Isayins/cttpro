@@ -164,15 +164,15 @@ describe("tool utils", () => {
     expect(() => createUuidV4()).toThrow("不支持安全随机数");
   });
 
-  it("writes and reads valid tool history from localStorage", () => {
+  it("writes and reads allowlisted tool history from localStorage", () => {
     stubToolHistoryStorage();
     const history: ToolHistoryItem[] = [
       {
         id: "history-1",
-        tool: "json",
-        action: "格式化",
-        input: '{"a":1}',
-        output: '{\n  "a": 1\n}',
+        tool: "color",
+        action: "颜色转换",
+        input: "#336699",
+        output: "HEX：#336699",
         createdAt: "2026-07-06T00:00:00.000Z",
       },
     ];
@@ -185,10 +185,10 @@ describe("tool utils", () => {
   it("ignores malformed or unknown history entries", () => {
     const validItem: ToolHistoryItem = {
       id: "history-2",
-      tool: "base64",
-      action: "编码",
-      input: "hello",
-      output: "aGVsbG8=",
+      tool: "cron",
+      action: "Cron 表达式生成",
+      input: "每天 09:00 执行。",
+      output: "0 9 * * *",
       createdAt: "2026-07-06T00:00:00.000Z",
     };
     stubToolHistoryStorage(
@@ -205,21 +205,21 @@ describe("tool utils", () => {
     expect(readToolHistory()).toEqual([]);
   });
 
-  it("never persists sensitive tool history", () => {
+  it("only persists explicitly allowlisted tool history", () => {
     const storage = stubToolHistoryStorage();
     const history: ToolHistoryItem[] = [
       {
         id: "safe",
-        tool: "json",
-        action: "格式化",
-        input: '{"ok":true}',
+        tool: "color",
+        action: "颜色转换",
+        input: "#ffffff",
         createdAt: "2026-07-06T00:00:00.000Z",
       },
       {
         id: "secret",
-        tool: "jwt",
-        action: "JWT 解析",
-        input: "secret.jwt.token",
+        tool: "curlcode",
+        action: "cURL 转 Fetch",
+        input: "curl -H 'Authorization: Bearer secret' https://example.test",
         createdAt: "2026-07-06T00:00:00.000Z",
       },
     ];

@@ -1,7 +1,8 @@
 import { useCallback, useState } from "react";
 
 import type { ToolHistoryItem } from "./types";
-import { buildRegexOutput, normalizeRegexFlags } from "./toolUtils";
+import { runRegexInWorker } from "./regexWorkerClient";
+import { normalizeRegexFlags } from "./toolUtils";
 import type { PushToolHistory } from "./useToolHistory";
 
 export function useRegexTool(pushHistory: PushToolHistory) {
@@ -12,7 +13,7 @@ export function useRegexTool(pushHistory: PushToolHistory) {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const test = useCallback(() => {
+  const test = useCallback(async () => {
     setError(null);
 
     try {
@@ -22,7 +23,11 @@ export function useRegexTool(pushHistory: PushToolHistory) {
 
       const normalizedFlags = normalizeRegexFlags(flags);
       setFlags(normalizedFlags);
-      const nextOutput = buildRegexOutput(pattern, normalizedFlags, sample);
+      const nextOutput = await runRegexInWorker({
+        pattern,
+        flags: normalizedFlags,
+        sample,
+      });
       setOutput(nextOutput);
       pushHistory({
         tool: "regex",

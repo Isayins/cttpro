@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, type ChangeEvent } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { message } from "antd";
 
 import { Card, CardContent } from "../components/ui";
@@ -272,6 +272,7 @@ export default function Tools() {
   const [qrDecodeCopied, setQrDecodeCopied] = useState(false);
   const [qrDecodeError, setQrDecodeError] = useState<string | null>(null);
   const [qrDecoding, setQrDecoding] = useState(false);
+  const qrDecodeRequestId = useRef(0);
 
   const [javaClassContent, setJavaClassContent] = useState("");
   const [javaDecompileOutput, setJavaDecompileOutput] = useState("");
@@ -827,6 +828,8 @@ export default function Tools() {
   };
 
   const handleDecodeQrCode = async (file: File) => {
+    const requestId = qrDecodeRequestId.current + 1;
+    qrDecodeRequestId.current = requestId;
     setQrDecodeCopied(false);
     setQrDecodeError(null);
     setQrDecodeOutput("");
@@ -836,6 +839,9 @@ export default function Tools() {
     try {
       setQrDecoding(true);
       const result = await decodeQrCodeFromFile(file);
+      if (requestId !== qrDecodeRequestId.current) {
+        return;
+      }
       setQrDecodeOutput(result.content);
       pushHistory({
         tool: "qrdecode",
@@ -847,10 +853,15 @@ export default function Tools() {
       });
       message.success(`解析完成：${result.width} x ${result.height}`);
     } catch (error) {
+      if (requestId !== qrDecodeRequestId.current) {
+        return;
+      }
       setQrDecodeOutput("");
       setQrDecodeError(getErrorMessage(error, "二维码解析失败"));
     } finally {
-      setQrDecoding(false);
+      if (requestId === qrDecodeRequestId.current) {
+        setQrDecoding(false);
+      }
     }
   };
 
@@ -1345,11 +1356,13 @@ export default function Tools() {
           decoding={qrDecoding}
           onFileDecode={(file) => void handleDecodeQrCode(file)}
           onClear={() => {
+            qrDecodeRequestId.current += 1;
             setQrDecodeFileName("");
             setQrDecodePreviewUrl("");
             setQrDecodeOutput("");
             setQrDecodeCopied(false);
             setQrDecodeError(null);
+            setQrDecoding(false);
           }}
           onCopy={() => void copyText(qrDecodeOutput, setQrDecodeCopied)}
         />
