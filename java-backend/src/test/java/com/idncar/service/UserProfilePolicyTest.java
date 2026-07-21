@@ -15,6 +15,8 @@ class UserProfilePolicyTest {
                 .isEqualTo("/api/uploads/avatars/user-1.jpg");
         assertThat(UserProfilePolicy.normalizeAvatarUrl("https://cdn.example.com/avatar.png"))
                 .isEqualTo("https://cdn.example.com/avatar.png");
+        assertThat(UserProfilePolicy.normalizeManagedAvatarUrl(" /api/uploads/avatars/user-1.jpg "))
+                .isEqualTo("/api/uploads/avatars/user-1.jpg");
         assertThat(UserProfilePolicy.normalizeBio("  简介  ")).isEqualTo("简介");
         assertThat(UserProfilePolicy.normalizeBio("   ")).isNull();
     }
@@ -30,6 +32,14 @@ class UserProfilePolicyTest {
         assertThatThrownBy(() -> UserProfilePolicy.normalizeAvatarUrl("//"))
                 .isInstanceOf(ApiException.class)
                 .hasMessage("头像地址仅支持 HTTP(S) 或站内图片路径");
+    }
+
+    @Test
+    void managedAvatarsRejectRemoteResources() {
+        assertThatThrownBy(() -> UserProfilePolicy.normalizeManagedAvatarUrl("https://tracker.example/avatar.png"))
+                .isInstanceOf(ApiException.class)
+                .hasMessage("个人头像仅支持站内图片路径，请使用头像上传功能");
+        assertThat(UserProfilePolicy.normalizeManagedAvatarUrl("  ")).isNull();
     }
 
     @Test

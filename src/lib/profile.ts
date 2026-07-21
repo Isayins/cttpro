@@ -7,9 +7,9 @@ export const PROFILE_LIMITS = {
 } as const;
 
 export function normalizeProfilePayload(values: UpdateProfilePayload): UpdateProfilePayload {
-  return {
-    nickname: values.nickname?.trim() ?? "",
-    avatarUrl: values.avatarUrl?.trim() ?? "",
-    bio: values.bio?.trim() ?? "",
-  };
+  const normalized: UpdateProfilePayload = {};
+  if (values.nickname !== undefined) normalized.nickname = values.nickname.trim();
+  if (values.avatarUrl !== undefined) normalized.avatarUrl = values.avatarUrl.trim();
+  if (values.bio !== undefined) normalized.bio = values.bio.trim();
+  return normalized;
 }

@@ -104,6 +104,8 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
         jdbcTemplate.execute("UPDATE users SET experience = 0 WHERE experience IS NULL");
         jdbcTemplate.execute("UPDATE users SET level = 1 WHERE level IS NULL OR level < 1");
         jdbcTemplate.execute("UPDATE users SET consecutive_sign_in_days = 0 WHERE consecutive_sign_in_days IS NULL OR consecutive_sign_in_days < 0");
+        jdbcTemplate.execute("UPDATE users SET avatar_url = NULL WHERE avatar_url LIKE 'https://api.dicebear.com/9.x/initials/svg?seed=%'");
+        jdbcTemplate.execute("UPDATE users SET bio = NULL WHERE bio = '这个用户还没有填写个人简介。'");
     }
 
     private void ensureLoginRecordsTable() {

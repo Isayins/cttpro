@@ -46,6 +46,20 @@ public final class UserProfilePolicy {
         return avatarUrl;
     }
 
+    public static String normalizeManagedAvatarUrl(String value) {
+        String avatarUrl = normalizeNullableText(value);
+        if (avatarUrl == null) {
+            return null;
+        }
+        if (avatarUrl.length() > AVATAR_URL_MAX_LENGTH) {
+            throw ApiException.badRequest("头像地址不能超过 " + AVATAR_URL_MAX_LENGTH + " 个字符");
+        }
+        if (!isAllowedSiteImagePath(avatarUrl)) {
+            throw ApiException.badRequest("个人头像仅支持站内图片路径，请使用头像上传功能");
+        }
+        return avatarUrl;
+    }
+
     public static String normalizeBio(String value) {
         String bio = normalizeNullableText(value);
         if (bio != null && bio.length() > BIO_MAX_LENGTH) {
@@ -75,7 +89,12 @@ public final class UserProfilePolicy {
             return false;
         }
 
-        return IMAGE_PATH_PREFIXES.stream().anyMatch(value::startsWith)
+        return isAllowedSiteImagePath(value);
+    }
+
+    private static boolean isAllowedSiteImagePath(String value) {
+        return !hasControlCharacter(value)
+                && IMAGE_PATH_PREFIXES.stream().anyMatch(value::startsWith)
                 && !value.contains("\\")
                 && !hasParentPathSegment(value);
     }

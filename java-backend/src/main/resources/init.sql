@@ -502,8 +502,8 @@ SELECT
     '$2a$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW',
     'Administrator',
     'OWNER',
-    'https://api.dicebear.com/9.x/initials/svg?seed=Admin',
-    'Default admin account',
+    NULL,
+    NULL,
     'ACTIVE'
 FROM DUAL
 WHERE NOT EXISTS (
@@ -517,8 +517,8 @@ SELECT
     '$2a$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW',
     'User 1',
     'USER',
-    'https://api.dicebear.com/9.x/initials/svg?seed=User1',
-    'Default sample user',
+    NULL,
+    NULL,
     'ACTIVE'
 FROM DUAL
 WHERE NOT EXISTS (

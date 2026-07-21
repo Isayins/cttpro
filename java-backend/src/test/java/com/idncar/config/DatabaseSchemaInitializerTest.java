@@ -20,6 +20,23 @@ import static org.mockito.Mockito.when;
 class DatabaseSchemaInitializerTest {
 
     @Test
+    void userPreparationClearsGeneratedProfilePlaceholders() throws Exception {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), any(Object.class), any(Object.class)))
+                .thenReturn(1);
+        DatabaseSchemaInitializer initializer = new DatabaseSchemaInitializer();
+        setField(initializer, "jdbcTemplate", jdbcTemplate);
+
+        invoke(initializer, "ensureUserColumns");
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate, atLeastOnce()).execute(sqlCaptor.capture());
+        assertThat(sqlCaptor.getAllValues())
+                .contains("UPDATE users SET avatar_url = NULL WHERE avatar_url LIKE 'https://api.dicebear.com/9.x/initials/svg?seed=%'")
+                .contains("UPDATE users SET bio = NULL WHERE bio = '这个用户还没有填写个人简介。'");
+    }
+
+    @Test
     void postReportTableSupportsCommunityTargets() throws Exception {
         JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
         DatabaseSchemaInitializer initializer = new DatabaseSchemaInitializer();

@@ -9,6 +9,7 @@ import {
   Form,
   Input,
   List,
+  Popconfirm,
   Progress,
   Row,
   Space,
@@ -17,6 +18,7 @@ import {
   message,
 } from "antd";
 import {
+  DeleteOutlined,
   EditOutlined,
   LockOutlined,
   MailOutlined,
@@ -34,7 +36,6 @@ import { getFriendlyMessage } from "../lib/errorMessage";
 import { resolveAssetUrl } from "../lib/media";
 import { PROFILE_LIMITS, normalizeProfilePayload } from "../lib/profile";
 import { IMAGE_ACCEPT, isAllowedImageFile } from "../lib/richContent";
-import { isAllowedImageResourceUrl } from "../lib/urlValidation";
 import { authApi } from "../services/api/auth";
 import { forumApi } from "../services/api/forum";
 import type { ChangeEmailPayload, ChangePasswordPayload, LoginRecord, Post, UpdateProfilePayload } from "../types/app";
@@ -119,6 +120,7 @@ export default function Profile() {
   const [sendingEmailCode, setSendingEmailCode] = useState(false);
   const [emailCodeCountdown, setEmailCodeCountdown] = useState(0);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [removingAvatar, setRemovingAvatar] = useState(false);
   const [avatarSourceFile, setAvatarSourceFile] = useState<File | null>(null);
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [loadingContent, setLoadingContent] = useState(false);
@@ -136,7 +138,6 @@ export default function Profile() {
 
     profileForm.setFieldsValue({
       nickname: user.nickname ?? "",
-      avatarUrl: user.avatarUrl ?? "",
       bio: user.bio ?? "",
     });
   }, [profileForm, user]);
@@ -343,6 +344,18 @@ export default function Profile() {
     }
   }
 
+  async function handleAvatarRemove() {
+    setRemovingAvatar(true);
+    try {
+      await updateProfile({ avatarUrl: "" });
+      message.success("头像已删除");
+    } catch (error) {
+      message.error(getFriendlyMessage(error, "删除头像失败"));
+    } finally {
+      setRemovingAvatar(false);
+    }
+  }
+
   return (
     <MainLayout>
       <div className="space-y-8 py-8 md:space-y-10 md:py-10">
@@ -467,18 +480,32 @@ export default function Profile() {
                       </p>
                     </div>
                   </div>
-                  <Upload
-                    accept={IMAGE_ACCEPT}
-                    showUploadList={false}
-                    beforeUpload={(file) => {
-                      handleAvatarFileSelect(file as File);
-                      return false;
-                    }}
-                  >
-                    <Button icon={<UploadOutlined />} loading={uploadingAvatar} disabled={uploadingAvatar}>
-                      上传头像
-                    </Button>
-                  </Upload>
+                  <Space wrap>
+                    <Upload
+                      accept={IMAGE_ACCEPT}
+                      showUploadList={false}
+                      beforeUpload={(file) => {
+                        handleAvatarFileSelect(file as File);
+                        return false;
+                      }}
+                    >
+                      <Button icon={<UploadOutlined />} loading={uploadingAvatar} disabled={uploadingAvatar || removingAvatar}>
+                        上传头像
+                      </Button>
+                    </Upload>
+                    <Popconfirm
+                      title="删除当前头像？"
+                      description="删除后将使用昵称首字作为默认头像。"
+                      okText="删除"
+                      cancelText="取消"
+                      okButtonProps={{ danger: true }}
+                      onConfirm={() => void handleAvatarRemove()}
+                    >
+                      <Button danger icon={<DeleteOutlined />} loading={removingAvatar} disabled={!user?.avatarUrl || uploadingAvatar}>
+                        删除头像
+                      </Button>
+                    </Popconfirm>
+                  </Space>
                 </div>
 
                 <Form<UpdateProfilePayload>
@@ -495,23 +522,6 @@ export default function Profile() {
                     ]}
                   >
                     <Input maxLength={PROFILE_LIMITS.nickname} showCount placeholder="请输入你的展示昵称" />
-                  </Form.Item>
-
-                  <Form.Item
-                    name="avatarUrl"
-                    label="头像地址"
-                    rules={[
-                      {
-                        max: PROFILE_LIMITS.avatarUrl,
-                        message: `头像地址不能超过 ${PROFILE_LIMITS.avatarUrl} 个字符`,
-                      },
-                      {
-                        validator: (_, value: string | undefined) =>
-                          isAllowedImageResourceUrl(value) ? Promise.resolve() : Promise.reject(new Error("请输入有效的头像图片地址，支持 http(s)、上传路径或站内 /images 路径")),
-                      },
-                    ]}
-                  >
-                    <Input maxLength={PROFILE_LIMITS.avatarUrl} placeholder="上传后会自动填写，也可以手动填写外链地址" />
                   </Form.Item>
 
                   <Form.Item

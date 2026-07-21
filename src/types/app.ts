@@ -545,9 +545,9 @@ export interface ResetPasswordPayload {
 }
 
 export interface UpdateProfilePayload {
-  nickname: string;
-  avatarUrl: string;
-  bio: string;
+  nickname?: string;
+  avatarUrl?: string;
+  bio?: string;
 }
 
 export interface ChangePasswordPayload {

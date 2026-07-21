@@ -288,10 +288,10 @@ public class AuthService {
         user.setRole("USER");
         user.setStatus("ACTIVE");
         user.setChatVisibility("ONLINE");
-        user.setAvatarUrl(defaultAvatar(nickname));
+        user.setAvatarUrl(null);
         user.setExperience(0);
         user.setLevel(1);
-        user.setBio("这个用户还没有填写个人简介。");
+        user.setBio(null);
         userMapper.insert(user);
 
         if (reusableInviteCode) {
@@ -333,14 +333,15 @@ public class AuthService {
 
     public UserDto updateProfile(Long userId, UpdateProfileRequest request) {
         User user = userAccessService.requireActiveUser(userId);
+        String previousAvatarUrl = user.getAvatarUrl();
 
         if (request.getNickname() != null) {
             user.setNickname(UserProfilePolicy.normalizeNickname(request.getNickname()));
         }
 
         if (request.getAvatarUrl() != null) {
-            String avatarUrl = UserProfilePolicy.normalizeAvatarUrl(request.getAvatarUrl());
-            user.setAvatarUrl(avatarUrl == null ? defaultAvatar(user.getNickname()) : avatarUrl);
+            String avatarUrl = UserProfilePolicy.normalizeManagedAvatarUrl(request.getAvatarUrl());
+            user.setAvatarUrl(avatarUrl);
         }
 
         if (request.getBio() != null) {
@@ -348,6 +349,9 @@ public class AuthService {
         }
 
         userMapper.updateById(user);
+        if (request.getAvatarUrl() != null && !java.util.Objects.equals(previousAvatarUrl, user.getAvatarUrl())) {
+            deletePreviousUploadedAvatar(previousAvatarUrl);
+        }
         return UserDto.fromEntity(userMapper.selectById(userId));
     }
 
@@ -553,10 +557,6 @@ public class AuthService {
         return usageCount == null ? 1 : usageCount + 1;
     }
 
-    private String defaultAvatar(String seed) {
-        return "https://api.dicebear.com/9.x/initials/svg?seed=" + seed.replace(" ", "%20");
-    }
-
     private void deletePreviousUploadedAvatar(String avatarUrl, Path uploadDir) {
         String normalizedAvatarUrl = normalizeNullableText(avatarUrl);
         if (normalizedAvatarUrl == null) {
@@ -582,6 +582,15 @@ public class AuthService {
         } catch (IOException ignored) {
             // Keep the new upload even if cleanup fails.
         }
+    }
+
+    private void deletePreviousUploadedAvatar(String avatarUrl) {
+        String normalizedAvatarUrl = normalizeNullableText(avatarUrl);
+        if (normalizedAvatarUrl == null || extractUploadedAvatarFileName(normalizedAvatarUrl) == null) {
+            return;
+        }
+        Path uploadDir = ImageUploadHelper.resolveUploadDir(uploadBaseDir, uploadAvatarSubDir, "头像");
+        deletePreviousUploadedAvatar(normalizedAvatarUrl, uploadDir);
     }
 
     private String extractUploadedAvatarFileName(String avatarUrl) {

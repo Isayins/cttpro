@@ -20,4 +20,11 @@ describe("profile values", () => {
       bio: "简介",
     });
   });
+
+  it("does not clear fields omitted by a partial profile form", () => {
+    expect(normalizeProfilePayload({ nickname: "  昵称  ", bio: "  " })).toEqual({
+      nickname: "昵称",
+      bio: "",
+    });
+  });
 });
