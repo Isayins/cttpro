@@ -180,6 +180,20 @@ public class ForumService {
         }
 
         Page<Post> postPage = new Page<>(safePage, safeSize);
+        if (Boolean.TRUE.equals(favoritesOnly)) {
+            List<String> categoryAliases = normalizedCategory != null && !isAllCategory(normalizedCategory)
+                    ? resolveCategoryAliases(normalizedCategory)
+                    : List.of();
+            Page<Post> result = postMapper.selectFavoritePage(
+                    postPage,
+                    currentUserId,
+                    normalizedKeyword,
+                    categoryAliases,
+                    Boolean.TRUE.equals(mineOnly)
+            );
+            return PageResultDto.of(toPostDtos(result.getRecords(), currentUserId), result.getTotal(), safePage, safeSize);
+        }
+
         QueryWrapper<Post> queryWrapper = new QueryWrapper<>();
 
         if (normalizedKeyword != null) {
@@ -197,19 +211,6 @@ public class ForumService {
 
         if (Boolean.TRUE.equals(mineOnly)) {
             queryWrapper.eq("user_id", currentUserId);
-        }
-
-        if (Boolean.TRUE.equals(favoritesOnly)) {
-            List<Long> favoritePostIds = postFavoriteMapper.selectList(new QueryWrapper<PostFavorite>()
-                            .eq("user_id", currentUserId)
-                            .orderByDesc("create_time"))
-                    .stream()
-                    .map(PostFavorite::getPostId)
-                    .collect(Collectors.toList());
-            if (favoritePostIds.isEmpty()) {
-                return PageResultDto.of(List.of(), 0L, safePage, safeSize);
-            }
-            queryWrapper.in("id", favoritePostIds);
         }
 
         queryWrapper.orderByDesc("pinned").orderByDesc("create_time");

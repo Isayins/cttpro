@@ -302,7 +302,10 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
                     UNIQUE KEY uk_post_favorites_post_user (post_id, user_id)
                 )
                 """);
-        ensureIndex("post_favorites", "idx_post_favorites_user_id", "CREATE INDEX idx_post_favorites_user_id ON post_favorites(user_id)");
+        ensureIndex("post_favorites", "idx_post_favorites_user_post", "CREATE INDEX idx_post_favorites_user_post ON post_favorites(user_id, post_id)");
+        if (indexExists("post_favorites", "idx_post_favorites_user_id")) {
+            jdbcTemplate.execute("ALTER TABLE post_favorites DROP INDEX idx_post_favorites_user_id");
+        }
         ensureIndex("post_favorites", "idx_post_favorites_post_id", "CREATE INDEX idx_post_favorites_post_id ON post_favorites(post_id)");
     }
 

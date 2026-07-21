@@ -20,6 +20,23 @@ import static org.mockito.Mockito.when;
 class DatabaseSchemaInitializerTest {
 
     @Test
+    void favoriteIndexesSupportUserScopedPostJoin() throws Exception {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), any(Object.class), any(Object.class)))
+                .thenAnswer(invocation -> "idx_post_favorites_user_id".equals(invocation.getArgument(3)) ? 1 : 0);
+        DatabaseSchemaInitializer initializer = new DatabaseSchemaInitializer();
+        setField(initializer, "jdbcTemplate", jdbcTemplate);
+
+        invoke(initializer, "ensurePostFavoritesTable");
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate, atLeastOnce()).execute(sqlCaptor.capture());
+        assertThat(sqlCaptor.getAllValues())
+                .contains("CREATE INDEX idx_post_favorites_user_post ON post_favorites(user_id, post_id)")
+                .contains("ALTER TABLE post_favorites DROP INDEX idx_post_favorites_user_id");
+    }
+
+    @Test
     void userPreparationClearsGeneratedProfilePlaceholders() throws Exception {
         JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
         when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), any(Object.class), any(Object.class)))

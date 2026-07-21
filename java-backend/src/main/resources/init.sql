@@ -137,6 +137,7 @@ CREATE TABLE IF NOT EXISTS post_favorites (
     user_id BIGINT NOT NULL,
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_post_favorites_post_user (post_id, user_id),
+    KEY idx_post_favorites_user_post (user_id, post_id),
     CONSTRAINT fk_post_favorites_post FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
     CONSTRAINT fk_post_favorites_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

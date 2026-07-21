@@ -30,4 +30,28 @@
         ORDER BY pinned DESC, create_time DESC
     </select>
 
+    <select id="selectFavoritePage" resultType="com.idncar.model.entity.Post">
+        SELECT p.*
+        FROM posts p
+        INNER JOIN post_favorites pf ON pf.post_id = p.id
+        WHERE pf.user_id = #{userId}
+        <if test="keyword != null and keyword != ''">
+            AND (
+                p.title LIKE CONCAT('%', #{keyword}, '%')
+                OR p.content LIKE CONCAT('%', #{keyword}, '%')
+                OR p.tags LIKE CONCAT('%', #{keyword}, '%')
+            )
+        </if>
+        <if test="categoryAliases != null and !categoryAliases.isEmpty()">
+            AND p.category IN
+            <foreach collection="categoryAliases" item="category" open="(" separator="," close=")">
+                #{category}
+            </foreach>
+        </if>
+        <if test="mineOnly">
+            AND p.user_id = #{userId}
+        </if>
+        ORDER BY p.pinned DESC, p.create_time DESC
+    </select>
+
 </mapper>
