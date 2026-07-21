@@ -374,6 +374,7 @@ public class AuthService {
         return UserDto.fromEntity(userMapper.selectById(userId));
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public void changePassword(Long userId, ChangePasswordRequest request) {
         User user = userAccessService.requireActiveUser(userId);
 
@@ -395,6 +396,7 @@ public class AuthService {
 
         user.setPassword(passwordEncoder.encode(newPassword));
         userMapper.updateById(user);
+        invalidateUserSession(userId);
     }
 
     @Transactional(rollbackFor = Exception.class)

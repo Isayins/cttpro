@@ -249,8 +249,7 @@ export default function Profile() {
     try {
       await changePassword(values);
       passwordForm.resetFields();
-      message.success("密码修改成功");
-      await loadLoginRecords();
+      message.success("密码修改成功，请重新登录");
     } catch (error) {
       message.error(getFriendlyMessage(error, "修改密码失败"));
     } finally {

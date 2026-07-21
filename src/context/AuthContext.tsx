@@ -170,7 +170,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const changePassword = useCallback(async (payload: ChangePasswordPayload) => {
     const authApi = await loadAuthApi();
     await authApi.changePassword(payload);
-  }, []);
+    clearIdleTimer();
+    clearAuthToken();
+    setToken(null);
+    setUser(null);
+  }, [clearIdleTimer]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
