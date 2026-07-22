@@ -23,7 +23,7 @@ export default function MainLayout({ children, variant = "default", contentWidth
       <main className={isWorkspace ? "min-h-[calc(100vh-64px)] pb-6 pt-5 md:pt-6" : "pb-12 pt-5 md:pt-6"}>
         <div className={`mx-auto ${contentWidthClass} px-4 md:px-6`}>{children}</div>
       </main>
-      {isWorkspace || isBare ? null : <Footer contentWidth={contentWidth} />}
+      {isWorkspace ? null : <Footer contentWidth={contentWidth} />}
     </div>
   );
 }
