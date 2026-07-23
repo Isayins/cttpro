@@ -87,6 +87,7 @@ public class HotmailCodeService {
     private static final String TOKEN_CHECK_MISSING_IMAP = "MISSING_IMAP";
     private static final String TOKEN_CHECK_TOKEN_INVALID = "TOKEN_INVALID";
     private static final String TOKEN_CHECK_CREDENTIAL_DECRYPT_FAILED = "CREDENTIAL_DECRYPT_FAILED";
+    private static final String TOKEN_CHECK_SERVICE_ABUSE_MODE = "SERVICE_ABUSE_MODE";
     private static final String TOKEN_CHECK_PARTIAL_FAIL = "PARTIAL_FAIL";
     private static final int GRAPH_FETCH_SIZE = 50;
     private static final int FOLDER_FETCH_SIZE = 20;
@@ -699,6 +700,7 @@ public class HotmailCodeService {
         TokenRefreshResult latestToken = null;
         List<String> errors = new ArrayList<>();
         boolean credentialDecryptFailed = false;
+        boolean serviceAbuseMode = false;
 
         try {
             graphToken = refreshAccessToken(account, GRAPH_SCOPE, TokenCache.GRAPH, true);
@@ -706,6 +708,7 @@ public class HotmailCodeService {
             rememberRefreshToken(account, graphToken);
         } catch (Exception e) {
             credentialDecryptFailed |= isCredentialDecryptFailure(e);
+            serviceAbuseMode |= isServiceAbuseModeFailure(e);
             errors.add("Graph: " + cleanErrorMessage(e));
         }
 
@@ -715,6 +718,7 @@ public class HotmailCodeService {
             rememberRefreshToken(account, outlookToken);
         } catch (Exception e) {
             credentialDecryptFailed |= isCredentialDecryptFailure(e);
+            serviceAbuseMode |= isServiceAbuseModeFailure(e);
             errors.add("Outlook REST: " + cleanErrorMessage(e));
         }
 
@@ -724,18 +728,24 @@ public class HotmailCodeService {
             rememberRefreshToken(account, imapToken);
         } catch (Exception e) {
             credentialDecryptFailed |= isCredentialDecryptFailure(e);
+            serviceAbuseMode |= isServiceAbuseModeFailure(e);
             errors.add("IMAP: " + cleanErrorMessage(e));
         }
 
         boolean graphOk = graphToken != null && graphToken.accessToken() != null && !graphToken.accessToken().isBlank();
         boolean outlookOk = outlookToken != null && outlookToken.accessToken() != null && !outlookToken.accessToken().isBlank();
         boolean imapOk = imapToken != null && imapToken.accessToken() != null && !imapToken.accessToken().isBlank();
-        String status = resolveTokenCheckStatus(graphOk, outlookOk, imapOk, credentialDecryptFailed);
-        String summary = TOKEN_CHECK_OK.equals(status)
-                ? "Graph、Outlook REST、IMAP 权限均可用"
-                : credentialDecryptFailed
-                ? "凭据解密失败，请确认 APP_HOTMAIL_ENCRYPTION_SECRET 与导入时一致后重新导入"
-                : String.join("；", errors);
+        String status = resolveTokenCheckStatus(graphOk, outlookOk, imapOk, credentialDecryptFailed, serviceAbuseMode);
+        String summary;
+        if (TOKEN_CHECK_OK.equals(status)) {
+            summary = "Graph、Outlook REST、IMAP 权限均可用";
+        } else if (credentialDecryptFailed) {
+            summary = "凭据解密失败，请确认 APP_HOTMAIL_ENCRYPTION_SECRET 与导入时一致后重新导入";
+        } else if (serviceAbuseMode) {
+            summary = "微软风控（service_abuse_mode），请停止重试或清除该邮箱";
+        } else {
+            summary = String.join("；", errors);
+        }
 
         TokenRefreshResult refreshTokenSource = latestToken != null ? latestToken : graphToken;
         if (refreshTokenSource != null && refreshTokenSource.refreshToken() != null && !refreshTokenSource.refreshToken().isBlank()) {
@@ -762,9 +772,18 @@ public class HotmailCodeService {
         return toDto(account);
     }
 
-    private String resolveTokenCheckStatus(boolean graphOk, boolean outlookOk, boolean imapOk, boolean credentialDecryptFailed) {
+    private String resolveTokenCheckStatus(
+            boolean graphOk,
+            boolean outlookOk,
+            boolean imapOk,
+            boolean credentialDecryptFailed,
+            boolean serviceAbuseMode
+    ) {
         if (credentialDecryptFailed) {
             return TOKEN_CHECK_CREDENTIAL_DECRYPT_FAILED;
+        }
+        if (serviceAbuseMode) {
+            return TOKEN_CHECK_SERVICE_ABUSE_MODE;
         }
         if (graphOk && outlookOk && imapOk) {
             return TOKEN_CHECK_OK;
@@ -783,6 +802,18 @@ public class HotmailCodeService {
         while (current != null) {
             if (current instanceof IllegalStateException
                     && "Failed to decrypt Hotmail credential".equals(current.getMessage())) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private boolean isServiceAbuseModeFailure(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && message.toLowerCase(Locale.ROOT).contains("service_abuse_mode")) {
                 return true;
             }
             current = current.getCause();
@@ -2191,22 +2222,30 @@ public class HotmailCodeService {
         try {
             JsonNode jsonNode = objectMapper.readTree(body);
             if (jsonNode.hasNonNull("error_description")) {
-                return jsonNode.get("error_description").asText();
+                return preserveServiceAbuseMode(body, jsonNode.get("error_description").asText());
             }
             if (jsonNode.hasNonNull("message")) {
-                return jsonNode.get("message").asText();
+                return preserveServiceAbuseMode(body, jsonNode.get("message").asText());
             }
             JsonNode error = jsonNode.path("error");
             if (error.isTextual()) {
-                return error.asText();
+                return preserveServiceAbuseMode(body, error.asText());
             }
             if (error.hasNonNull("message")) {
-                return error.get("message").asText();
+                return preserveServiceAbuseMode(body, error.get("message").asText());
             }
         } catch (Exception ignored) {
         }
 
         return body;
+    }
+
+    private String preserveServiceAbuseMode(String responseBody, String extractedMessage) {
+        if (responseBody.toLowerCase(Locale.ROOT).contains("service_abuse_mode")
+                && !extractedMessage.toLowerCase(Locale.ROOT).contains("service_abuse_mode")) {
+            return "service_abuse_mode: " + extractedMessage;
+        }
+        return extractedMessage;
     }
 
     private String cleanErrorMessage(Exception e) {
@@ -2216,6 +2255,9 @@ public class HotmailCodeService {
         }
         String cleaned = message.replaceAll("\\s+", " ").trim();
         String lowerCleaned = cleaned.toLowerCase(Locale.ROOT);
+        if (lowerCleaned.contains("service_abuse_mode")) {
+            return "微软风控（service_abuse_mode），请停止重试或清除该邮箱";
+        }
         if (lowerCleaned.contains("aadsts70000")
                 || lowerCleaned.contains("scopes requested are unauthorized or expired")
                 || lowerCleaned.contains("invalid_grant")) {

@@ -9,8 +9,13 @@ import com.idncar.model.entity.HotmailAccount;
 import com.idncar.util.HotmailCredentialCrypto;
 import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.client.RestTemplate;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -64,8 +69,8 @@ class HotmailCodeServiceTest {
     void credentialDecryptFailureGetsItsOwnTokenCheckStatus() throws Exception {
         assertThat(invoke(
                 "resolveTokenCheckStatus",
-                new Class<?>[]{boolean.class, boolean.class, boolean.class, boolean.class},
-                false, false, false, true
+                new Class<?>[]{boolean.class, boolean.class, boolean.class, boolean.class, boolean.class},
+                false, false, false, true, false
         )).isEqualTo("CREDENTIAL_DECRYPT_FAILED");
     }
 
@@ -93,6 +98,56 @@ class HotmailCodeServiceTest {
         assertThat(result.getTokenCheckStatus()).isEqualTo("CREDENTIAL_DECRYPT_FAILED");
         assertThat(result.getTokenCheckSummary()).contains("凭据解密失败");
         verify(hotmailAccountMapper).updateById(account);
+    }
+
+    @Test
+    void accountCheckClassifiesMicrosoftServiceAbuseModeSeparately() throws Exception {
+        HotmailAccountMapper hotmailAccountMapper = mock(HotmailAccountMapper.class);
+        HotmailCredentialCrypto hotmailCredentialCrypto = mock(HotmailCredentialCrypto.class);
+        RestTemplate restTemplate = mock(RestTemplate.class);
+        when(hotmailCredentialCrypto.decrypt(anyString())).thenReturn("refresh-token");
+        when(restTemplate.postForEntity(anyString(), any(), eq(String.class)))
+                .thenThrow(ApiException.badGateway("Token refresh request failed: service_abuse_mode"));
+        setField("hotmailAccountMapper", hotmailAccountMapper);
+        setField("hotmailCredentialCrypto", hotmailCredentialCrypto);
+        setField("restTemplate", restTemplate);
+
+        HotmailAccount account = new HotmailAccount();
+        account.setId(8L);
+        account.setUserId(3L);
+        account.setEmail("abuse@hotmail.com");
+        account.setClientId("client-id");
+        account.setRefreshToken("enc::current-data");
+
+        HotmailAccountDto result = (HotmailAccountDto) invoke(
+                "checkAccountTokenScopes",
+                new Class<?>[]{HotmailAccount.class},
+                account
+        );
+
+        assertThat(result.getTokenCheckStatus()).isEqualTo("SERVICE_ABUSE_MODE");
+        assertThat(result.getTokenCheckSummary()).contains("微软风控");
+        verify(hotmailAccountMapper).updateById(account);
+    }
+
+    @Test
+    void microsoftServiceAbuseSuberrorIsPreservedFromTokenResponse() throws Exception {
+        String responseBody = """
+                {"error":"invalid_grant","error_description":"The request was denied.","suberror":"service_abuse_mode"}
+                """;
+        RestClientResponseException exception = HttpClientErrorException.create(
+                HttpStatus.BAD_REQUEST,
+                "Bad Request",
+                HttpHeaders.EMPTY,
+                responseBody.getBytes(StandardCharsets.UTF_8),
+                StandardCharsets.UTF_8
+        );
+
+        assertThat(invoke(
+                "getResponseErrorText",
+                new Class<?>[]{RestClientResponseException.class},
+                exception
+        )).asString().contains("service_abuse_mode");
     }
 
     @Test

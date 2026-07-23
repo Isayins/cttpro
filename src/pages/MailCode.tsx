@@ -127,6 +127,7 @@ function tokenCheckLabel(status?: string | null) {
   if (status === "MISSING_IMAP") return "缺IMAP";
   if (status === "TOKEN_INVALID") return "Token失效";
   if (status === "CREDENTIAL_DECRYPT_FAILED") return "凭据解密失败";
+  if (status === "SERVICE_ABUSE_MODE") return "微软风控";
   if (status === "PARTIAL_FAIL") return "部分异常";
   return "未自检";
 }
@@ -136,6 +137,7 @@ function tokenCheckColor(status?: string | null) {
   if (status === "MISSING_IMAP") return "orange";
   if (status === "TOKEN_INVALID") return "red";
   if (status === "CREDENTIAL_DECRYPT_FAILED") return "purple";
+  if (status === "SERVICE_ABUSE_MODE") return "magenta";
   if (status === "PARTIAL_FAIL") return "volcano";
   return "default";
 }
@@ -251,6 +253,7 @@ export default function MailCode() {
   const [importGroupName, setImportGroupName] = useState("");
   const [importing, setImporting] = useState(false);
   const [batchDeleting, setBatchDeleting] = useState(false);
+  const [clearingServiceAbuse, setClearingServiceAbuse] = useState(false);
   const [fetchingAll, setFetchingAll] = useState(false);
   const [fetchingId, setFetchingId] = useState<number | null>(null);
   const [codeResults, setCodeResults] = useState<Map<number, HotmailCodeResult>>(new Map());
@@ -335,6 +338,10 @@ export default function MailCode() {
         (account) => !account.publicCodeEnabled || !isMailCodePublicLinkReady(account.publicCodeToken, account.publicCodeUid),
       ),
     [filteredAccounts],
+  );
+  const serviceAbuseAccounts = useMemo(
+    () => accounts.filter((account) => account.tokenCheckStatus === "SERVICE_ABUSE_MODE"),
+    [accounts],
   );
   const hasAccountFilters = emailKeyword.trim() !== "" || groupFilter !== "ALL" || tokenStatusFilter !== "ALL";
   const batchTargetAccounts = selectedAccounts.length > 0 ? selectedAccounts : hasAccountFilters ? filteredAccounts : accounts;
@@ -484,23 +491,28 @@ export default function MailCode() {
     }
   }, [importFailureText]);
 
+  const removeAccountsFromState = useCallback((targetIds: number[]) => {
+    const targetIdSet = new Set(targetIds);
+    setLatestResults((prev) => prev.filter((item) => !targetIdSet.has(item.accountId)));
+    setCodeResults((prev) => {
+      const next = new Map(prev);
+      targetIds.forEach((accountId) => next.delete(accountId));
+      return next;
+    });
+    setAccounts((prev) => prev.filter((account) => !targetIdSet.has(account.id)));
+    setSelectedAccountIds((prev) => prev.filter((accountId) => !targetIdSet.has(accountId)));
+    setShowSummary(false);
+  }, []);
+
   const handleDelete = useCallback(async (accountId: number) => {
     try {
       await toolsApi.deleteHotmailAccount(accountId);
       message.success("删除成功");
-      setLatestResults((prev) => prev.filter((result) => result.accountId !== accountId));
-      setCodeResults((prev) => {
-        const next = new Map(prev);
-        next.delete(accountId);
-        return next;
-      });
-      setAccounts((prev) => prev.filter((account) => account.id !== accountId));
-      setSelectedAccountIds((prev) => prev.filter((selectedId) => selectedId !== accountId));
-      setShowSummary(false);
+      removeAccountsFromState([accountId]);
     } catch (error) {
       message.error(getErrorMessage(error, "删除失败"));
     }
-  }, []);
+  }, [removeAccountsFromState]);
 
   const handleBatchDelete = useCallback(async () => {
     if (batchTargetAccounts.length === 0) {
@@ -512,23 +524,33 @@ export default function MailCode() {
     setBatchDeleting(true);
     try {
       const result = await toolsApi.deleteHotmailAccounts(targetIds);
-      const targetIdSet = new Set(targetIds);
-      setLatestResults((prev) => prev.filter((item) => !targetIdSet.has(item.accountId)));
-      setCodeResults((prev) => {
-        const next = new Map(prev);
-        targetIds.forEach((accountId) => next.delete(accountId));
-        return next;
-      });
-      setAccounts((prev) => prev.filter((account) => !targetIdSet.has(account.id)));
-      setSelectedAccountIds((prev) => prev.filter((accountId) => !targetIdSet.has(accountId)));
-      setShowSummary(false);
+      removeAccountsFromState(targetIds);
       message.success(`批量删除完成，已删除 ${result.deleted} 个邮箱`);
     } catch (error) {
       message.error(getErrorMessage(error, "批量删除失败"));
     } finally {
       setBatchDeleting(false);
     }
-  }, [batchTargetAccounts]);
+  }, [batchTargetAccounts, removeAccountsFromState]);
+
+  const handleClearServiceAbuseAccounts = useCallback(async () => {
+    if (serviceAbuseAccounts.length === 0) {
+      message.warning("当前没有微软风控邮箱");
+      return;
+    }
+
+    const targetIds = serviceAbuseAccounts.map((account) => account.id);
+    setClearingServiceAbuse(true);
+    try {
+      const result = await toolsApi.deleteHotmailAccounts(targetIds);
+      removeAccountsFromState(targetIds);
+      message.success(`已清除 ${result.deleted} 个微软风控邮箱`);
+    } catch (error) {
+      message.error(getErrorMessage(error, "清除微软风控邮箱失败"));
+    } finally {
+      setClearingServiceAbuse(false);
+    }
+  }, [removeAccountsFromState, serviceAbuseAccounts]);
 
   const handleFetchCode = useCallback(async (accountId: number) => {
     setFetchingId(accountId);
@@ -1077,9 +1099,10 @@ export default function MailCode() {
       const missingImapCount = updatedAccounts.filter((account) => account.tokenCheckStatus === "MISSING_IMAP").length;
       const invalidCount = updatedAccounts.filter((account) => account.tokenCheckStatus === "TOKEN_INVALID").length;
       const credentialDecryptCount = updatedAccounts.filter((account) => account.tokenCheckStatus === "CREDENTIAL_DECRYPT_FAILED").length;
+      const serviceAbuseCount = updatedAccounts.filter((account) => account.tokenCheckStatus === "SERVICE_ABUSE_MODE").length;
       message.success(
-        `自检完成：正常 ${okCount} 个，缺IMAP ${missingImapCount} 个，Token失效 ${invalidCount} 个，凭据解密失败 ${credentialDecryptCount} 个，其它 ${
-          updatedAccounts.length - okCount - missingImapCount - invalidCount - credentialDecryptCount
+        `自检完成：正常 ${okCount} 个，缺IMAP ${missingImapCount} 个，Token失效 ${invalidCount} 个，凭据解密失败 ${credentialDecryptCount} 个，微软风控 ${serviceAbuseCount} 个，其它 ${
+          updatedAccounts.length - okCount - missingImapCount - invalidCount - credentialDecryptCount - serviceAbuseCount
         } 个`,
       );
     } catch (error) {
@@ -1504,6 +1527,7 @@ export default function MailCode() {
                   取码链接 {accounts.filter((account) => account.publicCodeEnabled && isMailCodePublicLinkReady(account.publicCodeToken, account.publicCodeUid)).length}
                 </Tag>
                 {missingPublicLinkAccounts.length > 0 ? <Tag color="orange">缺链接 {missingPublicLinkAccounts.length}</Tag> : null}
+                {serviceAbuseAccounts.length > 0 ? <Tag color="magenta">微软风控 {serviceAbuseAccounts.length}</Tag> : null}
                 {selectedAccountIds.length > 0 ? <Tag color="gold">已选 {selectedAccountIds.length}</Tag> : null}
               </div>
             </div>
@@ -1539,6 +1563,23 @@ export default function MailCode() {
             >
               <Button danger icon={<DeleteOutlined />} loading={batchDeleting} disabled={batchTargetAccounts.length === 0}>
                 {`删除${batchTargetText}`}
+              </Button>
+            </Popconfirm>
+            <Popconfirm
+              title={`确定清除 ${serviceAbuseAccounts.length} 个微软风控邮箱吗？`}
+              description="只会永久删除自检状态为“微软风控”的邮箱及其取码链接、缓存验证码和备注。"
+              okText="清除"
+              cancelText="取消"
+              okButtonProps={{ danger: true }}
+              onConfirm={() => void handleClearServiceAbuseAccounts()}
+            >
+              <Button
+                danger
+                icon={<StopOutlined />}
+                loading={clearingServiceAbuse}
+                disabled={serviceAbuseAccounts.length === 0}
+              >
+                一键清除微软风控{serviceAbuseAccounts.length > 0 ? `（${serviceAbuseAccounts.length}）` : ""}
               </Button>
             </Popconfirm>
             <Button
@@ -1596,6 +1637,7 @@ export default function MailCode() {
                 { label: "缺IMAP", value: "MISSING_IMAP" },
                 { label: "Token失效", value: "TOKEN_INVALID" },
                 { label: "凭据解密失败", value: "CREDENTIAL_DECRYPT_FAILED" },
+                { label: "微软风控", value: "SERVICE_ABUSE_MODE" },
                 { label: "部分异常", value: "PARTIAL_FAIL" },
               ]}
             />
@@ -1738,6 +1780,7 @@ export default function MailCode() {
                 <code className="mx-1 rounded bg-slate-200 px-1.5 py-0.5 text-xs">/api/code/fetch</code>
                 获取 JSON。链接不是一次性，只有停用或重新生成后旧链接才会失效。
               </div>
+              <div>10. 自检识别到微软返回 service_abuse_mode 时会标记为“微软风控”；“一键清除微软风控”只删除这类邮箱，并会在删除前再次确认。</div>
             </div>
           </div>
         </div>
