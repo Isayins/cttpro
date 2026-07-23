@@ -255,6 +255,7 @@ public class HotmailCodeService {
                 resetTokenCheck(existingAccount);
                 existingAccount.setUpdateTime(new Date());
                 hotmailAccountMapper.updateById(existingAccount);
+                clearCachedTokens(existingAccount.getId());
                 processedCount++;
                 continue;
             }
@@ -280,6 +281,20 @@ public class HotmailCodeService {
         response.setDuplicateCount(batchDuplicateCount + existingDuplicateCount);
         response.setMessage(skippedCount > 0 ? "导入完成，部分行未处理" : "导入成功");
         return response;
+    }
+
+    private void clearCachedTokens(Long accountId) {
+        hotmailAccountMapper.update(
+                null,
+                new UpdateWrapper<HotmailAccount>()
+                        .eq("id", accountId)
+                        .set("access_token", null)
+                        .set("token_expires_at", null)
+                        .set("outlook_access_token", null)
+                        .set("outlook_token_expires_at", null)
+                        .set("imap_access_token", null)
+                        .set("imap_token_expires_at", null)
+        );
     }
 
     public void deleteAccount(Long userId, Long accountId) {

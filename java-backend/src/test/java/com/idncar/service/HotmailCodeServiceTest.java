@@ -264,6 +264,38 @@ class HotmailCodeServiceTest {
     }
 
     @Test
+    void reimportExplicitlyClearsLegacyEncryptedTokenCaches() throws Exception {
+        HotmailAccountMapper hotmailAccountMapper = mock(HotmailAccountMapper.class);
+        UserAccessService userAccessService = mock(UserAccessService.class);
+        HotmailCredentialCrypto hotmailCredentialCrypto = mock(HotmailCredentialCrypto.class);
+        when(hotmailCredentialCrypto.encrypt(anyString())).thenAnswer(invocation -> "enc::new:" + invocation.getArgument(0));
+
+        HotmailAccount existingAccount = new HotmailAccount();
+        existingAccount.setId(15L);
+        existingAccount.setUserId(3L);
+        existingAccount.setEmail("legacy@hotmail.com");
+        existingAccount.setAccessToken("enc::old-graph");
+        existingAccount.setOutlookAccessToken("enc::old-outlook");
+        existingAccount.setImapAccessToken("enc::old-imap");
+        when(hotmailAccountMapper.selectOne(any())).thenReturn(existingAccount);
+        setField("hotmailAccountMapper", hotmailAccountMapper);
+        setField("userAccessService", userAccessService);
+        setField("hotmailCredentialCrypto", hotmailCredentialCrypto);
+
+        service.importAccounts(
+                3L,
+                "legacy@hotmail.com----new-pass----client-id----new-refresh-token",
+                null
+        );
+
+        ArgumentCaptor<UpdateWrapper<HotmailAccount>> updateCaptor = ArgumentCaptor.forClass(UpdateWrapper.class);
+        verify(hotmailAccountMapper).update(eq(null), updateCaptor.capture());
+        assertThat(updateCaptor.getValue().getSqlSet())
+                .contains("access_token=", "token_expires_at=", "outlook_access_token=",
+                        "outlook_token_expires_at=", "imap_access_token=", "imap_token_expires_at=");
+    }
+
+    @Test
     void deleteAccountsRequiresIdsAndDeletesOnlyOwnedAccounts() throws Exception {
         HotmailAccountMapper hotmailAccountMapper = mock(HotmailAccountMapper.class);
         UserAccessService userAccessService = mock(UserAccessService.class);
