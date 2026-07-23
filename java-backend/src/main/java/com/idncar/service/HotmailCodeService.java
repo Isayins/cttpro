@@ -86,6 +86,7 @@ public class HotmailCodeService {
     private static final String TOKEN_CHECK_OK = "OK";
     private static final String TOKEN_CHECK_MISSING_IMAP = "MISSING_IMAP";
     private static final String TOKEN_CHECK_TOKEN_INVALID = "TOKEN_INVALID";
+    private static final String TOKEN_CHECK_CREDENTIAL_DECRYPT_FAILED = "CREDENTIAL_DECRYPT_FAILED";
     private static final String TOKEN_CHECK_PARTIAL_FAIL = "PARTIAL_FAIL";
     private static final int GRAPH_FETCH_SIZE = 50;
     private static final int FOLDER_FETCH_SIZE = 20;
@@ -697,12 +698,14 @@ public class HotmailCodeService {
         TokenRefreshResult imapToken = null;
         TokenRefreshResult latestToken = null;
         List<String> errors = new ArrayList<>();
+        boolean credentialDecryptFailed = false;
 
         try {
             graphToken = refreshAccessToken(account, GRAPH_SCOPE, TokenCache.GRAPH, true);
             latestToken = graphToken;
             rememberRefreshToken(account, graphToken);
         } catch (Exception e) {
+            credentialDecryptFailed |= isCredentialDecryptFailure(e);
             errors.add("Graph: " + cleanErrorMessage(e));
         }
 
@@ -711,6 +714,7 @@ public class HotmailCodeService {
             latestToken = outlookToken;
             rememberRefreshToken(account, outlookToken);
         } catch (Exception e) {
+            credentialDecryptFailed |= isCredentialDecryptFailure(e);
             errors.add("Outlook REST: " + cleanErrorMessage(e));
         }
 
@@ -719,14 +723,19 @@ public class HotmailCodeService {
             latestToken = imapToken;
             rememberRefreshToken(account, imapToken);
         } catch (Exception e) {
+            credentialDecryptFailed |= isCredentialDecryptFailure(e);
             errors.add("IMAP: " + cleanErrorMessage(e));
         }
 
         boolean graphOk = graphToken != null && graphToken.accessToken() != null && !graphToken.accessToken().isBlank();
         boolean outlookOk = outlookToken != null && outlookToken.accessToken() != null && !outlookToken.accessToken().isBlank();
         boolean imapOk = imapToken != null && imapToken.accessToken() != null && !imapToken.accessToken().isBlank();
-        String status = resolveTokenCheckStatus(graphOk, outlookOk, imapOk);
-        String summary = TOKEN_CHECK_OK.equals(status) ? "Graph、Outlook REST、IMAP 权限均可用" : String.join("；", errors);
+        String status = resolveTokenCheckStatus(graphOk, outlookOk, imapOk, credentialDecryptFailed);
+        String summary = TOKEN_CHECK_OK.equals(status)
+                ? "Graph、Outlook REST、IMAP 权限均可用"
+                : credentialDecryptFailed
+                ? "凭据解密失败，请确认 APP_HOTMAIL_ENCRYPTION_SECRET 与导入时一致后重新导入"
+                : String.join("；", errors);
 
         TokenRefreshResult refreshTokenSource = latestToken != null ? latestToken : graphToken;
         if (refreshTokenSource != null && refreshTokenSource.refreshToken() != null && !refreshTokenSource.refreshToken().isBlank()) {
@@ -753,7 +762,10 @@ public class HotmailCodeService {
         return toDto(account);
     }
 
-    private String resolveTokenCheckStatus(boolean graphOk, boolean outlookOk, boolean imapOk) {
+    private String resolveTokenCheckStatus(boolean graphOk, boolean outlookOk, boolean imapOk, boolean credentialDecryptFailed) {
+        if (credentialDecryptFailed) {
+            return TOKEN_CHECK_CREDENTIAL_DECRYPT_FAILED;
+        }
         if (graphOk && outlookOk && imapOk) {
             return TOKEN_CHECK_OK;
         }
@@ -766,12 +778,24 @@ public class HotmailCodeService {
         return TOKEN_CHECK_PARTIAL_FAIL;
     }
 
+    private boolean isCredentialDecryptFailure(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (current instanceof IllegalStateException
+                    && "Failed to decrypt Hotmail credential".equals(current.getMessage())) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
     private TokenRefreshResult refreshAccessToken(HotmailAccount account, String scope, TokenCache tokenCache) throws Exception {
         return refreshAccessToken(account, scope, tokenCache, false);
     }
 
     private TokenRefreshResult refreshAccessToken(HotmailAccount account, String scope, TokenCache tokenCache, boolean forceRefresh) throws Exception {
-        String cachedAccessToken = hotmailCredentialCrypto.decrypt(getCachedAccessToken(account, tokenCache));
+        String cachedAccessToken = forceRefresh ? null : hotmailCredentialCrypto.decrypt(getCachedAccessToken(account, tokenCache));
         String refreshToken = hotmailCredentialCrypto.decrypt(account.getRefreshToken());
         Date cachedExpiresAt = getCachedTokenExpiresAt(account, tokenCache);
 

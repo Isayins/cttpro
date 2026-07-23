@@ -806,7 +806,7 @@ export interface HotmailAccount {
   lastFolder?: string | null;
   lastError?: string | null;
   lastFetchTime?: string | null;
-  tokenCheckStatus?: "UNKNOWN" | "OK" | "MISSING_IMAP" | "TOKEN_INVALID" | "PARTIAL_FAIL" | string;
+  tokenCheckStatus?: "UNKNOWN" | "OK" | "MISSING_IMAP" | "TOKEN_INVALID" | "CREDENTIAL_DECRYPT_FAILED" | "PARTIAL_FAIL" | string;
   graphTokenOk?: boolean | null;
   outlookTokenOk?: boolean | null;
   imapTokenOk?: boolean | null;

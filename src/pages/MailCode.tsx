@@ -126,6 +126,7 @@ function tokenCheckLabel(status?: string | null) {
   if (status === "OK") return "正常";
   if (status === "MISSING_IMAP") return "缺IMAP";
   if (status === "TOKEN_INVALID") return "Token失效";
+  if (status === "CREDENTIAL_DECRYPT_FAILED") return "凭据解密失败";
   if (status === "PARTIAL_FAIL") return "部分异常";
   return "未自检";
 }
@@ -134,6 +135,7 @@ function tokenCheckColor(status?: string | null) {
   if (status === "OK") return "green";
   if (status === "MISSING_IMAP") return "orange";
   if (status === "TOKEN_INVALID") return "red";
+  if (status === "CREDENTIAL_DECRYPT_FAILED") return "purple";
   if (status === "PARTIAL_FAIL") return "volcano";
   return "default";
 }
@@ -1074,9 +1076,10 @@ export default function MailCode() {
       const okCount = updatedAccounts.filter((account) => account.tokenCheckStatus === "OK").length;
       const missingImapCount = updatedAccounts.filter((account) => account.tokenCheckStatus === "MISSING_IMAP").length;
       const invalidCount = updatedAccounts.filter((account) => account.tokenCheckStatus === "TOKEN_INVALID").length;
+      const credentialDecryptCount = updatedAccounts.filter((account) => account.tokenCheckStatus === "CREDENTIAL_DECRYPT_FAILED").length;
       message.success(
-        `自检完成：正常 ${okCount} 个，缺IMAP ${missingImapCount} 个，Token失效 ${invalidCount} 个，其它 ${
-          updatedAccounts.length - okCount - missingImapCount - invalidCount
+        `自检完成：正常 ${okCount} 个，缺IMAP ${missingImapCount} 个，Token失效 ${invalidCount} 个，凭据解密失败 ${credentialDecryptCount} 个，其它 ${
+          updatedAccounts.length - okCount - missingImapCount - invalidCount - credentialDecryptCount
         } 个`,
       );
     } catch (error) {
@@ -1592,6 +1595,7 @@ export default function MailCode() {
                 { label: "正常", value: "OK" },
                 { label: "缺IMAP", value: "MISSING_IMAP" },
                 { label: "Token失效", value: "TOKEN_INVALID" },
+                { label: "凭据解密失败", value: "CREDENTIAL_DECRYPT_FAILED" },
                 { label: "部分异常", value: "PARTIAL_FAIL" },
               ]}
             />

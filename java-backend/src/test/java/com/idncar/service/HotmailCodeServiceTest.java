@@ -61,6 +61,41 @@ class HotmailCodeServiceTest {
     }
 
     @Test
+    void credentialDecryptFailureGetsItsOwnTokenCheckStatus() throws Exception {
+        assertThat(invoke(
+                "resolveTokenCheckStatus",
+                new Class<?>[]{boolean.class, boolean.class, boolean.class, boolean.class},
+                false, false, false, true
+        )).isEqualTo("CREDENTIAL_DECRYPT_FAILED");
+    }
+
+    @Test
+    void accountCheckDoesNotReportCredentialDecryptFailureAsInvalidToken() throws Exception {
+        HotmailAccountMapper hotmailAccountMapper = mock(HotmailAccountMapper.class);
+        HotmailCredentialCrypto hotmailCredentialCrypto = mock(HotmailCredentialCrypto.class);
+        when(hotmailCredentialCrypto.decrypt(any()))
+                .thenThrow(new IllegalStateException("Failed to decrypt Hotmail credential"));
+        setField("hotmailAccountMapper", hotmailAccountMapper);
+        setField("hotmailCredentialCrypto", hotmailCredentialCrypto);
+
+        HotmailAccount account = new HotmailAccount();
+        account.setId(7L);
+        account.setUserId(3L);
+        account.setEmail("legacy@hotmail.com");
+        account.setRefreshToken("enc::legacy-data");
+
+        HotmailAccountDto result = (HotmailAccountDto) invoke(
+                "checkAccountTokenScopes",
+                new Class<?>[]{HotmailAccount.class},
+                account
+        );
+
+        assertThat(result.getTokenCheckStatus()).isEqualTo("CREDENTIAL_DECRYPT_FAILED");
+        assertThat(result.getTokenCheckSummary()).contains("凭据解密失败");
+        verify(hotmailAccountMapper).updateById(account);
+    }
+
+    @Test
     void generatedPublicCodeTokenUsesThirdPartyLikeHexShape() throws Exception {
         String token = (String) invoke("generatePublicCodeToken");
 
