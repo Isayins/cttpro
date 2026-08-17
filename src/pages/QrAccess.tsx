@@ -108,6 +108,7 @@ export default function QrAccess() {
 
   const visitorId = useMemo(() => getOrCreateStorageId(VISITOR_ID_KEY, "visitor", getBrowserStorage("local")), []);
   const sessionId = useMemo(() => getOrCreateStorageId(SESSION_ID_KEY, "session", getBrowserStorage("session")), []);
+  const accessId = useMemo(() => createId(`access_${shortCode || "unknown"}`), [shortCode]);
   const returnPath = `${location.pathname}${location.search}${location.hash}`;
   const accessCodeValue = accessCode.trim();
   const canSubmitAccessCode = Boolean(shortCode && info?.available && accessCodeValue && !redirecting);
@@ -156,6 +157,7 @@ export default function QrAccess() {
     try {
       const userAgent = navigator.userAgent;
       const result = await qrCodeApi.access(code, {
+        accessId,
         accessCode: accessCodeValue || undefined,
         visitorId,
         sessionId,
@@ -180,7 +182,7 @@ export default function QrAccess() {
       accessStartedRef.current = false;
       setRedirecting(false);
     }
-  }, [accessCodeValue, info?.accessCodeRequired, info?.available, info?.loginRequired, info?.unavailableReason, isAuthenticated, sessionId, visitorId]);
+  }, [accessCodeValue, accessId, info?.accessCodeRequired, info?.available, info?.loginRequired, info?.unavailableReason, isAuthenticated, sessionId, visitorId]);
 
   useEffect(() => {
     if (!shortCode) {
@@ -205,7 +207,7 @@ export default function QrAccess() {
     htmlFrameRef.current?.contentWindow?.postMessage(
       {
         type: QR_CONTEXT_MESSAGE_TYPE,
-        scanCount: htmlPage.scanCount,
+        totalScanCount: htmlPage.totalScanCount,
         shortCode: info.shortCode,
         title: info.title,
       },

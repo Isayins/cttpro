@@ -15,6 +15,7 @@ public class QrScanLog {
     private Long id;
 
     private Long qrCodeId;
+    private String accessId;
     private Long userId;
     private String visitorId;
     private String sessionId;

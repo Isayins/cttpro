@@ -24,13 +24,25 @@ public class QrCodeDto {
     private String accessCodeHint;
     private String expiresAt;
     private Long createdBy;
-    private Long scanCount;
+    private Long recent90DayScanCount;
     private Long todayScanCount;
     private String lastScanTime;
     private String createTime;
     private String updateTime;
 
     public static QrCodeDto fromEntity(QrCode entity, long scanCount, long todayScanCount, Date lastScanTime) {
+        return fromEntity(entity, scanCount, todayScanCount, lastScanTime, false);
+    }
+
+    public static QrCodeDto fromEntityWithContent(QrCode entity, long scanCount, long todayScanCount, Date lastScanTime) {
+        return fromEntity(entity, scanCount, todayScanCount, lastScanTime, true);
+    }
+
+    private static QrCodeDto fromEntity(QrCode entity,
+                                        long scanCount,
+                                        long todayScanCount,
+                                        Date lastScanTime,
+                                        boolean includeContent) {
         QrCodeDto dto = new QrCodeDto();
         dto.setId(entity.getId());
         dto.setTitle(entity.getTitle());
@@ -38,7 +50,9 @@ public class QrCodeDto {
         dto.setShortCode(entity.getShortCode());
         dto.setTargetUrl(entity.getTargetUrl());
         dto.setContentType(entity.getContentType());
-        dto.setHtmlContent(entity.getHtmlContent());
+        if (includeContent) {
+            dto.setHtmlContent(entity.getHtmlContent());
+        }
         dto.setTotalScanCount(entity.getTotalScanCount() == null ? 0L : entity.getTotalScanCount());
         dto.setStatus(entity.getStatus());
         dto.setLoginRequired(Boolean.TRUE.equals(entity.getLoginRequired()));
@@ -47,7 +61,7 @@ public class QrCodeDto {
         dto.setAccessCodeHint(maskAccessCode(entity.getAccessCode()));
         dto.setExpiresAt(formatDate(entity.getExpiresAt()));
         dto.setCreatedBy(entity.getCreatedBy());
-        dto.setScanCount(scanCount);
+        dto.setRecent90DayScanCount(scanCount);
         dto.setTodayScanCount(todayScanCount);
         dto.setLastScanTime(formatDate(lastScanTime));
         dto.setCreateTime(formatDate(entity.getCreateTime()));

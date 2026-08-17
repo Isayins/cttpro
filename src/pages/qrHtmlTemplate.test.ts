@@ -19,6 +19,7 @@ describe("QR HTML page", () => {
   it("includes a scan counter that only accepts context from its parent frame", () => {
     expect(qrScanCounterTemplate).toContain(`event.data.type !== "${QR_CONTEXT_MESSAGE_TYPE}"`);
     expect(qrScanCounterTemplate).toContain("event.source !== window.parent");
+    expect(qrScanCounterTemplate).toContain("event.data.totalScanCount");
     expect(qrScanCounterTemplate).toContain('id="scan-count"');
   });
 });

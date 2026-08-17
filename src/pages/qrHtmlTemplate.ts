@@ -124,11 +124,11 @@ export const qrScanCounterTemplate = `<!doctype html>
     document.getElementById("scan-time").textContent = new Date().toLocaleString("zh-CN");
 
     window.addEventListener("message", function (event) {
-      if (event.source !== window.parent || !event.data || event.data.type !== "idncar:qr-context") {
+      if (event.source !== window.parent || !event.data || event.data.type !== "${QR_CONTEXT_MESSAGE_TYPE}") {
         return;
       }
 
-      var count = Number(event.data.scanCount);
+      var count = Number(event.data.totalScanCount);
       document.getElementById("scan-count").textContent = Number.isFinite(count) ? String(count) : "0";
       document.getElementById("short-code").textContent = event.data.shortCode || "-";
       document.getElementById("page-title").textContent = event.data.title || "扫码成功";

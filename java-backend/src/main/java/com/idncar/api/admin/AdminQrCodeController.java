@@ -3,12 +3,14 @@ package com.idncar.api.admin;
 import com.idncar.model.dto.QrCodeDto;
 import com.idncar.model.dto.QrScanLogDto;
 import com.idncar.model.dto.SaveQrCodeRequest;
+import com.idncar.model.dto.UpdateQrCodeStatusRequest;
 import com.idncar.service.QrCodeService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
@@ -31,6 +33,12 @@ public class AdminQrCodeController {
         return ResponseEntity.ok(qrCodeService.getAdminQrCodes(userId));
     }
 
+    @GetMapping("/{id}")
+    public ResponseEntity<QrCodeDto> getQrCode(@RequestAttribute("userId") Long userId,
+                                               @PathVariable Long id) {
+        return ResponseEntity.ok(qrCodeService.getAdminQrCode(userId, id));
+    }
+
     @PostMapping
     public ResponseEntity<QrCodeDto> createQrCode(@RequestAttribute("userId") Long userId,
                                                   @RequestBody SaveQrCodeRequest request) {
@@ -42,6 +50,14 @@ public class AdminQrCodeController {
                                                   @PathVariable Long id,
                                                   @RequestBody SaveQrCodeRequest request) {
         return ResponseEntity.ok(qrCodeService.updateQrCode(userId, id, request));
+    }
+
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<Void> updateQrCodeStatus(@RequestAttribute("userId") Long userId,
+                                                   @PathVariable Long id,
+                                                   @RequestBody UpdateQrCodeStatusRequest request) {
+        qrCodeService.updateQrCodeStatus(userId, id, request);
+        return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{id}")

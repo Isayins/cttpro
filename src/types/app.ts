@@ -667,7 +667,7 @@ export interface QrCodeItem {
   title: string;
   description?: string | null;
   shortCode: string;
-  targetUrl: string;
+  targetUrl?: string | null;
   contentType: QrCodeContentType;
   htmlContent?: string | null;
   totalScanCount?: number | null;
@@ -678,7 +678,7 @@ export interface QrCodeItem {
   accessCodeHint?: string | null;
   expiresAt?: string | null;
   createdBy?: number | null;
-  scanCount?: number | null;
+  recent90DayScanCount?: number | null;
   todayScanCount?: number | null;
   lastScanTime?: string | null;
   createTime?: string | null;
@@ -725,6 +725,7 @@ export interface QrCodePublicInfo {
 }
 
 export interface QrCodeAccessPayload {
+  accessId: string;
   accessCode?: string;
   visitorId?: string;
   sessionId?: string;
@@ -737,7 +738,7 @@ export interface QrCodeAccessResponse {
   contentType: QrCodeContentType;
   targetUrl?: string | null;
   htmlContent?: string | null;
-  scanCount: number;
+  totalScanCount: number;
   message: string;
 }
 

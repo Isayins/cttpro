@@ -13,12 +13,15 @@ import com.idncar.model.dto.QrCodeDto;
 import com.idncar.model.dto.QrCodePublicDto;
 import com.idncar.model.dto.QrScanLogDto;
 import com.idncar.model.dto.SaveQrCodeRequest;
+import com.idncar.model.dto.UpdateQrCodeStatusRequest;
 import com.idncar.model.entity.AdminOperationLog;
 import com.idncar.model.entity.QrCode;
 import com.idncar.model.entity.QrScanLog;
 import com.idncar.model.entity.User;
+import com.idncar.model.enums.QrCodeContentType;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,8 +45,7 @@ import java.util.stream.Collectors;
 public class QrCodeService {
 
     private static final Pattern SHORT_CODE_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{4,24}$");
-    private static final String CONTENT_TYPE_URL = "URL";
-    private static final String CONTENT_TYPE_HTML = "HTML";
+    private static final Pattern ACCESS_ID_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{8,80}$");
     private static final int MAX_HTML_CONTENT_LENGTH = 200_000;
     private static final List<DateTimeFormatter> DATE_TIME_FORMATTERS = List.of(
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
@@ -71,11 +73,36 @@ public class QrCodeService {
 
     public List<QrCodeDto> getAdminQrCodes(Long adminUserId) {
         userAccessService.requireAdmin(adminUserId);
-        List<QrCode> qrCodes = qrCodeMapper.selectList(new QueryWrapper<QrCode>().orderByDesc("create_time"));
+        List<QrCode> qrCodes = qrCodeMapper.selectList(new QueryWrapper<QrCode>()
+                .select(
+                        "id",
+                        "title",
+                        "description",
+                        "short_code",
+                        "target_url",
+                        "content_type",
+                        "total_scan_count",
+                        "status",
+                        "login_required",
+                        "access_code_required",
+                        "access_code",
+                        "expires_at",
+                        "created_by",
+                        "create_time",
+                        "update_time"
+                )
+                .orderByDesc("create_time"));
         Map<Long, Map<String, Object>> statMap = queryQrStats(qrCodes.stream().map(QrCode::getId).collect(Collectors.toList()));
         return qrCodes.stream()
                 .map(item -> toQrCodeDto(item, statMap.get(item.getId())))
                 .collect(Collectors.toList());
+    }
+
+    public QrCodeDto getAdminQrCode(Long adminUserId, Long qrCodeId) {
+        userAccessService.requireAdmin(adminUserId);
+        QrCode qrCode = requireQrCodeById(qrCodeId);
+        Map<Long, Map<String, Object>> statMap = queryQrStats(List.of(qrCodeId));
+        return toQrCodeDto(qrCode, statMap.get(qrCodeId), true);
     }
 
     public QrCodeDto createQrCode(Long adminUserId, SaveQrCodeRequest request) {
@@ -85,7 +112,7 @@ public class QrCodeService {
         qrCode.setCreatedBy(operator.getId());
         qrCodeMapper.insert(qrCode);
         logOperation(operator, "QR_CREATED", qrCode.getId(), qrCode.getTitle(), "新增动态二维码");
-        return toQrCodeDto(qrCodeMapper.selectById(qrCode.getId()), null);
+        return toQrCodeDto(qrCodeMapper.selectById(qrCode.getId()), null, true);
     }
 
     public QrCodeDto updateQrCode(Long adminUserId, Long qrCodeId, SaveQrCodeRequest request) {
@@ -95,7 +122,32 @@ public class QrCodeService {
         qrCodeMapper.updateById(qrCode);
         logOperation(operator, "QR_UPDATED", qrCode.getId(), qrCode.getTitle(), "更新动态二维码");
         Map<Long, Map<String, Object>> statMap = queryQrStats(List.of(qrCode.getId()));
-        return toQrCodeDto(qrCodeMapper.selectById(qrCode.getId()), statMap.get(qrCode.getId()));
+        return toQrCodeDto(qrCodeMapper.selectById(qrCode.getId()), statMap.get(qrCode.getId()), true);
+    }
+
+    @Transactional
+    public void updateQrCodeStatus(Long adminUserId, Long qrCodeId, UpdateQrCodeStatusRequest request) {
+        if (request == null || normalizeNullableText(request.getStatus()) == null) {
+            throw ApiException.badRequest("请输入二维码状态");
+        }
+        User operator = userAccessService.requireAdmin(adminUserId);
+        QrCode qrCode = qrCodeMapper.selectOne(new QueryWrapper<QrCode>()
+                .select("id", "title")
+                .eq("id", qrCodeId)
+                .last("LIMIT 1"));
+        if (qrCode == null) {
+            throw ApiException.notFound("二维码不存在");
+        }
+        int updatedRows = qrCodeMapper.update(
+                null,
+                new UpdateWrapper<QrCode>()
+                        .eq("id", qrCodeId)
+                        .set("status", resolveStatus(request.getStatus()))
+        );
+        if (updatedRows != 1) {
+            throw ApiException.notFound("二维码不存在");
+        }
+        logOperation(operator, "QR_UPDATED", qrCode.getId(), qrCode.getTitle(), "更新二维码状态");
     }
 
     public void deleteQrCode(Long adminUserId, Long qrCodeId) {
@@ -118,10 +170,11 @@ public class QrCodeService {
 
     public QrCodePublicDto getPublicQrCode(String shortCode, Long currentUserId) {
         QrCode qrCode = requireQrCodeByShortCode(shortCode);
+        String reason = baseUnavailableReason(qrCode);
         return QrCodePublicDto.fromEntity(
                 qrCode,
-                canAccess(qrCode, currentUserId, false, null),
-                unavailableReason(qrCode, currentUserId, false, null)
+                reason == null,
+                reason
         );
     }
 
@@ -133,13 +186,14 @@ public class QrCodeService {
         QrCode qrCode = requireQrCodeByShortCode(shortCode);
         QrCodeAccessRequest safeRequest = request == null ? new QrCodeAccessRequest() : request;
 
-        String reason = unavailableReason(qrCode, currentUserId, true, safeRequest.getAccessCode());
+        String reason = accessDeniedReason(qrCode, currentUserId, safeRequest.getAccessCode());
         if (reason != null) {
             throw ApiException.forbidden(reason);
         }
 
         QrScanLog scanLog = new QrScanLog();
         scanLog.setQrCodeId(qrCode.getId());
+        scanLog.setAccessId(validateAccessId(safeRequest.getAccessId()));
         scanLog.setUserId(currentUserId);
         scanLog.setVisitorId(limitText(normalizeNullableText(safeRequest.getVisitorId()), 80));
         scanLog.setSessionId(limitText(normalizeNullableText(safeRequest.getSessionId()), 80));
@@ -147,16 +201,23 @@ public class QrCodeService {
         scanLog.setUserAgent(limitText(resolveUserAgent(normalizeNullableText(safeRequest.getUserAgent()), httpServletRequest), 500));
         scanLog.setDeviceType(resolveDeviceType(normalizeNullableText(safeRequest.getDeviceType()), scanLog.getUserAgent()));
         scanLog.setIpAddress(limitText(resolveClientIp(httpServletRequest), 120));
-        qrScanLogMapper.insert(scanLog);
+        boolean firstAccess = true;
+        try {
+            qrScanLogMapper.insert(scanLog);
+        } catch (DuplicateKeyException ignored) {
+            firstAccess = false;
+        }
 
-        int updatedRows = qrCodeMapper.update(
-                null,
-                new UpdateWrapper<QrCode>()
-                        .eq("id", qrCode.getId())
-                        .setSql("total_scan_count = total_scan_count + 1")
-        );
-        if (updatedRows != 1) {
-            throw ApiException.notFound("二维码不存在或已失效");
+        if (firstAccess) {
+            int updatedRows = qrCodeMapper.update(
+                    null,
+                    new UpdateWrapper<QrCode>()
+                            .eq("id", qrCode.getId())
+                            .setSql("total_scan_count = total_scan_count + 1")
+            );
+            if (updatedRows != 1) {
+                throw ApiException.notFound("二维码不存在或已失效");
+            }
         }
         QrCode updatedQrCode = qrCodeMapper.selectById(qrCode.getId());
         if (updatedQrCode == null) {
@@ -179,10 +240,10 @@ public class QrCodeService {
         qrCode.setTitle(limitText(requireText(request.getTitle(), "请输入二维码标题"), 80));
         qrCode.setDescription(limitText(normalizeNullableText(request.getDescription()), 255));
         qrCode.setShortCode(resolveShortCode(qrCode.getId(), request.getShortCode()));
-        String contentType = resolveContentType(request.getContentType());
-        qrCode.setContentType(contentType);
-        if (CONTENT_TYPE_HTML.equals(contentType)) {
-            qrCode.setTargetUrl("");
+        QrCodeContentType contentType = resolveContentType(request.getContentType());
+        qrCode.setContentType(contentType.name());
+        if (contentType == QrCodeContentType.HTML) {
+            qrCode.setTargetUrl(null);
             qrCode.setHtmlContent(validateHtmlContent(request.getHtmlContent()));
         } else {
             qrCode.setTargetUrl(validateTargetUrl(request.getTargetUrl()));
@@ -256,20 +317,22 @@ public class QrCodeService {
         }
     }
 
-    private String resolveContentType(String contentType) {
+    private QrCodeContentType resolveContentType(String contentType) {
         String normalized = normalizeNullableText(contentType);
         if (normalized == null) {
-            return CONTENT_TYPE_URL;
+            return QrCodeContentType.URL;
         }
-        String upper = normalized.toUpperCase(Locale.ROOT);
-        if (!List.of(CONTENT_TYPE_URL, CONTENT_TYPE_HTML).contains(upper)) {
+        try {
+            return QrCodeContentType.valueOf(normalized.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
             throw ApiException.badRequest("二维码内容类型仅支持 URL 或 HTML");
         }
-        return upper;
     }
 
     private String resolveStoredContentType(String contentType) {
-        return CONTENT_TYPE_HTML.equalsIgnoreCase(contentType) ? CONTENT_TYPE_HTML : CONTENT_TYPE_URL;
+        return QrCodeContentType.HTML.name().equalsIgnoreCase(contentType)
+                ? QrCodeContentType.HTML.name()
+                : QrCodeContentType.URL.name();
     }
 
     private String validateHtmlContent(String htmlContent) {
@@ -280,6 +343,14 @@ public class QrCodeService {
             throw ApiException.badRequest("HTML 页面内容不能超过 200000 个字符");
         }
         return htmlContent;
+    }
+
+    private String validateAccessId(String accessId) {
+        String normalized = requireText(accessId, "缺少二维码访问标识");
+        if (!ACCESS_ID_PATTERN.matcher(normalized).matches()) {
+            throw ApiException.badRequest("二维码访问标识格式不正确");
+        }
+        return normalized;
     }
 
     private String resolveStatus(String status) {
@@ -327,25 +398,26 @@ public class QrCodeService {
         throw ApiException.badRequest("过期时间格式不正确，请使用 yyyy-MM-dd HH:mm:ss");
     }
 
-    private boolean canAccess(QrCode qrCode, Long currentUserId, boolean checkCode, String accessCode) {
-        return unavailableReason(qrCode, currentUserId, checkCode, accessCode) == null;
-    }
-
-    private String unavailableReason(QrCode qrCode, Long currentUserId, boolean checkCode, String accessCode) {
+    private String baseUnavailableReason(QrCode qrCode) {
         if (!"ACTIVE".equalsIgnoreCase(qrCode.getStatus())) {
             return "该二维码已停用";
         }
         if (qrCode.getExpiresAt() != null && qrCode.getExpiresAt().before(new Date())) {
             return "该二维码已过期";
         }
+        return null;
+    }
+
+    private String accessDeniedReason(QrCode qrCode, Long currentUserId, String accessCode) {
+        String baseReason = baseUnavailableReason(qrCode);
+        if (baseReason != null) {
+            return baseReason;
+        }
         if (Boolean.TRUE.equals(qrCode.getLoginRequired()) && currentUserId == null) {
             return "该二维码需要登录后访问";
         }
         if (Boolean.TRUE.equals(qrCode.getAccessCodeRequired())) {
-            if (!checkCode) {
-                return "该二维码需要输入访问验证码";
-            }
-            if (normalizeNullableText(accessCode) == null || !qrCode.getAccessCode().equals(accessCode.trim())) {
+            if (normalizeNullableText(accessCode) == null || !java.util.Objects.equals(qrCode.getAccessCode(), accessCode.trim())) {
                 return "访问验证码不正确";
             }
         }
@@ -353,6 +425,10 @@ public class QrCodeService {
     }
 
     private QrCodeDto toQrCodeDto(QrCode qrCode, Map<String, Object> stats) {
+        return toQrCodeDto(qrCode, stats, false);
+    }
+
+    private QrCodeDto toQrCodeDto(QrCode qrCode, Map<String, Object> stats, boolean includeContent) {
         long scanCount = stats == null ? 0L : toLong(stats.get("scan_count"));
         long todayScanCount = stats == null ? 0L : toLong(stats.get("today_scan_count"));
         Date lastScanTime = null;
@@ -360,7 +436,9 @@ public class QrCodeService {
         if (lastScanValue instanceof Date date) {
             lastScanTime = date;
         }
-        return QrCodeDto.fromEntity(qrCode, scanCount, todayScanCount, lastScanTime);
+        return includeContent
+                ? QrCodeDto.fromEntityWithContent(qrCode, scanCount, todayScanCount, lastScanTime)
+                : QrCodeDto.fromEntity(qrCode, scanCount, todayScanCount, lastScanTime);
     }
 
     private Map<Long, Map<String, Object>> queryQrStats(List<Long> qrCodeIds) {

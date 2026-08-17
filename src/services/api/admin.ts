@@ -519,6 +519,10 @@ export const adminApi = {
     apiRequest<QrCodeItem[]>("/api/admin/qr-codes", {
       authMode: "required",
     }),
+  getQrCode: (id: number) =>
+    apiRequest<QrCodeItem>(`/api/admin/qr-codes/${id}`, {
+      authMode: "required",
+    }),
   createQrCode: (payload: SaveQrCodePayload) =>
     apiRequest<QrCodeItem>("/api/admin/qr-codes", {
       method: "POST",
@@ -530,6 +534,12 @@ export const adminApi = {
       method: "PUT",
       authMode: "required",
       body: payload,
+    }),
+  updateQrCodeStatus: (id: number, status: "ACTIVE" | "DISABLED") =>
+    apiRequest<void>(`/api/admin/qr-codes/${id}/status`, {
+      method: "PATCH",
+      authMode: "required",
+      body: { status },
     }),
   deleteQrCode: (id: number) =>
     apiRequest<void>(`/api/admin/qr-codes/${id}`, {

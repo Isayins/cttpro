@@ -5,6 +5,7 @@ import lombok.Data;
 @Data
 public class QrCodeAccessRequest {
 
+    private String accessId;
     private String accessCode;
     private String visitorId;
     private String sessionId;

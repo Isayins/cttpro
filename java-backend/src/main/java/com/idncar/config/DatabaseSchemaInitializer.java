@@ -825,7 +825,7 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
                     title VARCHAR(80) NOT NULL,
                     description VARCHAR(255) NULL,
                     short_code VARCHAR(24) NOT NULL UNIQUE,
-                    target_url VARCHAR(500) NOT NULL,
+                    target_url VARCHAR(500) NULL,
                     content_type VARCHAR(20) NOT NULL DEFAULT 'URL',
                     html_content MEDIUMTEXT NULL,
                     total_scan_count BIGINT NOT NULL DEFAULT 0,
@@ -843,6 +843,8 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
 
     private void ensureQrCodeColumns() {
         ensureColumn("qr_codes", "description", "description VARCHAR(255) NULL");
+        ensureColumn("qr_codes", "target_url", "target_url VARCHAR(500) NULL");
+        ensureNullableColumn("qr_codes", "target_url", "target_url VARCHAR(500) NULL");
         ensureColumn("qr_codes", "content_type", "content_type VARCHAR(20) NOT NULL DEFAULT 'URL'");
         ensureColumn("qr_codes", "html_content", "html_content MEDIUMTEXT NULL");
         ensureColumn("qr_codes", "total_scan_count", "total_scan_count BIGINT NOT NULL DEFAULT 0");
@@ -853,6 +855,7 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
         ensureColumn("qr_codes", "expires_at", "expires_at DATETIME NULL");
         ensureColumn("qr_codes", "created_by", "created_by BIGINT NOT NULL DEFAULT 1");
         ensureIndex("qr_codes", "uk_qr_codes_short_code", "CREATE UNIQUE INDEX uk_qr_codes_short_code ON qr_codes(short_code)");
+        jdbcTemplate.execute("UPDATE qr_codes SET target_url = NULL WHERE content_type = 'HTML'");
     }
 
     private void ensureQrScanLogsTable() {
@@ -860,6 +863,7 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
                 CREATE TABLE IF NOT EXISTS qr_scan_logs (
                     id BIGINT PRIMARY KEY AUTO_INCREMENT,
                     qr_code_id BIGINT NOT NULL,
+                    access_id VARCHAR(80) NULL,
                     user_id BIGINT NULL,
                     visitor_id VARCHAR(80) NULL,
                     session_id VARCHAR(80) NULL,
@@ -873,6 +877,7 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
     }
 
     private void ensureQrScanLogColumns() {
+        ensureColumn("qr_scan_logs", "access_id", "access_id VARCHAR(80) NULL");
         ensureColumn("qr_scan_logs", "user_id", "user_id BIGINT NULL");
         ensureColumn("qr_scan_logs", "visitor_id", "visitor_id VARCHAR(80) NULL");
         ensureColumn("qr_scan_logs", "session_id", "session_id VARCHAR(80) NULL");
@@ -883,6 +888,7 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
         ensureIndex("qr_scan_logs", "idx_qr_scan_logs_qr_code_id", "CREATE INDEX idx_qr_scan_logs_qr_code_id ON qr_scan_logs(qr_code_id)");
         ensureIndex("qr_scan_logs", "idx_qr_scan_logs_create_time", "CREATE INDEX idx_qr_scan_logs_create_time ON qr_scan_logs(create_time)");
         ensureIndex("qr_scan_logs", "idx_qr_scan_logs_user_id", "CREATE INDEX idx_qr_scan_logs_user_id ON qr_scan_logs(user_id)");
+        ensureIndex("qr_scan_logs", "uk_qr_scan_logs_qr_access", "CREATE UNIQUE INDEX uk_qr_scan_logs_qr_access ON qr_scan_logs(qr_code_id, access_id)");
     }
 
     private void backfillQrScanCounts() {
@@ -1405,6 +1411,18 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
         );
         if (dataType != null && !dataType.toLowerCase().contains("text")) {
             jdbcTemplate.execute("ALTER TABLE " + tableName + " MODIFY COLUMN " + columnName + " TEXT NOT NULL");
+        }
+    }
+
+    private void ensureNullableColumn(String tableName, String columnName, String columnDefinition) {
+        String isNullable = jdbcTemplate.queryForObject(
+                "SELECT IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?",
+                String.class,
+                tableName,
+                columnName
+        );
+        if ("NO".equalsIgnoreCase(isNullable)) {
+            jdbcTemplate.execute("ALTER TABLE " + tableName + " MODIFY COLUMN " + columnDefinition);
         }
     }
 

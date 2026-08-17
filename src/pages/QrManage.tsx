@@ -34,22 +34,6 @@ function normalizeContentType(value?: string | null) {
   return value === "HTML" ? "HTML" : "URL";
 }
 
-function buildQrSavePayload(item: QrCodeItem, status: "ACTIVE" | "DISABLED"): SaveQrCodePayload {
-  const contentType = normalizeContentType(item.contentType);
-  return {
-    title: item.title,
-    description: item.description ?? undefined,
-    shortCode: item.shortCode,
-    contentType,
-    targetUrl: contentType === "URL" ? item.targetUrl : undefined,
-    htmlContent: contentType === "HTML" ? (item.htmlContent ?? "") : undefined,
-    status,
-    loginRequired: item.loginRequired,
-    accessCodeRequired: item.accessCodeRequired,
-    expiresAt: item.expiresAt ?? undefined,
-  };
-}
-
 function csvCell(value: string | number | boolean | null | undefined) {
   const text = String(value ?? "");
   return `"${text.replace(/"/g, '""')}"`;
@@ -60,6 +44,7 @@ export default function QrManage() {
   const [logs, setLogs] = useState<QrScanLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [loadingEditorId, setLoadingEditorId] = useState<number | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<QrCodeItem | null>(null);
   const [previewItem, setPreviewItem] = useState<QrCodeItem | null>(null);
@@ -100,22 +85,30 @@ export default function QrManage() {
     });
   }
 
-  function openEdit(item: QrCodeItem) {
-    setEditingItem(item);
-    setEditorOpen(true);
-    form.setFieldsValue({
-      title: item.title,
-      description: item.description ?? "",
-      shortCode: item.shortCode,
-      contentType: normalizeContentType(item.contentType),
-      targetUrl: item.targetUrl,
-      htmlContent: item.htmlContent ?? "",
-      status: item.status === "DISABLED" ? "DISABLED" : "ACTIVE",
-      loginRequired: item.loginRequired,
-      accessCodeRequired: item.accessCodeRequired,
-      accessCode: "",
-      expiresAt: item.expiresAt ?? "",
-    });
+  async function openEdit(item: QrCodeItem) {
+    setLoadingEditorId(item.id);
+    try {
+      const detail = await adminApi.getQrCode(item.id);
+      setEditingItem(detail);
+      form.setFieldsValue({
+        title: detail.title,
+        description: detail.description ?? "",
+        shortCode: detail.shortCode,
+        contentType: normalizeContentType(detail.contentType),
+        targetUrl: detail.targetUrl ?? "",
+        htmlContent: detail.htmlContent ?? "",
+        status: detail.status === "DISABLED" ? "DISABLED" : "ACTIVE",
+        loginRequired: detail.loginRequired,
+        accessCodeRequired: detail.accessCodeRequired,
+        accessCode: "",
+        expiresAt: detail.expiresAt ?? "",
+      });
+      setEditorOpen(true);
+    } catch (error) {
+      message.error(getFriendlyMessage(error, "加载二维码详情失败"));
+    } finally {
+      setLoadingEditorId(null);
+    }
   }
 
   async function handleSave(values: SaveQrCodePayload) {
@@ -198,7 +191,7 @@ export default function QrManage() {
     setSubmitting(true);
     try {
       const results = await Promise.allSettled(
-        targets.map((item) => adminApi.updateQrCode(item.id, buildQrSavePayload(item, status))),
+        targets.map((item) => adminApi.updateQrCodeStatus(item.id, status)),
       );
       const successCount = results.filter((result) => result.status === "fulfilled").length;
       const failedCount = results.length - successCount;
@@ -310,7 +303,7 @@ export default function QrManage() {
           item.accessCodeRequired ? "是" : "否",
           item.expiresAt || "",
           item.totalScanCount ?? 0,
-          item.scanCount ?? 0,
+          item.recent90DayScanCount ?? 0,
           item.todayScanCount ?? 0,
           item.lastScanTime || "",
         ].map(csvCell).join(","),
@@ -326,8 +319,8 @@ export default function QrManage() {
     message.success(selectedItems.length > 0 ? "已导出所选二维码" : "已导出当前筛选二维码");
   }
 
-  const totalScanCount = useMemo(
-    () => items.reduce((sum, item) => sum + (item.scanCount ?? 0), 0),
+  const recent90DayScanCount = useMemo(
+    () => items.reduce((sum, item) => sum + (item.recent90DayScanCount ?? 0), 0),
     [items],
   );
   const filteredItems = useMemo(() => {
@@ -384,7 +377,7 @@ export default function QrManage() {
       render: (_, record) => (
         <div className="text-sm text-slate-600">
           <div>累计：{record.totalScanCount ?? 0}</div>
-          <div>近90天：{record.scanCount ?? 0}</div>
+          <div>近90天：{record.recent90DayScanCount ?? 0}</div>
           <div>今日扫码：{record.todayScanCount ?? 0}</div>
           <div>最近：{record.lastScanTime || "-"}</div>
         </div>
@@ -396,7 +389,7 @@ export default function QrManage() {
       render: (_, record) => (
         <Space wrap size={4}>
           <Button type="link" onClick={() => setPreviewItem(record)}>预览</Button>
-          <Button type="link" onClick={() => openEdit(record)}>编辑</Button>
+          <Button type="link" loading={loadingEditorId === record.id} onClick={() => void openEdit(record)}>编辑</Button>
           <Button type="link" onClick={() => void openLogs(record)}>记录</Button>
           <Button type="link" onClick={() => void copyText(buildShortLink(record.shortCode), "短链已复制")}>复制短链</Button>
           <Popconfirm title="确认删除这个二维码吗？" onConfirm={() => void handleDelete(record)}>
@@ -436,7 +429,7 @@ export default function QrManage() {
             <Tag color="blue">二维码数量 {items.length}</Tag>
             <Tag color="green">启用 {activeCount}</Tag>
             <Tag color="red">停用 {disabledCount}</Tag>
-            <Tag color="cyan">近90天扫码 {totalScanCount}</Tag>
+            <Tag color="cyan">近90天扫码 {recent90DayScanCount}</Tag>
             {hasFilters ? <Tag color="purple">筛选 {filteredItems.length}</Tag> : null}
             {selectedItemIds.length > 0 ? <Tag color="gold">已选 {selectedItemIds.length}</Tag> : null}
           </div>

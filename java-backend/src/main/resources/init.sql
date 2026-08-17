@@ -372,7 +372,7 @@ CREATE TABLE IF NOT EXISTS qr_codes (
     title VARCHAR(80) NOT NULL,
     description VARCHAR(255) NULL,
     short_code VARCHAR(24) NOT NULL UNIQUE,
-    target_url VARCHAR(500) NOT NULL,
+    target_url VARCHAR(500) NULL,
     content_type VARCHAR(20) NOT NULL DEFAULT 'URL',
     html_content MEDIUMTEXT NULL,
     total_scan_count BIGINT NOT NULL DEFAULT 0,
@@ -389,6 +389,7 @@ CREATE TABLE IF NOT EXISTS qr_codes (
 CREATE TABLE IF NOT EXISTS qr_scan_logs (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     qr_code_id BIGINT NOT NULL,
+    access_id VARCHAR(80) NULL,
     user_id BIGINT NULL,
     visitor_id VARCHAR(80) NULL,
     session_id VARCHAR(80) NULL,
@@ -396,7 +397,8 @@ CREATE TABLE IF NOT EXISTS qr_scan_logs (
     device_type VARCHAR(30) NULL,
     user_agent VARCHAR(500) NULL,
     ip_address VARCHAR(120) NULL,
-    create_time DATETIME DEFAULT CURRENT_TIMESTAMP
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_qr_scan_logs_qr_access (qr_code_id, access_id)
 );
 
 CREATE TABLE IF NOT EXISTS site_notices (
