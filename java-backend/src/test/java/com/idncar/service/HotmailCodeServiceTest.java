@@ -453,6 +453,30 @@ class HotmailCodeServiceTest {
     }
 
     @Test
+    void extractCodeSupportsXaiAllLetterHyphenatedEmailCode() throws Exception {
+        String body = """
+                xAI logo
+                Validate your email
+
+                Thank you for creating an xAI account. Please use the code below to validate your email address.
+                HSW-QSQ
+
+                If you did not create a new account, please ignore this email.
+                """;
+
+        assertThat(invoke("extractCode", body)).isEqualTo("HSW-QSQ");
+        assertThat(invoke("extractCode", "Your verification code is HSW – QSQ"))
+                .isEqualTo("HSW-QSQ");
+    }
+
+    @Test
+    void extractCodeDoesNotTreatLowercaseHyphenatedPhraseAsCode() throws Exception {
+        String body = "Please verify your email in the web-app. No code is required.";
+
+        assertThat(invoke("extractCode", body)).isNull();
+    }
+
+    @Test
     void extractCodePrefersXaiHyphenatedCodeOverFooterYear() throws Exception {
         String body = """
                 xAI logo

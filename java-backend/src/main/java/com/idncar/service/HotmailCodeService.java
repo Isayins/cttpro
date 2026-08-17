@@ -110,6 +110,7 @@ public class HotmailCodeService {
     private static final Pattern STRICT_NUMERIC_CODE_PATTERN = Pattern.compile("\\b(\\d{6})\\b");
     private static final Pattern GENERAL_NUMERIC_CODE_PATTERN = Pattern.compile("\\b(\\d{4,8})\\b");
     private static final Pattern HYPHENATED_ALPHANUMERIC_CODE_PATTERN = Pattern.compile("\\b((?=[A-Z0-9\\s\\-\\u2013\\u2014]*\\d)[A-Z0-9]{2,4}\\s*[-\\u2013\\u2014]\\s*[A-Z0-9]{2,4})\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern UPPERCASE_THREE_BY_THREE_CODE_PATTERN = Pattern.compile("\\b([A-Z0-9]{3}\\s*[-\\u2013\\u2014]\\s*[A-Z0-9]{3})\\b");
     private static final Pattern GENERAL_ALPHANUMERIC_CODE_PATTERN = Pattern.compile("\\b([A-Z0-9]{6,8})\\b", Pattern.CASE_INSENSITIVE);
     private static final Pattern HREF_LINK_PATTERN = Pattern.compile("(?is)href\\s*=\\s*[\"']\\s*(https?://[^\"'\\s]+)");
     private static final Pattern PLAIN_LINK_PATTERN = Pattern.compile("(?i)https?://[^\\s\"'<>()\\[\\]{}）】]+");
@@ -1808,7 +1809,9 @@ public class HotmailCodeService {
                 return candidate;
             }
         }
-        return null;
+
+        Matcher uppercaseMatcher = UPPERCASE_THREE_BY_THREE_CODE_PATTERN.matcher(text);
+        return uppercaseMatcher.find() ? normalizeHyphenatedCode(uppercaseMatcher.group(1)) : null;
     }
 
     private String normalizeHyphenatedCode(String value) {
