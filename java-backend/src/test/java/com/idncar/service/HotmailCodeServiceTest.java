@@ -4,17 +4,25 @@ import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.idncar.exception.ApiException;
 import com.idncar.mapper.HotmailAccountMapper;
 import com.idncar.model.dto.HotmailAccountDto;
+import com.idncar.model.dto.HotmailCodeResult;
 import com.idncar.model.dto.ImportHotmailAccountsResponse;
 import com.idncar.model.entity.HotmailAccount;
 import com.idncar.util.HotmailCredentialCrypto;
+import jakarta.mail.AuthenticationFailedException;
+import jakarta.mail.Session;
+import jakarta.mail.Store;
 import org.mockito.ArgumentCaptor;
+import org.mockito.MockedStatic;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.lang.reflect.Field;
@@ -27,7 +35,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -148,6 +158,58 @@ class HotmailCodeServiceTest {
                 new Class<?>[]{RestClientResponseException.class},
                 exception
         )).asString().contains("service_abuse_mode");
+    }
+
+    @Test
+    void successfulEmptyApiResultsAreNotOverriddenByImapConnectionFailure() throws Exception {
+        HotmailAccountMapper hotmailAccountMapper = mock(HotmailAccountMapper.class);
+        UserAccessService userAccessService = mock(UserAccessService.class);
+        HotmailCredentialCrypto hotmailCredentialCrypto = mock(HotmailCredentialCrypto.class);
+        RestTemplate restTemplate = mock(RestTemplate.class);
+        Session mailSession = mock(Session.class);
+        Store store = mock(Store.class);
+
+        HotmailAccount account = new HotmailAccount();
+        account.setId(7L);
+        account.setUserId(3L);
+        account.setEmail("empty@hotmail.com");
+        account.setClientId("client-id");
+        account.setRefreshToken("refresh-token");
+
+        when(hotmailAccountMapper.selectById(7L)).thenReturn(account);
+        when(hotmailCredentialCrypto.decrypt(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(hotmailCredentialCrypto.encrypt(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(restTemplate.postForEntity(anyString(), any(), eq(String.class))).thenReturn(ResponseEntity.ok("""
+                {"access_token":"access-token","refresh_token":"refresh-token","expires_in":3600}
+                """));
+        when(restTemplate.exchange(any(URI.class), eq(HttpMethod.GET), any(), eq(String.class)))
+                .thenReturn(ResponseEntity.ok("{\"value\":[]}"));
+        when(mailSession.getStore("imap")).thenReturn(store);
+        doThrow(new AuthenticationFailedException("User is authenticated but not connected"))
+                .when(store).connect("outlook.office365.com", 993, account.getEmail(), "access-token");
+
+        setField("hotmailAccountMapper", hotmailAccountMapper);
+        setField("userAccessService", userAccessService);
+        setField("hotmailCredentialCrypto", hotmailCredentialCrypto);
+        setField("restTemplate", restTemplate);
+
+        try (MockedStatic<Session> sessionStatic = mockStatic(Session.class)) {
+            sessionStatic.when(() -> Session.getInstance(any())).thenReturn(mailSession);
+
+            HotmailCodeResult result = service.fetchLatestCode(3L, 7L);
+
+            assertThat(result.isFound()).isFalse();
+            assertThat(result.getError()).isEqualTo("最近邮件中未找到验证码");
+        }
+    }
+
+    @Test
+    void disconnectedImapSessionGetsActionableErrorMessage() throws Exception {
+        assertThat(invoke(
+                "cleanErrorMessage",
+                new Class<?>[]{Exception.class},
+                new AuthenticationFailedException("User is authenticated but not connected")
+        )).isEqualTo("邮箱已通过身份验证，但未能建立 IMAP 连接，请稍后重试并确认该邮箱已启用 IMAP");
     }
 
     @Test

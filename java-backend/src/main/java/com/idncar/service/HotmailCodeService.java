@@ -594,12 +594,14 @@ public class HotmailCodeService {
         TokenRefreshResult imapToken = null;
         TokenRefreshResult latestToken = null;
         List<String> errors = new ArrayList<>();
+        int successfulProviderCount = 0;
 
         try {
             graphToken = refreshAccessToken(account, GRAPH_SCOPE, TokenCache.GRAPH);
             rememberRefreshToken(account, graphToken);
             latestToken = graphToken;
             HotmailCodeResult result = fetchCodeFromGraph(graphToken.accessToken(), account, normalizedTargetEmail);
+            successfulProviderCount++;
             if (result.isFound()) {
                 persistFetchResult(account, graphToken, outlookToken, imapToken, latestToken, result);
                 return result;
@@ -614,6 +616,7 @@ public class HotmailCodeService {
             rememberRefreshToken(account, outlookToken);
             latestToken = outlookToken;
             HotmailCodeResult result = fetchCodeFromOutlookRest(outlookToken.accessToken(), account, normalizedTargetEmail);
+            successfulProviderCount++;
             if (result.isFound()) {
                 persistFetchResult(account, graphToken, outlookToken, imapToken, latestToken, result);
                 return result;
@@ -628,6 +631,7 @@ public class HotmailCodeService {
             rememberRefreshToken(account, imapToken);
             latestToken = imapToken;
             HotmailCodeResult result = fetchCodeFromImap(imapToken.accessToken(), account, normalizedTargetEmail);
+            successfulProviderCount++;
             if (result.isFound()) {
                 persistFetchResult(account, graphToken, outlookToken, imapToken, latestToken, result);
                 return result;
@@ -639,7 +643,9 @@ public class HotmailCodeService {
 
         HotmailCodeResult emptyResult = buildEmptyResult(account);
         emptyResult.setSource("none");
-        emptyResult.setError(errors.isEmpty() ? "最近邮件中未找到验证码" : String.join("；", errors));
+        emptyResult.setError(successfulProviderCount > 0 || errors.isEmpty()
+                ? "最近邮件中未找到验证码"
+                : String.join("；", errors));
         persistFetchResult(account, graphToken, outlookToken, imapToken, latestToken, emptyResult);
         return emptyResult;
     }
@@ -2272,6 +2278,9 @@ public class HotmailCodeService {
         String lowerCleaned = cleaned.toLowerCase(Locale.ROOT);
         if (lowerCleaned.contains("service_abuse_mode")) {
             return "微软风控（service_abuse_mode），请停止重试或清除该邮箱";
+        }
+        if (lowerCleaned.contains("user is authenticated but not connected")) {
+            return "邮箱已通过身份验证，但未能建立 IMAP 连接，请稍后重试并确认该邮箱已启用 IMAP";
         }
         if (lowerCleaned.contains("aadsts70000")
                 || lowerCleaned.contains("scopes requested are unauthorized or expired")
