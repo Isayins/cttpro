@@ -845,6 +845,30 @@ export interface HotmailCodeResult {
   folder?: string | null;
   error?: string | null;
   found: boolean;
+  /** 未识别到验证码时，从邮件中提取到的验证/激活链接。 */
+  link?: string | null;
+  /** 邮件正文的纯文本预览，供人工查看。 */
+  bodyPreview?: string | null;
+}
+
+export interface HotmailMessage {
+  id: string;
+  subject: string;
+  senderName: string;
+  senderEmail: string;
+  receivedTime?: string | null;
+  preview?: string | null;
+  bodyText?: string | null;
+  bodyTruncated: boolean;
+  read: boolean;
+  hasAttachments: boolean;
+}
+
+export interface HotmailMessagePageResponse {
+  messages: HotmailMessage[];
+  page: number;
+  size: number;
+  hasMore: boolean;
 }
 
 export interface HotmailPasswordResult {

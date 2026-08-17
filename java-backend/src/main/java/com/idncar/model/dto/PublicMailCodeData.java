@@ -17,12 +17,18 @@ public class PublicMailCodeData {
 
     private Date fetchTime;
 
+    private String link;
+
+    private String bodyPreview;
+
     public static PublicMailCodeData fromResult(PublicMailCodeResult result) {
         return new PublicMailCodeData(
                 result.getEmail(),
                 result.getCode() == null ? null : result.getCode().trim(),
                 result.getReceivedTime(),
-                result.getFetchTime()
+                result.getFetchTime(),
+                result.getLink(),
+                result.getBodyPreview()
         );
     }
 }

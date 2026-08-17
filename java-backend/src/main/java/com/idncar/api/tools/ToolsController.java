@@ -7,6 +7,8 @@ import com.idncar.model.dto.FetchHotmailCodesRequest;
 import com.idncar.model.dto.HotmailAccountDto;
 import com.idncar.model.dto.HotmailCodeResult;
 import com.idncar.model.dto.GenerateHotmailPublicLinkRequest;
+import com.idncar.model.dto.HotmailMessageDto;
+import com.idncar.model.dto.HotmailMessagePageResponse;
 import com.idncar.model.dto.HotmailPasswordResponse;
 import com.idncar.model.dto.ImportHotmailAccountsRequest;
 import com.idncar.model.dto.ImportHotmailAccountsResponse;
@@ -29,6 +31,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
@@ -159,6 +162,25 @@ public class ToolsController {
                 .header(HttpHeaders.PRAGMA, "no-cache")
                 .header(HttpHeaders.EXPIRES, "0")
                 .body(hotmailCodeService.getAccountPassword(userId, accountId));
+    }
+
+    @GetMapping("/hotmail/accounts/{accountId}/messages")
+    public ResponseEntity<HotmailMessagePageResponse> getHotmailMessages(
+            @RequestAttribute("userId") Long userId,
+            @PathVariable Long accountId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return ResponseEntity.ok(hotmailCodeService.getMailHistory(userId, accountId, page, size));
+    }
+
+    @GetMapping("/hotmail/accounts/{accountId}/messages/detail")
+    public ResponseEntity<HotmailMessageDto> getHotmailMessage(
+            @RequestAttribute("userId") Long userId,
+            @PathVariable Long accountId,
+            @RequestParam String messageId
+    ) {
+        return ResponseEntity.ok(hotmailCodeService.getMailHistoryMessage(userId, accountId, messageId));
     }
 
     @PostMapping("/hotmail/accounts/{accountId}/public-link")

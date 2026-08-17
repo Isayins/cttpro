@@ -26,6 +26,14 @@ public class PublicMailCodeFetchResponse {
         return new PublicMailCodeFetchResponse(CODE_WAITING, MESSAGE_WAITING, null);
     }
 
+    /**
+     * 未识别到验证码，但提取到了验证链接或正文预览：仍返回 601（外部取码方按“等待”处理），
+     * 同时携带链接/正文，方便自有页面展示给人工。
+     */
+    public static PublicMailCodeFetchResponse waiting(PublicMailCodeResult data) {
+        return new PublicMailCodeFetchResponse(CODE_WAITING, MESSAGE_WAITING, PublicMailCodeData.fromResult(data));
+    }
+
     public static PublicMailCodeFetchResponse error(int code, String message) {
         return new PublicMailCodeFetchResponse(code, message, null);
     }

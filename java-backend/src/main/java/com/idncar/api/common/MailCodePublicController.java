@@ -39,13 +39,27 @@ public class MailCodePublicController {
     }
 
     private ResponseEntity<PublicMailCodeFetchResponse> noStore(PublicMailCodeResult result) {
-        return noStoreResponse(hasVerificationCode(result)
-                ? PublicMailCodeFetchResponse.ok(result)
-                : PublicMailCodeFetchResponse.waiting());
+        if (hasVerificationCode(result)) {
+            return noStoreResponse(PublicMailCodeFetchResponse.ok(result));
+        }
+        // 没有验证码，但提取到验证链接/正文时，仍返回等待码，但携带上下文供页面展示。
+        if (hasFallbackContext(result)) {
+            return noStoreResponse(PublicMailCodeFetchResponse.waiting(result));
+        }
+        return noStoreResponse(PublicMailCodeFetchResponse.waiting());
     }
 
     private boolean hasVerificationCode(PublicMailCodeResult result) {
         return result != null && result.isFound() && result.getCode() != null && !result.getCode().isBlank();
+    }
+
+    private boolean hasFallbackContext(PublicMailCodeResult result) {
+        if (result == null) {
+            return false;
+        }
+        boolean hasLink = result.getLink() != null && !result.getLink().isBlank();
+        boolean hasBody = result.getBodyPreview() != null && !result.getBodyPreview().isBlank();
+        return hasLink || hasBody;
     }
 
     @ExceptionHandler(ApiException.class)

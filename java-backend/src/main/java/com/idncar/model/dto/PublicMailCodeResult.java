@@ -20,4 +20,8 @@ public class PublicMailCodeResult {
     private String error;
 
     private boolean found;
+
+    private String link;
+
+    private String bodyPreview;
 }

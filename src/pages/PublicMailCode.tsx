@@ -5,6 +5,7 @@ import { Link, useSearchParams } from "react-router-dom";
 
 import MainLayout from "../layouts/MainLayout";
 import { getErrorMessage } from "../lib/errorMessage";
+import { isAllowedWebTargetUrl } from "../lib/urlValidation";
 import { apiRequest } from "../services/api/client";
 import {
   MAIL_CODE_PUBLIC_TOKEN_PATTERN,
@@ -16,6 +17,8 @@ interface PublicMailCodeData {
   code?: string | null;
   receivedTime?: string | null;
   fetchTime?: string | null;
+  link?: string | null;
+  bodyPreview?: string | null;
 }
 
 interface PublicMailCodeFetchResponse {
@@ -73,6 +76,9 @@ function getFriendlyStatusText(response: PublicMailCodeFetchResponse | null) {
     return "验证码已获取";
   }
   if (response.code === WAITING_CODE) {
+    if (response.data?.link || response.data?.bodyPreview) {
+      return "未识别到验证码，已提取验证链接/正文";
+    }
     return "暂未发现验证码";
   }
   return getFriendlyApiMessage(response.message);
@@ -189,6 +195,18 @@ export default function PublicMailCode() {
     }
   }
 
+  async function copyText(text: string, successMessage = "已复制") {
+    if (!text) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      message.success(successMessage);
+    } catch {
+      message.warning("复制失败，请手动复制");
+    }
+  }
+
   return (
     <MainLayout>
       <div className="mx-auto max-w-3xl py-10">
@@ -232,6 +250,52 @@ export default function PublicMailCode() {
                   className="[&_.ant-input]:font-mono [&_.ant-input]:text-xl"
                 />
               </div>
+
+              {!code && (response?.data?.link || response?.data?.bodyPreview) ? (
+                <div className="mt-4 space-y-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <div className="text-sm font-medium text-amber-700">未识别到验证码，已为你提取以下信息</div>
+                  {response?.data?.link ? (
+                    <div className="space-y-1">
+                      <div className="text-xs text-slate-500">验证链接</div>
+                      <div className="flex items-center gap-2">
+                        {isAllowedWebTargetUrl(response.data.link) ? (
+                          <a
+                            href={response.data.link}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="min-w-0 flex-1 truncate text-sm text-blue-600"
+                            title={response.data.link}
+                          >
+                            {response.data.link}
+                          </a>
+                        ) : (
+                          <span
+                            className="min-w-0 flex-1 truncate text-sm text-slate-600"
+                            title={response.data.link}
+                          >
+                            {response.data.link}
+                          </span>
+                        )}
+                        <Button
+                          size="small"
+                          icon={<CopyOutlined />}
+                          onClick={() => void copyText(response.data?.link ?? "", "验证链接已复制")}
+                        >
+                          复制
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+                  {response?.data?.bodyPreview ? (
+                    <div className="space-y-1">
+                      <div className="text-xs text-slate-500">邮件正文预览</div>
+                      <div className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-white/80 p-3 text-xs text-slate-600">
+                        {response.data.bodyPreview}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
 
               {response?.data ? (
                 <div className="mt-4 grid gap-3 rounded-2xl bg-slate-50 p-4 text-xs text-slate-500 sm:grid-cols-2">

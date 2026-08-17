@@ -5,6 +5,8 @@ import com.idncar.exception.ApiException;
 import com.idncar.mapper.HotmailAccountMapper;
 import com.idncar.model.dto.HotmailAccountDto;
 import com.idncar.model.dto.HotmailCodeResult;
+import com.idncar.model.dto.HotmailMessageDto;
+import com.idncar.model.dto.HotmailMessagePageResponse;
 import com.idncar.model.dto.ImportHotmailAccountsResponse;
 import com.idncar.model.entity.HotmailAccount;
 import com.idncar.util.HotmailCredentialCrypto;
@@ -34,13 +36,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 
 class HotmailCodeServiceTest {
 
@@ -488,6 +491,138 @@ class HotmailCodeServiceTest {
     }
 
     @Test
+    void bodyPreviewPreservesReadableLinesAndDropsNonContentHtml() throws Exception {
+        String body = """
+                <html>
+                  <head>
+                    <style>.code { color: red; }</style>
+                    <script>alert('tracking')</script>
+                  </head>
+                  <body>
+                    <h1>Verify your email</h1>
+                    <p>Your code is <strong>123456</strong>.</p>
+                    <p>Expires in 10&nbsp;minutes.</p>
+                  </body>
+                </html>
+                """;
+
+        assertThat(invoke("buildBodyPreview", body))
+                .isEqualTo("Verify your email\nYour code is 123456.\nExpires in 10 minutes.");
+    }
+
+    @Test
+    void mailHistoryReturnsPagedSummariesWithoutLoadingFullBodies() throws Exception {
+        HotmailAccountMapper hotmailAccountMapper = mock(HotmailAccountMapper.class);
+        UserAccessService userAccessService = mock(UserAccessService.class);
+        HotmailCredentialCrypto hotmailCredentialCrypto = mock(HotmailCredentialCrypto.class);
+        RestTemplate restTemplate = mock(RestTemplate.class);
+        HotmailAccount account = historyAccount();
+
+        when(hotmailAccountMapper.selectById(7L)).thenReturn(account);
+        when(hotmailCredentialCrypto.decrypt(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(hotmailCredentialCrypto.encrypt(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(restTemplate.exchange(any(URI.class), eq(HttpMethod.GET), any(), eq(String.class)))
+                .thenReturn(ResponseEntity.ok("""
+                        {"value":[
+                          {"id":"m-1","subject":"First","from":{"emailAddress":{"name":"A","address":"a@example.com"}},"receivedDateTime":"2026-08-17T01:00:00Z","bodyPreview":"Preview one","isRead":true,"hasAttachments":false},
+                          {"id":"m-2","subject":"Second","from":{"emailAddress":{"name":"B","address":"b@example.com"}},"receivedDateTime":"2026-08-17T00:00:00Z","bodyPreview":"Preview two","isRead":false,"hasAttachments":true},
+                          {"id":"m-3","subject":"Third","from":{"emailAddress":{"name":"C","address":"c@example.com"}},"receivedDateTime":"2026-08-16T23:00:00Z","bodyPreview":"Preview three","isRead":true,"hasAttachments":false}
+                        ]}
+                        """));
+
+        setField("hotmailAccountMapper", hotmailAccountMapper);
+        setField("userAccessService", userAccessService);
+        setField("hotmailCredentialCrypto", hotmailCredentialCrypto);
+        setField("restTemplate", restTemplate);
+
+        HotmailMessagePageResponse response = service.getMailHistory(3L, 7L, 2, 2);
+
+        assertThat(response.getPage()).isEqualTo(2);
+        assertThat(response.getSize()).isEqualTo(2);
+        assertThat(response.isHasMore()).isTrue();
+        assertThat(response.getMessages()).hasSize(2);
+        assertThat(response.getMessages().get(0).getSenderEmail()).isEqualTo("a@example.com");
+        assertThat(response.getMessages().get(0).getBodyText()).isNull();
+    }
+
+    @Test
+    void mailHistoryDetailReturnsReadableFullBody() throws Exception {
+        HotmailAccountMapper hotmailAccountMapper = mock(HotmailAccountMapper.class);
+        UserAccessService userAccessService = mock(UserAccessService.class);
+        HotmailCredentialCrypto hotmailCredentialCrypto = mock(HotmailCredentialCrypto.class);
+        RestTemplate restTemplate = mock(RestTemplate.class);
+        HotmailAccount account = historyAccount();
+
+        when(hotmailAccountMapper.selectById(7L)).thenReturn(account);
+        when(hotmailCredentialCrypto.decrypt(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(hotmailCredentialCrypto.encrypt(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(restTemplate.exchange(
+                argThat((URI uri) -> uri.toString().contains("m%2F1")
+                        && uri.toString().contains("isRead,hasAttachments")),
+                eq(HttpMethod.GET),
+                any(),
+                eq(String.class)))
+                .thenReturn(ResponseEntity.ok("""
+                        {"id":"m/1","subject":"Verify","from":{"emailAddress":{"name":"A","address":"a@example.com"}},"receivedDateTime":"2026-08-17T01:00:00Z","bodyPreview":"One Two","body":{"contentType":"html","content":"<p>One<br>Two</p><script>bad()</script>"},"isRead":true,"hasAttachments":true}
+                        """));
+
+        setField("hotmailAccountMapper", hotmailAccountMapper);
+        setField("userAccessService", userAccessService);
+        setField("hotmailCredentialCrypto", hotmailCredentialCrypto);
+        setField("restTemplate", restTemplate);
+
+        HotmailMessageDto message = service.getMailHistoryMessage(3L, 7L, "m/1");
+
+        assertThat(message.getId()).isEqualTo("m/1");
+        assertThat(message.getBodyText()).isEqualTo("One\nTwo");
+        assertThat(message.getBodyText()).doesNotContain("script", "bad");
+        assertThat(message.isRead()).isTrue();
+        assertThat(message.isHasAttachments()).isTrue();
+    }
+
+    private HotmailAccount historyAccount() {
+        HotmailAccount account = new HotmailAccount();
+        account.setId(7L);
+        account.setUserId(3L);
+        account.setEmail("history@hotmail.com");
+        account.setRefreshToken("refresh-token");
+        account.setAccessToken("access-token");
+        account.setTokenExpiresAt(new Date(System.currentTimeMillis() + 3_600_000));
+        return account;
+    }
+
+    @Test
+    void extractVerificationLinkPrefersVerifyLinkOverNoise() throws Exception {
+        String body = """
+                <p>Please confirm your email address.</p>
+                <a href="https://example.com/unsubscribe?u=1">Unsubscribe</a>
+                <a href="https://track.example.com/pixel.png">img</a>
+                <a href="https://auth.example.com/verify?token=abc123">Verify email</a>
+                """;
+
+        assertThat(invoke("extractVerificationLink", body))
+                .isEqualTo("https://auth.example.com/verify?token=abc123");
+    }
+
+    @Test
+    void extractVerificationLinkFallsBackToFirstUsablePlainUrl() throws Exception {
+        String body = "Open this page to continue: https://example.com/session/9f8a to finish sign up.";
+
+        assertThat(invoke("extractVerificationLink", body))
+                .isEqualTo("https://example.com/session/9f8a");
+    }
+
+    @Test
+    void extractVerificationLinkReturnsNullWhenOnlyNoiseLinksPresent() throws Exception {
+        String body = """
+                <a href="https://example.com/unsubscribe">Unsubscribe</a>
+                <a href="https://cdn.example.com/logo.png">logo</a>
+                """;
+
+        assertThat(invoke("extractVerificationLink", body)).isNull();
+    }
+
+    @Test
     void disablePublicCodeLinkClearsPublicFieldsWithExplicitNullUpdate() throws Exception {
         HotmailAccountMapper hotmailAccountMapper = mock(HotmailAccountMapper.class);
         UserAccessService userAccessService = mock(UserAccessService.class);
@@ -543,6 +678,71 @@ class HotmailCodeServiceTest {
         assertThat(updatedAccount.getPublicCodeUid()).matches("^[0-9a-f]{20}$");
         verify(hotmailAccountMapper).update(eq(null), any(UpdateWrapper.class));
         verify(hotmailAccountMapper, never()).updateById(any(HotmailAccount.class));
+    }
+
+    @Test
+    void softFallbackResultClearsStaleCachedCodeSoPublicCacheCannotResendIt() throws Exception {
+        HotmailAccountMapper hotmailAccountMapper = mock(HotmailAccountMapper.class);
+        setField("hotmailAccountMapper", hotmailAccountMapper);
+
+        HotmailAccount account = new HotmailAccount();
+        account.setId(21L);
+        account.setUserId(3L);
+        account.setEmail("cache@hotmail.com");
+        account.setLastCode("123456"); // 上一次成功取到的旧验证码
+        account.setLastCodeTime(new Date());
+
+        HotmailCodeResult softResult = new HotmailCodeResult();
+        softResult.setFound(false);
+        softResult.setLink("https://auth.example.com/verify?token=abc");
+        softResult.setBodyPreview("Please verify your email.");
+        softResult.setError(null);
+
+        invokePersistFetchResult(account, softResult);
+
+        assertThat(account.getLastCode()).isNull();
+        assertThat(account.getLastCodeTime()).isNull();
+        assertThat(account.getLastError()).isNull();
+        verify(hotmailAccountMapper).updateById(account);
+    }
+
+    @Test
+    void normalNotFoundResultKeepsCachedCodeForAdminDisplay() throws Exception {
+        HotmailAccountMapper hotmailAccountMapper = mock(HotmailAccountMapper.class);
+        setField("hotmailAccountMapper", hotmailAccountMapper);
+
+        HotmailAccount account = new HotmailAccount();
+        account.setId(22L);
+        account.setUserId(3L);
+        account.setEmail("keep@hotmail.com");
+        account.setLastCode("654321");
+
+        HotmailCodeResult emptyResult = new HotmailCodeResult();
+        emptyResult.setFound(false);
+        emptyResult.setError("最近邮件中未找到验证码");
+
+        invokePersistFetchResult(account, emptyResult);
+
+        assertThat(account.getLastCode()).isEqualTo("654321");
+        assertThat(account.getLastError()).isEqualTo("最近邮件中未找到验证码");
+    }
+
+    private void invokePersistFetchResult(HotmailAccount account, HotmailCodeResult result) throws Exception {
+        Class<?> tokenClass = null;
+        for (Class<?> declared : HotmailCodeService.class.getDeclaredClasses()) {
+            if (declared.getSimpleName().equals("TokenRefreshResult")) {
+                tokenClass = declared;
+                break;
+            }
+        }
+        if (tokenClass == null) {
+            throw new IllegalStateException("TokenRefreshResult class not found");
+        }
+        Method method = HotmailCodeService.class.getDeclaredMethod(
+                "persistFetchResult",
+                HotmailAccount.class, tokenClass, tokenClass, tokenClass, tokenClass, HotmailCodeResult.class);
+        method.setAccessible(true);
+        method.invoke(service, account, null, null, null, null, result);
     }
 
     private Object parse(String line) throws Exception {

@@ -1,6 +1,8 @@
 import type {
   HotmailAccount,
   HotmailCodeResult,
+  HotmailMessage,
+  HotmailMessagePageResponse,
   HotmailPasswordResult,
   ImportHotmailResponse,
   JavaDecompilePayload,
@@ -74,6 +76,30 @@ export const toolsApi = {
     apiRequest<HotmailAccount[]>("/api/tools/hotmail/accounts", {
       authMode: "required",
     }),
+
+  getHotmailMessages: (accountId: number, page: number, size: number) => {
+    const searchParams = new URLSearchParams({ page: String(page), size: String(size) });
+    return apiRequest<HotmailMessagePageResponse>(
+      `/api/tools/hotmail/accounts/${accountId}/messages?${searchParams.toString()}`,
+      {
+        authMode: "required",
+        cache: "no-store",
+        timeoutMs: 90_000,
+      },
+    );
+  },
+
+  getHotmailMessage: (accountId: number, messageId: string) => {
+    const searchParams = new URLSearchParams({ messageId });
+    return apiRequest<HotmailMessage>(
+      `/api/tools/hotmail/accounts/${accountId}/messages/detail?${searchParams.toString()}`,
+      {
+        authMode: "required",
+        cache: "no-store",
+        timeoutMs: 90_000,
+      },
+    );
+  },
 
   updateHotmailAccountMetadata: (accountId: number, payload: UpdateHotmailAccountMetadataPayload) =>
     apiRequest<HotmailAccount>(`/api/tools/hotmail/accounts/${accountId}/metadata`, {

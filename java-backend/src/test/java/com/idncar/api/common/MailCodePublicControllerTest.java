@@ -134,7 +134,29 @@ class MailCodePublicControllerTest {
         assertThat(response.getBody().getData().getCode()).isEqualTo("123456");
         assertThat(response.getBody().getData().getEmail()).isEqualTo("example@hotmail.com");
         assertThat(response.getBody().getData())
-                .hasOnlyFields("email", "code", "receivedTime", "fetchTime");
+                .hasOnlyFields("email", "code", "receivedTime", "fetchTime", "link", "bodyPreview");
+    }
+
+    @Test
+    void fetchCodeReturnsWaitingWithLinkWhenCodeMissingButLinkFound() {
+        PublicMailCodeResult result = new PublicMailCodeResult();
+        result.setFound(false);
+        result.setEmail("example@hotmail.com");
+        result.setLink("https://auth.example.com/verify?token=abc123");
+        result.setBodyPreview("Please confirm your email address.");
+        when(hotmailCodeService.fetchLatestCodeByPublicTokenAndUid(FETCH_TOKEN, FETCH_UID))
+                .thenReturn(result);
+
+        ResponseEntity<PublicMailCodeFetchResponse> response = controller.fetchCode(FETCH_TOKEN, FETCH_UID);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertNoStoreHeaders(response);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getCode()).isEqualTo(PublicMailCodeFetchResponse.CODE_WAITING);
+        assertThat(response.getBody().getData()).isNotNull();
+        assertThat(response.getBody().getData().getCode()).isNull();
+        assertThat(response.getBody().getData().getLink()).isEqualTo("https://auth.example.com/verify?token=abc123");
+        assertThat(response.getBody().getData().getBodyPreview()).isEqualTo("Please confirm your email address.");
     }
 
     @Test

@@ -12,12 +12,15 @@ import com.idncar.model.dto.BatchUpdateHotmailAccountRegistrationRequest;
 import com.idncar.model.dto.HotmailAccountDto;
 import com.idncar.model.dto.HotmailCodeResult;
 import com.idncar.model.dto.HotmailImportFailure;
+import com.idncar.model.dto.HotmailMessageDto;
+import com.idncar.model.dto.HotmailMessagePageResponse;
 import com.idncar.model.dto.HotmailPasswordResponse;
 import com.idncar.model.dto.ImportHotmailAccountsResponse;
 import com.idncar.model.dto.PublicMailCodeResult;
 import com.idncar.model.dto.UpdateHotmailAccountMetadataRequest;
 import com.idncar.model.entity.HotmailAccount;
 import com.idncar.util.HotmailCredentialCrypto;
+import jakarta.annotation.PreDestroy;
 import jakarta.mail.Address;
 import jakarta.mail.Folder;
 import jakarta.mail.Message;
@@ -65,6 +68,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -107,6 +111,14 @@ public class HotmailCodeService {
     private static final Pattern GENERAL_NUMERIC_CODE_PATTERN = Pattern.compile("\\b(\\d{4,8})\\b");
     private static final Pattern HYPHENATED_ALPHANUMERIC_CODE_PATTERN = Pattern.compile("\\b((?=[A-Z0-9\\s\\-\\u2013\\u2014]*\\d)[A-Z0-9]{2,4}\\s*[-\\u2013\\u2014]\\s*[A-Z0-9]{2,4})\\b", Pattern.CASE_INSENSITIVE);
     private static final Pattern GENERAL_ALPHANUMERIC_CODE_PATTERN = Pattern.compile("\\b([A-Z0-9]{6,8})\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern HREF_LINK_PATTERN = Pattern.compile("(?is)href\\s*=\\s*[\"']\\s*(https?://[^\"'\\s]+)");
+    private static final Pattern PLAIN_LINK_PATTERN = Pattern.compile("(?i)https?://[^\\s\"'<>()\\[\\]{}）】]+");
+    private static final Pattern VERIFICATION_LINK_HINT_PATTERN = Pattern.compile("(?i)verif|confirm|activat|validat|magic|reset|token|oauth|signin|sign-in|login|log-in|auth|/code|account|secure|redeem|invite|welcome");
+    private static final Pattern LINK_NOISE_PATTERN = Pattern.compile("(?i)unsubscribe|/unsub|privacy|terms|policy|/legal|help(?:center)?|support|facebook\\.com|twitter\\.com|x\\.com|instagram\\.com|linkedin\\.com|youtube\\.com|t\\.me|whatsapp|\\.(?:png|jpe?g|gif|webp|svg|css|js|ico|woff2?)(?:[?#]|$)");
+    private static final int BODY_PREVIEW_MAX_LENGTH = 600;
+    private static final int MAIL_HISTORY_MAX_PAGE_SIZE = 50;
+    private static final int MAIL_BODY_MAX_LENGTH = 200_000;
+    private static final int MAIL_MESSAGE_ID_MAX_LENGTH = 2048;
     private static final Pattern PUBLIC_CODE_TOKEN_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{16,80}$");
     private static final Pattern PUBLIC_CODE_UID_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{8,80}$");
     private static final Pattern PUBLIC_CODE_FETCH_TOKEN_PATTERN = Pattern.compile("^[0-9a-f]{32}$");
@@ -146,6 +158,8 @@ public class HotmailCodeService {
     private final RestTemplate restTemplate = buildRestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final SecureRandom secureRandom = new SecureRandom();
+    // 共享的有界线程池，取代原先每个批量请求都新建/销毁线程池的做法，避免高并发下线程无上限累积。
+    private final ExecutorService fetchExecutor = buildFetchExecutor();
     private final Object[] publicCodeFetchLocks = buildPublicCodeFetchLocks();
     private final ConcurrentMap<String, PublicCodeRateLimitWindow> publicCodeRateLimitWindows = new ConcurrentHashMap<>();
 
@@ -154,6 +168,28 @@ public class HotmailCodeService {
         requestFactory.setConnectTimeout(HTTP_CONNECT_TIMEOUT_MS);
         requestFactory.setReadTimeout(HTTP_READ_TIMEOUT_MS);
         return new RestTemplate(requestFactory);
+    }
+
+    private static ExecutorService buildFetchExecutor() {
+        AtomicInteger threadCounter = new AtomicInteger(1);
+        return Executors.newFixedThreadPool(MAX_PARALLEL_FETCHES, runnable -> {
+            Thread thread = new Thread(runnable, "hotmail-fetch-" + threadCounter.getAndIncrement());
+            thread.setDaemon(true);
+            return thread;
+        });
+    }
+
+    @PreDestroy
+    void shutdownFetchExecutor() {
+        fetchExecutor.shutdown();
+        try {
+            if (!fetchExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                fetchExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            fetchExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 
     public List<HotmailAccountDto> getAccounts(Long userId) {
@@ -434,6 +470,149 @@ public class HotmailCodeService {
         return response;
     }
 
+    public HotmailMessagePageResponse getMailHistory(Long userId, Long accountId, int page, int size) {
+        userAccessService.requireActiveUser(userId);
+        HotmailAccount account = getOwnedAccount(userId, accountId);
+        int normalizedPage = requireHistoryPage(page);
+        int normalizedSize = requireHistoryPageSize(size);
+
+        try {
+            TokenRefreshResult graphToken = refreshAccessToken(account, GRAPH_SCOPE, TokenCache.GRAPH);
+            JsonNode response = fetchJson(
+                    buildMailHistoryUrl(normalizedPage, normalizedSize),
+                    buildGraphMailRequest(graphToken.accessToken())
+            );
+            HotmailMessagePageResponse result = parseMailHistoryPage(response, normalizedPage, normalizedSize);
+            persistGraphToken(account, graphToken);
+            return result;
+        } catch (ApiException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("Graph mail history fetch failed: {}", account.getEmail(), e);
+            throw ApiException.badGateway("读取历史邮件失败：" + cleanErrorMessage(e));
+        }
+    }
+
+    public HotmailMessageDto getMailHistoryMessage(Long userId, Long accountId, String messageId) {
+        userAccessService.requireActiveUser(userId);
+        HotmailAccount account = getOwnedAccount(userId, accountId);
+        String normalizedMessageId = requireMailMessageId(messageId);
+
+        try {
+            TokenRefreshResult graphToken = refreshAccessToken(account, GRAPH_SCOPE, TokenCache.GRAPH);
+            JsonNode response = fetchJson(
+                    buildSingleMessageUrl(GRAPH_MESSAGES_URL, normalizedMessageId, false),
+                    buildGraphMailRequest(graphToken.accessToken())
+            );
+            HotmailMessageDto result = toHotmailMessage(response, true);
+            if (result == null || result.getId() == null || result.getId().isBlank()) {
+                throw ApiException.notFound("邮件不存在或已被删除");
+            }
+            persistGraphToken(account, graphToken);
+            return result;
+        } catch (ApiException e) {
+            throw e;
+        } catch (RestClientResponseException e) {
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                throw ApiException.notFound("邮件不存在或已被删除");
+            }
+            log.warn("Graph mail detail fetch failed: {}", account.getEmail(), e);
+            throw ApiException.badGateway("读取邮件正文失败：" + cleanErrorMessage(e));
+        } catch (Exception e) {
+            log.warn("Graph mail detail fetch failed: {}", account.getEmail(), e);
+            throw ApiException.badGateway("读取邮件正文失败：" + cleanErrorMessage(e));
+        }
+    }
+
+    private int requireHistoryPage(int page) {
+        if (page < 1) {
+            throw ApiException.badRequest("页码必须大于 0");
+        }
+        return page;
+    }
+
+    private int requireHistoryPageSize(int size) {
+        if (size < 1 || size > MAIL_HISTORY_MAX_PAGE_SIZE) {
+            throw ApiException.badRequest("每页邮件数量必须在 1 到 " + MAIL_HISTORY_MAX_PAGE_SIZE + " 之间");
+        }
+        return size;
+    }
+
+    private String requireMailMessageId(String messageId) {
+        String normalized = messageId == null ? "" : messageId.trim();
+        if (normalized.isEmpty() || normalized.length() > MAIL_MESSAGE_ID_MAX_LENGTH) {
+            throw ApiException.badRequest("邮件编号无效");
+        }
+        return normalized;
+    }
+
+    private HttpEntity<Void> buildGraphMailRequest(String accessToken) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(accessToken);
+        headers.add("Prefer", "outlook.body-content-type=\"text\"");
+        return new HttpEntity<>(headers);
+    }
+
+    private String buildMailHistoryUrl(int page, int size) {
+        long skip = (long) (page - 1) * size;
+        return GRAPH_MESSAGES_URL
+                + "?$top=" + (size + 1)
+                + "&$skip=" + skip
+                + "&$orderby=receivedDateTime%20desc"
+                + "&$select=id,subject,from,receivedDateTime,bodyPreview,isRead,hasAttachments";
+    }
+
+    private HotmailMessagePageResponse parseMailHistoryPage(JsonNode response, int page, int size) {
+        if (response == null || !response.path("value").isArray()) {
+            return new HotmailMessagePageResponse(List.of(), page, size, false);
+        }
+
+        List<HotmailMessageDto> messages = new ArrayList<>();
+        for (JsonNode message : response.path("value")) {
+            HotmailMessageDto dto = toHotmailMessage(message, false);
+            if (dto != null && dto.getId() != null && !dto.getId().isBlank()) {
+                messages.add(dto);
+            }
+        }
+        boolean hasMore = messages.size() > size;
+        List<HotmailMessageDto> pageMessages = hasMore
+                ? List.copyOf(messages.subList(0, size))
+                : List.copyOf(messages);
+        return new HotmailMessagePageResponse(pageMessages, page, size, hasMore);
+    }
+
+    private HotmailMessageDto toHotmailMessage(JsonNode message, boolean includeBody) {
+        if (message == null || message.isMissingNode() || message.isNull()) {
+            return null;
+        }
+
+        HotmailMessageDto dto = new HotmailMessageDto();
+        dto.setId(message.path("id").asText(""));
+        dto.setSubject(message.path("subject").asText(""));
+        JsonNode sender = message.path("from").path("emailAddress");
+        dto.setSenderName(sender.path("name").asText(""));
+        dto.setSenderEmail(sender.path("address").asText(""));
+        dto.setReceivedTime(parseGraphDate(message.path("receivedDateTime").asText(null)));
+        dto.setRead(message.path("isRead").asBoolean(false));
+        dto.setHasAttachments(message.path("hasAttachments").asBoolean(false));
+        dto.setPreview(buildBodyPreview(message.path("bodyPreview").asText("")));
+
+        if (includeBody) {
+            String rawBody = message.path("body").path("content").asText("");
+            String bodyText = normalizeMessageText(rawBody.isBlank() ? message.path("bodyPreview").asText("") : rawBody);
+            dto.setBodyTruncated(bodyText.length() > MAIL_BODY_MAX_LENGTH);
+            dto.setBodyText(bodyText.isBlank() ? null : truncate(bodyText, MAIL_BODY_MAX_LENGTH));
+        }
+        return dto;
+    }
+
+    private void persistGraphToken(HotmailAccount account, TokenRefreshResult graphToken) {
+        rememberRefreshToken(account, graphToken);
+        setCachedToken(account, TokenCache.GRAPH, graphToken);
+        account.setUpdateTime(new Date());
+        hotmailAccountMapper.updateById(account);
+    }
+
     public HotmailAccountDto generatePublicCodeLink(Long userId, Long accountId, String targetEmail) {
         userAccessService.requireActiveUser(userId);
         synchronized (getPublicCodeFetchLock(accountId)) {
@@ -595,6 +774,8 @@ public class HotmailCodeService {
         TokenRefreshResult latestToken = null;
         List<String> errors = new ArrayList<>();
         int successfulProviderCount = 0;
+        // 没取到验证码时，保留信息量最高的回退结果（验证链接 / 正文预览）。
+        HotmailCodeResult fallbackResult = null;
 
         try {
             graphToken = refreshAccessToken(account, GRAPH_SCOPE, TokenCache.GRAPH);
@@ -606,6 +787,7 @@ public class HotmailCodeService {
                 persistFetchResult(account, graphToken, outlookToken, imapToken, latestToken, result);
                 return result;
             }
+            fallbackResult = betterResult(fallbackResult, result);
         } catch (Exception e) {
             log.warn("Graph mailbox code fetch failed: {}", account.getEmail(), e);
             errors.add("Graph: " + cleanErrorMessage(e));
@@ -621,6 +803,7 @@ public class HotmailCodeService {
                 persistFetchResult(account, graphToken, outlookToken, imapToken, latestToken, result);
                 return result;
             }
+            fallbackResult = betterResult(fallbackResult, result);
         } catch (Exception e) {
             log.warn("Outlook REST mailbox code fetch failed: {}", account.getEmail(), e);
             errors.add("Outlook REST: " + cleanErrorMessage(e));
@@ -636,9 +819,17 @@ public class HotmailCodeService {
                 persistFetchResult(account, graphToken, outlookToken, imapToken, latestToken, result);
                 return result;
             }
+            fallbackResult = betterResult(fallbackResult, result);
         } catch (Exception e) {
             log.warn("Outlook IMAP mailbox code fetch failed: {}", account.getEmail(), e);
             errors.add("IMAP: " + cleanErrorMessage(e));
+        }
+
+        if (resultScore(fallbackResult) > 0) {
+            // 没有验证码，但识别到了验证链接或正文：作为可用结果返回，不再当作错误。
+            fallbackResult.setError(null);
+            persistFetchResult(account, graphToken, outlookToken, imapToken, latestToken, fallbackResult);
+            return fallbackResult;
         }
 
         HotmailCodeResult emptyResult = buildEmptyResult(account);
@@ -662,28 +853,18 @@ public class HotmailCodeService {
             return List.of();
         }
 
-        ExecutorService executor = Executors.newFixedThreadPool(Math.min(MAX_PARALLEL_FETCHES, accounts.size()));
-        try {
-            List<CompletableFuture<HotmailCodeResult>> futures = accounts.stream()
-                    .map(account -> CompletableFuture.supplyAsync(() -> {
-                        try {
-                            return fetchLatestCodeForAccount(account);
-                        } catch (Exception e) {
-                            log.warn("Failed to fetch mailbox code in batch: {}", account.getEmail(), e);
-                            return buildFailureResult(account, cleanErrorMessage(e));
-                        }
-                    }, executor))
-                    .toList();
+        List<CompletableFuture<HotmailCodeResult>> futures = accounts.stream()
+                .map(account -> CompletableFuture.supplyAsync(() -> {
+                    try {
+                        return fetchLatestCodeForAccount(account);
+                    } catch (Exception e) {
+                        log.warn("Failed to fetch mailbox code in batch: {}", account.getEmail(), e);
+                        return buildFailureResult(account, cleanErrorMessage(e));
+                    }
+                }, fetchExecutor))
+                .toList();
 
-            return futures.stream().map(CompletableFuture::join).toList();
-        } finally {
-            executor.shutdown();
-            try {
-                executor.awaitTermination(5, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
+        return futures.stream().map(CompletableFuture::join).toList();
     }
 
     public HotmailAccountDto checkAccount(Long userId, Long accountId) {
@@ -698,20 +879,10 @@ public class HotmailCodeService {
             return List.of();
         }
 
-        ExecutorService executor = Executors.newFixedThreadPool(Math.min(MAX_PARALLEL_FETCHES, accounts.size()));
-        try {
-            List<CompletableFuture<HotmailAccountDto>> futures = accounts.stream()
-                    .map(account -> CompletableFuture.supplyAsync(() -> checkAccountTokenScopes(account), executor))
-                    .toList();
-            return futures.stream().map(CompletableFuture::join).toList();
-        } finally {
-            executor.shutdown();
-            try {
-                executor.awaitTermination(5, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
+        List<CompletableFuture<HotmailAccountDto>> futures = accounts.stream()
+                .map(account -> CompletableFuture.supplyAsync(() -> checkAccountTokenScopes(account), fetchExecutor))
+                .toList();
+        return futures.stream().map(CompletableFuture::join).toList();
     }
 
     private HotmailAccountDto checkAccountTokenScopes(HotmailAccount account) {
@@ -1082,8 +1253,8 @@ public class HotmailCodeService {
 
     private String buildSingleMessageUrl(String baseUrl, String messageId, boolean outlookRest) {
         String select = outlookRest
-                ? "Id,Subject,From,ToRecipients,CcRecipients,BccRecipients,BodyPreview,Body,ReceivedDateTime"
-                : "id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,bodyPreview,body";
+                ? "Id,Subject,From,ToRecipients,CcRecipients,BccRecipients,BodyPreview,Body,ReceivedDateTime,IsRead,HasAttachments"
+                : "id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,bodyPreview,body,isRead,hasAttachments";
         return baseUrl
                 + "/" + UriUtils.encodePathSegment(messageId, StandardCharsets.UTF_8)
                 + "?$select=" + select;
@@ -1249,12 +1420,22 @@ public class HotmailCodeService {
         String subject = message.path(outlookRest ? "Subject" : "subject").asText("");
         String bodyPreview = message.path(outlookRest ? "BodyPreview" : "bodyPreview").asText("");
         String bodyContent = message.path(outlookRest ? "Body" : "body").path(outlookRest ? "Content" : "content").asText("");
-        String extractedCode = extractCode(subject + "\n" + bodyPreview + "\n" + bodyContent);
-        if (extractedCode == null) {
-            return null;
+        String combined = subject + "\n" + bodyPreview + "\n" + bodyContent;
+        String extractedCode = extractCode(combined);
+        if (extractedCode != null) {
+            return buildResultFromJsonMessage(account, message, outlookRest, source, folder, subject, extractedCode, combined);
         }
 
-        return buildResultFromJsonMessage(account, message, outlookRest, source, folder, subject, extractedCode);
+        // 未识别到验证码：若邮件与验证相关，则回退返回验证链接/正文预览，方便人工处理。
+        if (!containsVerificationKeyword(normalizeMessageText(combined))) {
+            return null;
+        }
+        String link = extractVerificationLink(combined);
+        String preview = buildBodyPreview(combined);
+        if (link == null && preview == null) {
+            return null;
+        }
+        return buildResultFromJsonMessage(account, message, outlookRest, source, folder, subject, null, combined);
     }
 
     private HotmailCodeResult buildResultFromJsonMessage(
@@ -1264,16 +1445,21 @@ public class HotmailCodeService {
             String source,
             String folder,
             String subject,
-            String code
+            String code,
+            String rawText
     ) {
         HotmailCodeResult result = new HotmailCodeResult();
         result.setAccountId(account.getId());
         result.setEmail(account.getEmail());
         result.setCode(code);
         result.setSubject(subject);
-        result.setFound(true);
+        result.setFound(code != null && !code.isBlank());
         result.setSource(source);
         result.setFolder(folder);
+        if (code == null || code.isBlank()) {
+            result.setLink(extractVerificationLink(rawText));
+            result.setBodyPreview(buildBodyPreview(rawText));
+        }
 
         JsonNode fromEmail = outlookRest
                 ? message.path("From").path("EmailAddress")
@@ -1423,17 +1609,25 @@ public class HotmailCodeService {
                     continue;
                 }
                 String subject = message.getSubject() == null ? "" : message.getSubject();
+                String combined = subject;
                 String extractedCode = extractCode(subject);
                 if (extractedCode == null && (containsVerificationKeyword(subject) || fallbackBodyReads < IMAP_BODY_FALLBACK_LIMIT)) {
                     fallbackBodyReads++;
                     String body = extractTextFromPart(message);
-                    extractedCode = extractCode(subject + "\n" + body);
+                    combined = subject + "\n" + body;
+                    extractedCode = extractCode(combined);
                 }
                 if (extractedCode == null) {
-                    continue;
+                    // 回退：验证相关邮件即使没有验证码，也返回链接/正文预览。
+                    if (!containsVerificationKeyword(normalizeMessageText(combined))) {
+                        continue;
+                    }
+                    if (extractVerificationLink(combined) == null && buildBodyPreview(combined) == null) {
+                        continue;
+                    }
                 }
 
-                HotmailCodeResult candidate = buildResultFromImapMessage(account, message, folder.getFullName(), subject, extractedCode);
+                HotmailCodeResult candidate = buildResultFromImapMessage(account, message, folder.getFullName(), subject, extractedCode, combined);
                 bestResult = betterResult(bestResult, candidate);
             }
             return bestResult;
@@ -1455,16 +1649,21 @@ public class HotmailCodeService {
             Message message,
             String folder,
             String subject,
-            String code
+            String code,
+            String rawText
     ) throws Exception {
         HotmailCodeResult result = new HotmailCodeResult();
         result.setAccountId(account.getId());
         result.setEmail(account.getEmail());
         result.setCode(code);
         result.setSubject(subject);
-        result.setFound(true);
+        result.setFound(code != null && !code.isBlank());
         result.setSource("IMAP");
         result.setFolder(folder);
+        if (code == null || code.isBlank()) {
+            result.setLink(extractVerificationLink(rawText));
+            result.setBodyPreview(buildBodyPreview(rawText));
+        }
 
         Address[] from = message.getFrom();
         if (from != null && from.length > 0) {
@@ -1640,11 +1839,91 @@ public class HotmailCodeService {
     }
 
     private String normalizeMessageText(String text) {
-        String withoutTags = text
-                .replaceAll("(?is)<(script|style)[^>]*>.*?</\\1>", " ")
-                .replaceAll("(?s)<[^>]+>", " ");
-        String unescaped = HtmlUtils.htmlUnescape(withoutTags);
-        return unescaped.replace('\u00A0', ' ').replaceAll("\\s+", " ").trim();
+        String withoutMarkup = text
+                .replaceAll("(?is)<(script|style)[^>]*>.*?</\\1>", "")
+                .replaceAll("(?i)<br\\s*/?>", "\n")
+                .replaceAll("(?i)</(?:p|div|h[1-6]|li|tr|table|section|article|blockquote|pre)\\s*>", "\n")
+                .replaceAll("(?i)</(?:td|th)\\s*>", "\t")
+                .replaceAll("(?s)<[^>]+>", "");
+        String unescaped = HtmlUtils.htmlUnescape(withoutMarkup)
+                .replace("\r\n", "\n")
+                .replace('\r', '\n')
+                .replace('\u00A0', ' ');
+        return unescaped
+                .replaceAll("[\\p{Zs}\\t\\x0B\\f]+", " ")
+                .replaceAll(" *\n *", "\n")
+                .replaceAll(" +([,.;:!?，。；：！？])", "$1")
+                .replaceAll("\n{2,}", "\n")
+                .trim();
+    }
+
+    /**
+     * \u90AE\u4EF6\u91CC\u6CA1\u6709\u9A8C\u8BC1\u7801\u65F6\uFF0C\u5C1D\u8BD5\u63D0\u53D6\u4E00\u4E2A\u53EF\u70B9\u51FB\u7684\u9A8C\u8BC1/\u6FC0\u6D3B\u94FE\u63A5\u3002\u4F18\u5148\u8FD4\u56DE\u5E26\u6709
+     * verify/confirm/activate \u7B49\u8BED\u4E49\u7684\u94FE\u63A5\uFF0C\u5176\u6B21\u8FD4\u56DE\u7B2C\u4E00\u4E2A\u975E\u566A\u97F3\uFF08\u9000\u8BA2\u3001\u9690\u79C1\u653F\u7B56\u3001\u56FE\u7247\u7B49\uFF09\u7684\u94FE\u63A5\u3002
+     */
+    String extractVerificationLink(String rawText) {
+        if (rawText == null || rawText.isBlank()) {
+            return null;
+        }
+
+        List<String> candidates = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+
+        Matcher hrefMatcher = HREF_LINK_PATTERN.matcher(rawText);
+        while (hrefMatcher.find()) {
+            addLinkCandidate(candidates, seen, hrefMatcher.group(1));
+        }
+        Matcher plainMatcher = PLAIN_LINK_PATTERN.matcher(rawText);
+        while (plainMatcher.find()) {
+            addLinkCandidate(candidates, seen, plainMatcher.group());
+        }
+
+        if (candidates.isEmpty()) {
+            return null;
+        }
+
+        String firstUsable = null;
+        for (String candidate : candidates) {
+            if (LINK_NOISE_PATTERN.matcher(candidate).find()) {
+                continue;
+            }
+            if (VERIFICATION_LINK_HINT_PATTERN.matcher(candidate).find()) {
+                return candidate;
+            }
+            if (firstUsable == null) {
+                firstUsable = candidate;
+            }
+        }
+        return firstUsable;
+    }
+
+    private void addLinkCandidate(List<String> candidates, Set<String> seen, String rawUrl) {
+        if (rawUrl == null) {
+            return;
+        }
+        String cleaned = HtmlUtils.htmlUnescape(rawUrl.trim());
+        // \u53BB\u6389\u5C3E\u90E8\u7684\u6807\u70B9\u6216\u5F15\u53F7\u6B8B\u7559
+        cleaned = cleaned.replaceAll("[\\s\"'>).,;\uFF0C\u3002\uFF1B\u3001]+$", "");
+        if (cleaned.length() < 12 || cleaned.length() > 2000) {
+            return;
+        }
+        if (seen.add(cleaned)) {
+            candidates.add(cleaned);
+        }
+    }
+
+    /**
+     * \u751F\u6210\u90AE\u4EF6\u6B63\u6587\u7684\u7EAF\u6587\u672C\u9884\u89C8\uFF0C\u65B9\u4FBF\u5728\u65E0\u6CD5\u8BC6\u522B\u9A8C\u8BC1\u7801\u65F6\u4EBA\u5DE5\u67E5\u770B\u3002
+     */
+    private String buildBodyPreview(String rawText) {
+        if (rawText == null || rawText.isBlank()) {
+            return null;
+        }
+        String normalized = normalizeMessageText(rawText);
+        if (normalized.isBlank()) {
+            return null;
+        }
+        return truncate(normalized, BODY_PREVIEW_MAX_LENGTH);
     }
 
     private ParsedHotmailAccount parseImportLine(String line) {
@@ -2088,6 +2367,8 @@ public class HotmailCodeService {
         publicResult.setFetchTime(result.getFetchTime());
         publicResult.setSource(result.getSource());
         publicResult.setError(result.getError());
+        publicResult.setLink(result.getLink());
+        publicResult.setBodyPreview(result.getBodyPreview());
         return publicResult;
     }
 
@@ -2153,7 +2434,14 @@ public class HotmailCodeService {
                 account.setLastSender(truncate(result.getSender(), 255));
                 account.setLastError(null);
             } else {
-                account.setLastError(truncate(result.getError(), 600));
+                String errorMessage = truncate(result.getError(), 600);
+                account.setLastError(errorMessage);
+                // 软回退结果（找到验证链接/正文但没有验证码）不带错误信息：清除历史验证码，
+                // 避免公开取码缓存把上一次的旧验证码当成最新结果，在冷却期内重新以 200 返回。
+                if (errorMessage == null || errorMessage.isBlank()) {
+                    account.setLastCode(null);
+                    account.setLastCodeTime(null);
+                }
             }
         }
         account.setUpdateTime(new Date());
@@ -2199,11 +2487,17 @@ public class HotmailCodeService {
     }
 
     private HotmailCodeResult betterResult(HotmailCodeResult current, HotmailCodeResult candidate) {
-        if (candidate == null || !candidate.isFound()) {
+        int candidateScore = resultScore(candidate);
+        if (candidateScore <= 0) {
             return current;
         }
-        if (current == null || !current.isFound()) {
+        int currentScore = resultScore(current);
+        if (currentScore <= 0) {
             return candidate;
+        }
+        // 优先级：验证码 > 验证链接 > 正文预览；同级别再比较接收时间。
+        if (candidateScore != currentScore) {
+            return candidateScore > currentScore ? candidate : current;
         }
 
         Date currentTime = current.getReceivedTime();
@@ -2215,6 +2509,25 @@ public class HotmailCodeService {
             return current;
         }
         return candidateTime.after(currentTime) ? candidate : current;
+    }
+
+    /**
+     * 结果“含金量”评分：有验证码=3，有验证链接=2，有正文预览=1，否则为 0。
+     */
+    private int resultScore(HotmailCodeResult result) {
+        if (result == null) {
+            return 0;
+        }
+        if (result.getCode() != null && !result.getCode().isBlank()) {
+            return 3;
+        }
+        if (result.getLink() != null && !result.getLink().isBlank()) {
+            return 2;
+        }
+        if (result.getBodyPreview() != null && !result.getBodyPreview().isBlank()) {
+            return 1;
+        }
+        return 0;
     }
 
     private boolean isRecentResult(HotmailCodeResult result) {

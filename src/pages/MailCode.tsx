@@ -1,17 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, AutoComplete, Button, Checkbox, Empty, Input, Modal, Popconfirm, Progress, Select, Spin, Table, Tag, Tooltip, message, type TableProps } from "antd";
+import { Alert, Button, Checkbox, Empty, Input, Modal, Popconfirm, Progress, Select, Spin, Table, Tag, Tooltip, message, type TableProps } from "antd";
 import {
   CheckCircleOutlined,
   CopyOutlined,
   DeleteOutlined,
-  DownOutlined,
   EditOutlined,
   ExportOutlined,
   EyeOutlined,
   FileAddOutlined,
+  HistoryOutlined,
   LinkOutlined,
   MailOutlined,
-  PlusOutlined,
   ReloadOutlined,
   SearchOutlined,
   StopOutlined,
@@ -19,9 +18,9 @@ import {
 
 import MainLayout from "../layouts/MainLayout";
 import { getErrorMessage } from "../lib/errorMessage";
+import { isAllowedWebTargetUrl } from "../lib/urlValidation";
 import { adminApi } from "../services/api/admin";
 import {
-  buildMailCodePublicApiUrl,
   buildMailCodePublicUrl,
   isMailCodePublicLinkReady,
   MAIL_CODE_PUBLIC_TOKEN_LENGTH,
@@ -32,219 +31,26 @@ import type { HotmailAccount, HotmailCodeResult, HotmailImportFailure, HotmailPa
 
 const { TextArea } = Input;
 
-type GroupOption = { label: string; value: string };
-
-function EditableGroupSelect({
-  value,
-  options,
-  placeholder,
-  onChange,
-}: {
-  value: string;
-  options: GroupOption[];
-  placeholder: string;
-  onChange: (value: string) => void;
-}) {
-  const [searchValue, setSearchValue] = useState("");
-  const visibleOptions = useMemo(() => {
-    const query = searchValue.trim();
-    if (!query) {
-      return options;
-    }
-
-    const normalizedQuery = query.toLocaleLowerCase("zh-CN");
-    const matchedOptions = options.filter((option) =>
-      option.value.toLocaleLowerCase("zh-CN").includes(normalizedQuery),
-    );
-    if (options.some((option) => option.value === query)) {
-      return matchedOptions;
-    }
-
-    return [
-      {
-        label: (
-          <span className="flex items-center gap-2">
-            <PlusOutlined />
-            新建分组“{query}”
-          </span>
-        ),
-        value: query,
-      },
-      ...matchedOptions,
-    ];
-  }, [options, searchValue]);
-
-  return (
-    <AutoComplete
-      allowClear
-      className="w-full"
-      filterOption={false}
-      options={visibleOptions}
-      suffixIcon={<DownOutlined />}
-      value={value}
-      onBlur={() => setSearchValue("")}
-      onChange={(nextValue) => {
-        onChange(nextValue);
-        if (!nextValue) {
-          setSearchValue("");
-        }
-      }}
-      onFocus={() => setSearchValue("")}
-      onSearch={setSearchValue}
-      onSelect={() => setSearchValue("")}
-    >
-      <Input maxLength={80} showCount placeholder={placeholder} />
-    </AutoComplete>
-  );
-}
-
-function parseSubEmails(value?: string | null) {
-  if (!value) {
-    return [];
-  }
-
-  return value
-    .split(/\s+/)
-    .map((email) => email.trim().toLowerCase())
-    .filter((email, index, emails) => Boolean(email) && emails.indexOf(email) === index);
-}
-
-function getPublicLinkTargets(account: HotmailAccount) {
-  return Array.from(new Set([account.email.trim().toLowerCase(), ...parseSubEmails(account.subEmails)].filter(Boolean)));
-}
-
-function formatPublicLinkPreview(token?: string | null, uid?: string | null) {
-  if (!isMailCodePublicLinkReady(token, uid)) {
-    return "";
-  }
-  const normalizedToken = (token ?? "").trim();
-  const normalizedUid = (uid ?? "").trim();
-  return `/code/fetch?token=${normalizedToken.slice(0, 8)}...${normalizedToken.slice(-6)}&uid=${normalizedUid.slice(0, 6)}...${normalizedUid.slice(-4)}`;
-}
-
-function tokenCheckLabel(status?: string | null) {
-  if (status === "OK") return "正常";
-  if (status === "MISSING_IMAP") return "缺IMAP";
-  if (status === "TOKEN_INVALID") return "Token失效";
-  if (status === "CREDENTIAL_DECRYPT_FAILED") return "凭据解密失败";
-  if (status === "SERVICE_ABUSE_MODE") return "微软风控";
-  if (status === "PARTIAL_FAIL") return "部分异常";
-  return "未自检";
-}
-
-function tokenCheckColor(status?: string | null) {
-  if (status === "OK") return "green";
-  if (status === "MISSING_IMAP") return "orange";
-  if (status === "TOKEN_INVALID") return "red";
-  if (status === "CREDENTIAL_DECRYPT_FAILED") return "purple";
-  if (status === "SERVICE_ABUSE_MODE") return "magenta";
-  if (status === "PARTIAL_FAIL") return "volcano";
-  return "default";
-}
-
-function scopeTagColor(value?: boolean | null) {
-  if (value === true) return "green";
-  if (value === false) return "red";
-  return "default";
-}
-
-function toCachedResult(account: HotmailAccount): HotmailCodeResult | null {
-  if (!account.lastCode) {
-    return null;
-  }
-  return {
-    accountId: account.id,
-    email: account.email,
-    code: account.lastCode,
-    receivedTime: account.lastCodeTime ?? undefined,
-    subject: account.lastSubject ?? undefined,
-    sender: account.lastSender ?? undefined,
-    source: account.lastSource ?? "缓存",
-    folder: account.lastFolder ?? undefined,
-    fetchTime: account.lastFetchTime ?? undefined,
-    found: true,
-  };
-}
-
-function formatDateTime(value?: string | null) {
-  if (!value) {
-    return "";
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return date.toLocaleString("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}
-
-function countNonEmptyLines(value: string) {
-  return value.split(/\r?\n/).filter((line) => line.trim()).length;
-}
-
-function formatImportFailureText(failures: HotmailImportFailure[]) {
-  return failures
-    .map((failure) => {
-      const email = failure.email ? ` ${failure.email}` : "";
-      return `第 ${failure.line} 行${email}：${failure.reason}`;
-    })
-    .join("\n");
-}
-
-type RegistrationMarkValue = "KEEP" | "REGISTERED" | "UNREGISTERED";
-
-const registrationMarkOptions: { label: string; value: RegistrationMarkValue }[] = [
-  { label: "不变", value: "KEEP" },
-  { label: "标记已注册", value: "REGISTERED" },
-  { label: "取消标记", value: "UNREGISTERED" },
-];
-
-function registrationValueToBoolean(value: RegistrationMarkValue) {
-  if (value === "REGISTERED") return true;
-  if (value === "UNREGISTERED") return false;
-  return undefined;
-}
-
-function downloadTextFile(filename: string, content: string) {
-  const blob = new Blob([`\uFEFF${content}`], { type: "text/plain;charset=utf-8" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(link.href);
-}
-
-function getActivePublicApiLink(account: HotmailAccount) {
-  if (!account.publicCodeEnabled || !isMailCodePublicLinkReady(account.publicCodeToken, account.publicCodeUid)) {
-    return "";
-  }
-  return buildMailCodePublicApiUrl(account.publicCodeToken ?? "", account.publicCodeUid);
-}
-
-function compactTimestamp() {
-  const date = new Date();
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return [
-    date.getFullYear(),
-    pad(date.getMonth() + 1),
-    pad(date.getDate()),
-    "-",
-    pad(date.getHours()),
-    pad(date.getMinutes()),
-    pad(date.getSeconds()),
-  ].join("");
-}
-
+import { EditableGroupSelect } from "./mailcode/EditableGroupSelect";
+import { MailHistoryDrawer } from "./mailcode/MailHistoryDrawer";
+import {
+  compactTimestamp,
+  countNonEmptyLines,
+  downloadTextFile,
+  formatDateTime,
+  formatImportFailureText,
+  formatPublicLinkPreview,
+  getActivePublicApiLink,
+  getPublicLinkTargets,
+  parseSubEmails,
+  registrationMarkOptions,
+  registrationValueToBoolean,
+  scopeTagColor,
+  toCachedResult,
+  tokenCheckColor,
+  tokenCheckLabel,
+} from "./mailcode/mailCodeHelpers";
+import type { RegistrationMarkValue } from "./mailcode/mailCodeHelpers";
 export default function MailCode() {
   const [accounts, setAccounts] = useState<HotmailAccount[]>([]);
   const [loading, setLoading] = useState(false);
@@ -286,6 +92,7 @@ export default function MailCode() {
   const [batchGrokRegisteredValue, setBatchGrokRegisteredValue] = useState<RegistrationMarkValue>("KEEP");
   const [checkingAll, setCheckingAll] = useState(false);
   const [checkingId, setCheckingId] = useState<number | null>(null);
+  const [mailHistoryAccount, setMailHistoryAccount] = useState<HotmailAccount | null>(null);
   const [cdkImportModalOpen, setCdkImportModalOpen] = useState(false);
   const [cdkProducts, setCdkProducts] = useState<Product[]>([]);
   const [cdkProductsLoading, setCdkProductsLoading] = useState(false);
@@ -430,7 +237,7 @@ export default function MailCode() {
                 ...account,
                 lastSource: result.source ?? account.lastSource ?? null,
                 lastFolder: result.folder ?? account.lastFolder ?? null,
-                lastError: result.error ?? "最近邮件中未找到验证码",
+                lastError: result.error ?? (result.link || result.bodyPreview ? null : "最近邮件中未找到验证码"),
                 lastFetchTime: result.fetchTime ?? new Date().toISOString(),
               }
           : account,
@@ -562,6 +369,10 @@ export default function MailCode() {
       updateAccountCache(result);
       if (result.found) {
         message.success(`获取验证码成功：${result.code}`);
+      } else if (result.link) {
+        message.info("未识别到验证码，已提取到验证链接");
+      } else if (result.bodyPreview) {
+        message.info("未识别到验证码，已提取邮件正文供人工查看");
       } else if (result.error) {
         message.error(result.error);
       } else {
@@ -621,6 +432,15 @@ export default function MailCode() {
       setCopiedId(accountId);
       setTimeout(() => setCopiedId(null), 1800);
       message.success("验证码已复制");
+    } catch {
+      message.error("复制失败");
+    }
+  }, []);
+
+  const handleCopyText = useCallback(async (text: string, successMessage = "已复制") => {
+    try {
+      await navigator.clipboard.writeText(text);
+      message.success(successMessage);
     } catch {
       message.error("复制失败");
     }
@@ -1216,6 +1036,52 @@ export default function MailCode() {
             );
           }
 
+          if (liveResult && !liveResult.found && (liveResult.link || liveResult.bodyPreview)) {
+            return (
+              <div className="max-w-[240px] space-y-1">
+                <Tag color="warning">未识别到验证码</Tag>
+                {liveResult.link ? (
+                  <div className="flex items-center gap-1">
+                    {isAllowedWebTargetUrl(liveResult.link) ? (
+                      <a
+                        href={liveResult.link}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="max-w-[190px] truncate text-xs text-blue-500"
+                        title={liveResult.link}
+                      >
+                        验证链接：{liveResult.link}
+                      </a>
+                    ) : (
+                      <span
+                        className="max-w-[190px] truncate text-xs text-slate-500"
+                        title={liveResult.link}
+                      >
+                        验证链接：{liveResult.link}
+                      </span>
+                    )}
+                    <Tooltip title="复制链接">
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<CopyOutlined />}
+                        onClick={() => void handleCopyText(liveResult.link!, "已复制验证链接")}
+                      />
+                    </Tooltip>
+                  </div>
+                ) : null}
+                {liveResult.bodyPreview ? (
+                  <div className="max-h-24 max-w-[230px] overflow-auto whitespace-pre-wrap break-words text-xs leading-5 text-slate-500">
+                    正文：{liveResult.bodyPreview}
+                  </div>
+                ) : null}
+                {liveResult.receivedTime ? (
+                  <div className="text-xs text-slate-400">时间：{formatDateTime(liveResult.receivedTime)}</div>
+                ) : null}
+              </div>
+            );
+          }
+
           if (!displayResult?.code) {
             return (
               <div className="space-y-1">
@@ -1385,7 +1251,7 @@ export default function MailCode() {
       {
         title: "操作",
         key: "actions",
-        width: 170,
+        width: 205,
         render: (_: unknown, record: HotmailAccount) => (
           <div className="flex items-center gap-1">
             <Tooltip title="获取验证码">
@@ -1396,6 +1262,9 @@ export default function MailCode() {
                 loading={fetchingId === record.id}
                 onClick={() => void handleFetchCode(record.id)}
               />
+            </Tooltip>
+            <Tooltip title="历史邮件">
+              <Button size="small" icon={<HistoryOutlined />} onClick={() => setMailHistoryAccount(record)} />
             </Tooltip>
             <Tooltip title="查看密码">
               <Button
@@ -1443,6 +1312,7 @@ export default function MailCode() {
       handleCheckAccount,
       fetchingId,
       handleCopyCode,
+      handleCopyText,
       handleCopyPublicLink,
       handleDelete,
       handleDisablePublicLink,
@@ -1695,12 +1565,36 @@ export default function MailCode() {
                         <Tag color="success" className="font-mono">
                           {result.code}
                         </Tag>
+                      ) : result.link || result.bodyPreview ? (
+                        <Tag color="warning">仅链接/正文</Tag>
                       ) : result.error ? (
                         <Tag color="error">失败</Tag>
                       ) : (
                         <Tag color="warning">未找到</Tag>
                       )}
                       {result.source || result.folder ? <span className="text-xs text-slate-400">{[result.source, result.folder].filter(Boolean).join(" / ")}</span> : null}
+                      {!result.found && result.link ? (
+                        isAllowedWebTargetUrl(result.link) ? (
+                          <a
+                            href={result.link}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="max-w-[420px] truncate text-xs text-blue-500"
+                            title={result.link}
+                          >
+                            {result.link}
+                          </a>
+                        ) : (
+                          <span className="max-w-[420px] truncate text-xs text-slate-500" title={result.link}>
+                            {result.link}
+                          </span>
+                        )
+                      ) : null}
+                      {!result.found && result.bodyPreview ? (
+                        <span className="max-h-24 max-w-[520px] overflow-auto whitespace-pre-wrap break-words text-xs leading-5 text-slate-500">
+                          {result.bodyPreview}
+                        </span>
+                      ) : null}
                       {result.error ? (
                         <span className="max-w-[520px] truncate text-xs text-red-500" title={result.error}>
                           {result.error}
@@ -1781,10 +1675,17 @@ export default function MailCode() {
                 获取 JSON。链接不是一次性，只有停用或重新生成后旧链接才会失效。
               </div>
               <div>10. 自检识别到微软返回 service_abuse_mode 时会标记为“微软风控”；“一键清除微软风控”只删除这类邮箱，并会在删除前再次确认。</div>
+              <div>11. 点击单个邮箱的“历史邮件”按钮可分页浏览邮件摘要，并按需加载纯文本正文。</div>
             </div>
           </div>
         </div>
       </div>
+
+      <MailHistoryDrawer
+        account={mailHistoryAccount}
+        open={mailHistoryAccount !== null}
+        onClose={() => setMailHistoryAccount(null)}
+      />
 
       <Modal
         title="设置邮箱分组"
