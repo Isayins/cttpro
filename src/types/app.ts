@@ -660,12 +660,17 @@ export interface PageResult<T> {
   size: number;
 }
 
+export type QrCodeContentType = "URL" | "HTML";
+
 export interface QrCodeItem {
   id: number;
   title: string;
   description?: string | null;
   shortCode: string;
   targetUrl: string;
+  contentType: QrCodeContentType;
+  htmlContent?: string | null;
+  totalScanCount?: number | null;
   status: "ACTIVE" | "DISABLED" | string;
   loginRequired: boolean;
   accessCodeRequired: boolean;
@@ -684,7 +689,9 @@ export interface SaveQrCodePayload {
   title: string;
   description?: string;
   shortCode?: string;
-  targetUrl: string;
+  targetUrl?: string;
+  contentType?: QrCodeContentType;
+  htmlContent?: string;
   status?: "ACTIVE" | "DISABLED";
   loginRequired?: boolean;
   accessCodeRequired?: boolean;
@@ -709,6 +716,7 @@ export interface QrCodePublicInfo {
   title: string;
   description?: string | null;
   shortCode: string;
+  contentType: QrCodeContentType;
   loginRequired: boolean;
   accessCodeRequired: boolean;
   available: boolean;
@@ -726,7 +734,10 @@ export interface QrCodeAccessPayload {
 }
 
 export interface QrCodeAccessResponse {
-  targetUrl: string;
+  contentType: QrCodeContentType;
+  targetUrl?: string | null;
+  htmlContent?: string | null;
+  scanCount: number;
   message: string;
 }
 

@@ -14,6 +14,9 @@ public class QrCodeDto {
     private String description;
     private String shortCode;
     private String targetUrl;
+    private String contentType;
+    private String htmlContent;
+    private Long totalScanCount;
     private String status;
     private Boolean loginRequired;
     private Boolean accessCodeRequired;
@@ -34,6 +37,9 @@ public class QrCodeDto {
         dto.setDescription(entity.getDescription());
         dto.setShortCode(entity.getShortCode());
         dto.setTargetUrl(entity.getTargetUrl());
+        dto.setContentType(entity.getContentType());
+        dto.setHtmlContent(entity.getHtmlContent());
+        dto.setTotalScanCount(entity.getTotalScanCount() == null ? 0L : entity.getTotalScanCount());
         dto.setStatus(entity.getStatus());
         dto.setLoginRequired(Boolean.TRUE.equals(entity.getLoginRequired()));
         dto.setAccessCodeRequired(Boolean.TRUE.equals(entity.getAccessCodeRequired()));

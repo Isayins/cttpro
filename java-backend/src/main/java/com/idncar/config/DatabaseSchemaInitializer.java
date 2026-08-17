@@ -70,6 +70,7 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
         ensureQrCodeColumns();
         ensureQrScanLogsTable();
         ensureQrScanLogColumns();
+        backfillQrScanCounts();
         ensureSiteNoticesTable();
         ensureSiteNoticeColumns();
         ensureSiteVisitLogsTable();
@@ -825,6 +826,9 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
                     description VARCHAR(255) NULL,
                     short_code VARCHAR(24) NOT NULL UNIQUE,
                     target_url VARCHAR(500) NOT NULL,
+                    content_type VARCHAR(20) NOT NULL DEFAULT 'URL',
+                    html_content MEDIUMTEXT NULL,
+                    total_scan_count BIGINT NOT NULL DEFAULT 0,
                     status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
                     login_required TINYINT(1) NOT NULL DEFAULT 0,
                     access_code_required TINYINT(1) NOT NULL DEFAULT 0,
@@ -839,6 +843,9 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
 
     private void ensureQrCodeColumns() {
         ensureColumn("qr_codes", "description", "description VARCHAR(255) NULL");
+        ensureColumn("qr_codes", "content_type", "content_type VARCHAR(20) NOT NULL DEFAULT 'URL'");
+        ensureColumn("qr_codes", "html_content", "html_content MEDIUMTEXT NULL");
+        ensureColumn("qr_codes", "total_scan_count", "total_scan_count BIGINT NOT NULL DEFAULT 0");
         ensureColumn("qr_codes", "status", "status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE'");
         ensureColumn("qr_codes", "login_required", "login_required TINYINT(1) NOT NULL DEFAULT 0");
         ensureColumn("qr_codes", "access_code_required", "access_code_required TINYINT(1) NOT NULL DEFAULT 0");
@@ -876,6 +883,18 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
         ensureIndex("qr_scan_logs", "idx_qr_scan_logs_qr_code_id", "CREATE INDEX idx_qr_scan_logs_qr_code_id ON qr_scan_logs(qr_code_id)");
         ensureIndex("qr_scan_logs", "idx_qr_scan_logs_create_time", "CREATE INDEX idx_qr_scan_logs_create_time ON qr_scan_logs(create_time)");
         ensureIndex("qr_scan_logs", "idx_qr_scan_logs_user_id", "CREATE INDEX idx_qr_scan_logs_user_id ON qr_scan_logs(user_id)");
+    }
+
+    private void backfillQrScanCounts() {
+        jdbcTemplate.execute("""
+                UPDATE qr_codes qr
+                SET total_scan_count = (
+                    SELECT COUNT(*)
+                    FROM qr_scan_logs log
+                    WHERE log.qr_code_id = qr.id
+                )
+                WHERE total_scan_count = 0
+                """);
     }
 
     private void ensureSiteNoticesTable() {

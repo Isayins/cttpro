@@ -1,6 +1,7 @@
 package com.idncar.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.idncar.exception.ApiException;
 import com.idncar.mapper.AdminOperationLogMapper;
 import com.idncar.mapper.QrCodeMapper;
@@ -20,6 +21,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.net.URI;
 import java.time.LocalDateTime;
@@ -40,6 +42,9 @@ import java.util.stream.Collectors;
 public class QrCodeService {
 
     private static final Pattern SHORT_CODE_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{4,24}$");
+    private static final String CONTENT_TYPE_URL = "URL";
+    private static final String CONTENT_TYPE_HTML = "HTML";
+    private static final int MAX_HTML_CONTENT_LENGTH = 200_000;
     private static final List<DateTimeFormatter> DATE_TIME_FORMATTERS = List.of(
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"),
@@ -120,6 +125,7 @@ public class QrCodeService {
         );
     }
 
+    @Transactional
     public QrCodeAccessResponse accessQrCode(String shortCode,
                                             QrCodeAccessRequest request,
                                             Long currentUserId,
@@ -143,7 +149,27 @@ public class QrCodeService {
         scanLog.setIpAddress(limitText(resolveClientIp(httpServletRequest), 120));
         qrScanLogMapper.insert(scanLog);
 
-        return new QrCodeAccessResponse(qrCode.getTargetUrl(), "二维码访问成功");
+        int updatedRows = qrCodeMapper.update(
+                null,
+                new UpdateWrapper<QrCode>()
+                        .eq("id", qrCode.getId())
+                        .setSql("total_scan_count = total_scan_count + 1")
+        );
+        if (updatedRows != 1) {
+            throw ApiException.notFound("二维码不存在或已失效");
+        }
+        QrCode updatedQrCode = qrCodeMapper.selectById(qrCode.getId());
+        if (updatedQrCode == null) {
+            throw ApiException.notFound("二维码不存在或已失效");
+        }
+        long totalScanCount = updatedQrCode.getTotalScanCount() == null ? 0L : updatedQrCode.getTotalScanCount();
+        return new QrCodeAccessResponse(
+                resolveStoredContentType(qrCode.getContentType()),
+                qrCode.getTargetUrl(),
+                qrCode.getHtmlContent(),
+                totalScanCount,
+                "二维码访问成功"
+        );
     }
 
     private void fillQrCode(QrCode qrCode, SaveQrCodeRequest request) {
@@ -153,7 +179,15 @@ public class QrCodeService {
         qrCode.setTitle(limitText(requireText(request.getTitle(), "请输入二维码标题"), 80));
         qrCode.setDescription(limitText(normalizeNullableText(request.getDescription()), 255));
         qrCode.setShortCode(resolveShortCode(qrCode.getId(), request.getShortCode()));
-        qrCode.setTargetUrl(validateTargetUrl(request.getTargetUrl()));
+        String contentType = resolveContentType(request.getContentType());
+        qrCode.setContentType(contentType);
+        if (CONTENT_TYPE_HTML.equals(contentType)) {
+            qrCode.setTargetUrl("");
+            qrCode.setHtmlContent(validateHtmlContent(request.getHtmlContent()));
+        } else {
+            qrCode.setTargetUrl(validateTargetUrl(request.getTargetUrl()));
+            qrCode.setHtmlContent(null);
+        }
         qrCode.setStatus(resolveStatus(request.getStatus()));
         qrCode.setLoginRequired(Boolean.TRUE.equals(request.getLoginRequired()));
         qrCode.setAccessCodeRequired(Boolean.TRUE.equals(request.getAccessCodeRequired()));
@@ -220,6 +254,32 @@ public class QrCodeService {
         } catch (IllegalArgumentException exception) {
             throw ApiException.badRequest("目标链接格式不正确");
         }
+    }
+
+    private String resolveContentType(String contentType) {
+        String normalized = normalizeNullableText(contentType);
+        if (normalized == null) {
+            return CONTENT_TYPE_URL;
+        }
+        String upper = normalized.toUpperCase(Locale.ROOT);
+        if (!List.of(CONTENT_TYPE_URL, CONTENT_TYPE_HTML).contains(upper)) {
+            throw ApiException.badRequest("二维码内容类型仅支持 URL 或 HTML");
+        }
+        return upper;
+    }
+
+    private String resolveStoredContentType(String contentType) {
+        return CONTENT_TYPE_HTML.equalsIgnoreCase(contentType) ? CONTENT_TYPE_HTML : CONTENT_TYPE_URL;
+    }
+
+    private String validateHtmlContent(String htmlContent) {
+        if (htmlContent == null || htmlContent.isBlank()) {
+            throw ApiException.badRequest("请输入 HTML 页面内容");
+        }
+        if (htmlContent.length() > MAX_HTML_CONTENT_LENGTH) {
+            throw ApiException.badRequest("HTML 页面内容不能超过 200000 个字符");
+        }
+        return htmlContent;
     }
 
     private String resolveStatus(String status) {

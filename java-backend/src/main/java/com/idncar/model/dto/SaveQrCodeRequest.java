@@ -9,6 +9,8 @@ public class SaveQrCodeRequest {
     private String description;
     private String shortCode;
     private String targetUrl;
+    private String contentType;
+    private String htmlContent;
     private String status;
     private Boolean loginRequired;
     private Boolean accessCodeRequired;

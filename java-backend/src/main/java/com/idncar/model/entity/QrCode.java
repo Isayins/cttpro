@@ -18,6 +18,9 @@ public class QrCode {
     private String description;
     private String shortCode;
     private String targetUrl;
+    private String contentType;
+    private String htmlContent;
+    private Long totalScanCount;
     private String status;
     private Boolean loginRequired;
     private Boolean accessCodeRequired;

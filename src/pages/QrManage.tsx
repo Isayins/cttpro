@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Button, Card, Form, Input, Modal, Popconfirm, QRCode, Select, Space, Switch, Table, Tag, message } from "antd";
+import { Alert, Button, Card, Form, Input, Modal, Popconfirm, QRCode, Segmented, Select, Space, Switch, Table, Tag, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
   ClearOutlined,
+  CodeOutlined,
   CopyOutlined,
   DeleteOutlined,
   DownloadOutlined,
@@ -17,6 +18,7 @@ import { isAllowedWebTargetUrl } from "../lib/urlValidation";
 import { adminApi } from "../services/api/admin";
 import logo from "../assets/idncar-mark.svg";
 import type { QrCodeItem, QrScanLog, SaveQrCodePayload } from "../types/app";
+import { qrScanCounterTemplate } from "./qrHtmlTemplate";
 
 function buildShortLink(shortCode: string) {
   return `${window.location.origin}/q/${shortCode}`;
@@ -28,12 +30,19 @@ function validateTargetUrl(_: unknown, value?: string) {
     : Promise.reject(new Error("目标链接需为 http(s) 地址或以 / 开头的站内路径"));
 }
 
+function normalizeContentType(value?: string | null) {
+  return value === "HTML" ? "HTML" : "URL";
+}
+
 function buildQrSavePayload(item: QrCodeItem, status: "ACTIVE" | "DISABLED"): SaveQrCodePayload {
+  const contentType = normalizeContentType(item.contentType);
   return {
     title: item.title,
     description: item.description ?? undefined,
     shortCode: item.shortCode,
-    targetUrl: item.targetUrl,
+    contentType,
+    targetUrl: contentType === "URL" ? item.targetUrl : undefined,
+    htmlContent: contentType === "HTML" ? (item.htmlContent ?? "") : undefined,
     status,
     loginRequired: item.loginRequired,
     accessCodeRequired: item.accessCodeRequired,
@@ -59,6 +68,7 @@ export default function QrManage() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [selectedItemIds, setSelectedItemIds] = useState<number[]>([]);
   const [form] = Form.useForm<SaveQrCodePayload>();
+  const editorContentType = Form.useWatch("contentType", form) ?? "URL";
 
   useEffect(() => {
     void loadQrCodes();
@@ -83,6 +93,7 @@ export default function QrManage() {
     setEditorOpen(true);
     form.resetFields();
     form.setFieldsValue({
+      contentType: "URL",
       status: "ACTIVE",
       loginRequired: false,
       accessCodeRequired: false,
@@ -96,7 +107,9 @@ export default function QrManage() {
       title: item.title,
       description: item.description ?? "",
       shortCode: item.shortCode,
+      contentType: normalizeContentType(item.contentType),
       targetUrl: item.targetUrl,
+      htmlContent: item.htmlContent ?? "",
       status: item.status === "DISABLED" ? "DISABLED" : "ACTIVE",
       loginRequired: item.loginRequired,
       accessCodeRequired: item.accessCodeRequired,
@@ -108,12 +121,15 @@ export default function QrManage() {
   async function handleSave(values: SaveQrCodePayload) {
     setSubmitting(true);
     try {
+      const contentType = normalizeContentType(values.contentType);
       const payload: SaveQrCodePayload = {
         ...values,
         title: values.title.trim(),
         description: values.description?.trim(),
         shortCode: values.shortCode?.trim(),
-        targetUrl: values.targetUrl.trim(),
+        contentType,
+        targetUrl: contentType === "URL" ? values.targetUrl?.trim() : undefined,
+        htmlContent: contentType === "HTML" ? values.htmlContent : undefined,
         accessCode: values.accessCode?.trim(),
         expiresAt: values.expiresAt?.trim(),
       };
@@ -135,6 +151,22 @@ export default function QrManage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function applyScanCounterTemplate() {
+    const applyTemplate = () => form.setFieldValue("htmlContent", qrScanCounterTemplate);
+    const currentContent = form.getFieldValue("htmlContent");
+    if (!currentContent?.trim()) {
+      applyTemplate();
+      return;
+    }
+    Modal.confirm({
+      title: "替换当前 HTML 内容？",
+      content: "当前编辑器已有内容，填入模板会覆盖这些内容。",
+      okText: "替换",
+      cancelText: "取消",
+      onOk: applyTemplate,
+    });
   }
 
   async function handleDelete(item: QrCodeItem) {
@@ -265,17 +297,19 @@ export default function QrManage() {
       return;
     }
     const rows = [
-      ["标题", "短码", "短链", "目标链接", "状态", "需要登录", "访问验证码", "过期时间", "近90天扫码", "今日扫码", "最近扫码"].map(csvCell).join(","),
+      ["标题", "短码", "短链", "内容类型", "目标链接", "状态", "需要登录", "访问验证码", "过期时间", "累计扫码", "近90天扫码", "今日扫码", "最近扫码"].map(csvCell).join(","),
       ...targets.map((item) =>
         [
           item.title,
           item.shortCode,
           buildShortLink(item.shortCode),
+          normalizeContentType(item.contentType) === "HTML" ? "HTML 页面" : "链接跳转",
           item.targetUrl,
           item.status === "ACTIVE" ? "启用" : "停用",
           item.loginRequired ? "是" : "否",
           item.accessCodeRequired ? "是" : "否",
           item.expiresAt || "",
+          item.totalScanCount ?? 0,
           item.scanCount ?? 0,
           item.todayScanCount ?? 0,
           item.lastScanTime || "",
@@ -300,7 +334,7 @@ export default function QrManage() {
     const normalizedKeyword = keyword.trim().toLowerCase();
     return items.filter((item) => {
       const matchesStatus = statusFilter === "ALL" || item.status === statusFilter;
-      const searchable = [item.title, item.description, item.shortCode, item.targetUrl].filter(Boolean).join(" ").toLowerCase();
+      const searchable = [item.title, item.description, item.shortCode, item.targetUrl, normalizeContentType(item.contentType)].filter(Boolean).join(" ").toLowerCase();
       const matchesKeyword = !normalizedKeyword || searchable.includes(normalizedKeyword);
       return matchesStatus && matchesKeyword;
     });
@@ -335,6 +369,9 @@ export default function QrManage() {
       render: (_, record) => (
         <Space wrap>
           <Tag color={record.status === "ACTIVE" ? "green" : "red"}>{record.status === "ACTIVE" ? "启用中" : "已停用"}</Tag>
+          <Tag color={normalizeContentType(record.contentType) === "HTML" ? "cyan" : "blue"}>
+            {normalizeContentType(record.contentType) === "HTML" ? "HTML 页面" : "链接跳转"}
+          </Tag>
           {record.loginRequired ? <Tag color="gold">需要登录</Tag> : <Tag>公开访问</Tag>}
           {record.accessCodeRequired ? <Tag color="orange">访问验证码</Tag> : null}
           {record.expiresAt ? <Tag>到期：{record.expiresAt}</Tag> : null}
@@ -346,6 +383,7 @@ export default function QrManage() {
       key: "stats",
       render: (_, record) => (
         <div className="text-sm text-slate-600">
+          <div>累计：{record.totalScanCount ?? 0}</div>
           <div>近90天：{record.scanCount ?? 0}</div>
           <div>今日扫码：{record.todayScanCount ?? 0}</div>
           <div>最近：{record.lastScanTime || "-"}</div>
@@ -386,7 +424,7 @@ export default function QrManage() {
               <div className="text-sm uppercase tracking-[0.24em] text-slate-400">二维码中心</div>
               <h1 className="mt-2 text-3xl font-semibold text-slate-900">品牌二维码管理</h1>
               <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-500">
-                支持动态短链、扫码统计、过期控制、登录后访问和访问验证码。生成后二维码短链固定，目标地址以后也能继续改。
+                支持动态短链、扫码统计、HTML/JavaScript 页面、过期控制、登录后访问和访问验证码。二维码短链生成后保持不变。
               </p>
             </div>
             <Space>
@@ -410,7 +448,7 @@ export default function QrManage() {
               <Input.Search
                 allowClear
                 enterButton="搜索"
-                placeholder="搜索标题、短码或目标链接"
+                placeholder="搜索标题、短码或内容类型"
                 value={keyword}
                 onChange={(event) => setKeyword(event.target.value)}
                 style={{ width: 280 }}
@@ -477,7 +515,14 @@ export default function QrManage() {
         </Card>
       </div>
 
-      <Modal title={editingItem ? "编辑二维码" : "新建二维码"} open={editorOpen} onCancel={() => setEditorOpen(false)} footer={null} destroyOnClose>
+      <Modal
+        title={editingItem ? "编辑二维码" : "新建二维码"}
+        open={editorOpen}
+        onCancel={() => setEditorOpen(false)}
+        footer={null}
+        destroyOnClose
+        width={editorContentType === "HTML" ? 880 : 520}
+      >
         <Form form={form} layout="vertical" onFinish={(values) => void handleSave(values)}>
           <Form.Item name="title" label="二维码标题" rules={[{ required: true, message: "请输入二维码标题" }]}>
             <Input placeholder="例如：官网首页引流码" />
@@ -488,16 +533,57 @@ export default function QrManage() {
           <Form.Item name="shortCode" label="短码">
             <Input placeholder="留空自动生成，例如 home2026" />
           </Form.Item>
-          <Form.Item
-            name="targetUrl"
-            label="目标链接"
-            rules={[
-              { required: true, message: "请输入目标链接" },
-              { validator: validateTargetUrl },
-            ]}
-          >
-            <Input placeholder="https://idncar.com/downloads 或 /downloads" />
+          <Form.Item name="contentType" label="内容类型">
+            <Segmented
+              block
+              options={[
+                { label: "链接跳转", value: "URL" },
+                { label: "HTML 页面", value: "HTML" },
+              ]}
+            />
           </Form.Item>
+          {editorContentType === "HTML" ? (
+            <>
+              <Alert
+                className="mb-4"
+                type="info"
+                showIcon
+                message="JavaScript 在隔离页面中运行"
+                description="脚本可以操作当前 HTML 页面，但不能读取主站页面、登录凭据或本地存储。"
+              />
+              <Form.Item
+                name="htmlContent"
+                label="HTML 页面源码"
+                rules={[
+                  { required: true, whitespace: true, message: "请输入 HTML 页面内容" },
+                  { max: 200000, message: "HTML 页面内容不能超过 200000 个字符" },
+                ]}
+              >
+                <Input.TextArea
+                  rows={18}
+                  showCount
+                  maxLength={200000}
+                  spellCheck={false}
+                  placeholder="输入完整的 HTML、CSS 和 JavaScript"
+                  style={{ fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace" }}
+                />
+              </Form.Item>
+              <Button className="mb-5" icon={<CodeOutlined />} onClick={applyScanCounterTemplate}>
+                填入扫码计数模板
+              </Button>
+            </>
+          ) : (
+            <Form.Item
+              name="targetUrl"
+              label="目标链接"
+              rules={[
+                { required: true, message: "请输入目标链接" },
+                { validator: validateTargetUrl },
+              ]}
+            >
+              <Input placeholder="https://idncar.com/downloads 或 /downloads" />
+            </Form.Item>
+          )}
           <Form.Item name="status" label="状态">
             <Select options={[{ label: "启用", value: "ACTIVE" }, { label: "停用", value: "DISABLED" }]} />
           </Form.Item>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { Alert, Button, Card, Input, Spin, Tag, message } from "antd";
 import { HomeOutlined, LoginOutlined, ReloadOutlined } from "@ant-design/icons";
@@ -8,10 +8,24 @@ import MainLayout from "../layouts/MainLayout";
 import { getFriendlyMessage } from "../lib/errorMessage";
 import { qrCodeApi } from "../services/api/qrCode";
 import logo from "../assets/idncar-mark.svg";
-import type { QrCodePublicInfo } from "../types/app";
+import type { QrCodeAccessResponse, QrCodePublicInfo } from "../types/app";
+import {
+  QR_CONTEXT_MESSAGE_TYPE,
+  QR_HTML_CONTENT_SECURITY_POLICY,
+  QR_HTML_SANDBOX,
+} from "./qrHtmlTemplate";
 
 const VISITOR_ID_KEY = "idncar_visitor_id";
 const SESSION_ID_KEY = "idncar_session_id";
+
+function buildSandboxedHtmlDocument(htmlContent: string) {
+  const documentNode = new DOMParser().parseFromString(htmlContent, "text/html");
+  const policy = documentNode.createElement("meta");
+  policy.httpEquiv = "Content-Security-Policy";
+  policy.content = QR_HTML_CONTENT_SECURITY_POLICY;
+  documentNode.head.prepend(policy);
+  return `<!doctype html>\n${documentNode.documentElement.outerHTML}`;
+}
 
 function createId(prefix: string) {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -88,18 +102,27 @@ export default function QrAccess() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [redirecting, setRedirecting] = useState(false);
   const [accessCode, setAccessCode] = useState("");
+  const [htmlPage, setHtmlPage] = useState<QrCodeAccessResponse | null>(null);
+  const htmlFrameRef = useRef<HTMLIFrameElement>(null);
+  const accessStartedRef = useRef(false);
 
   const visitorId = useMemo(() => getOrCreateStorageId(VISITOR_ID_KEY, "visitor", getBrowserStorage("local")), []);
   const sessionId = useMemo(() => getOrCreateStorageId(SESSION_ID_KEY, "session", getBrowserStorage("session")), []);
   const returnPath = `${location.pathname}${location.search}${location.hash}`;
   const accessCodeValue = accessCode.trim();
   const canSubmitAccessCode = Boolean(shortCode && info?.available && accessCodeValue && !redirecting);
+  const sandboxedHtmlContent = useMemo(
+    () => (htmlPage?.htmlContent ? buildSandboxedHtmlDocument(htmlPage.htmlContent) : null),
+    [htmlPage?.htmlContent],
+  );
 
   const loadInfo = useCallback(async (code: string) => {
     setLoading(true);
     setLoadError(null);
     setInfo(null);
     setAccessCode("");
+    setHtmlPage(null);
+    accessStartedRef.current = false;
     try {
       setInfo(await qrCodeApi.getPublicInfo(code));
     } catch (error) {
@@ -112,6 +135,9 @@ export default function QrAccess() {
   }, []);
 
   const handleAccess = useCallback(async (code: string) => {
+    if (accessStartedRef.current) {
+      return;
+    }
     if (!info?.available) {
       message.warning(info?.unavailableReason || "该二维码当前不可用");
       return;
@@ -125,6 +151,7 @@ export default function QrAccess() {
       return;
     }
 
+    accessStartedRef.current = true;
     setRedirecting(true);
     try {
       const userAgent = navigator.userAgent;
@@ -136,9 +163,21 @@ export default function QrAccess() {
         userAgent,
         deviceType: resolveDeviceType(userAgent),
       });
+      if (result.contentType === "HTML") {
+        if (!result.htmlContent) {
+          throw new Error("HTML 页面内容为空");
+        }
+        setHtmlPage(result);
+        setRedirecting(false);
+        return;
+      }
+      if (!result.targetUrl) {
+        throw new Error("二维码目标链接为空");
+      }
       window.location.assign(result.targetUrl);
     } catch (error) {
       message.error(getFriendlyMessage(error, "二维码访问失败"));
+      accessStartedRef.current = false;
       setRedirecting(false);
     }
   }, [accessCodeValue, info?.accessCodeRequired, info?.available, info?.loginRequired, info?.unavailableReason, isAuthenticated, sessionId, visitorId]);
@@ -158,6 +197,37 @@ export default function QrAccess() {
     if (info.loginRequired && !isAuthenticated) return;
     void handleAccess(shortCode);
   }, [handleAccess, info, isAuthenticated, shortCode]);
+
+  const postHtmlPageContext = useCallback(() => {
+    if (!htmlPage || !info) {
+      return;
+    }
+    htmlFrameRef.current?.contentWindow?.postMessage(
+      {
+        type: QR_CONTEXT_MESSAGE_TYPE,
+        scanCount: htmlPage.scanCount,
+        shortCode: info.shortCode,
+        title: info.title,
+      },
+      "*",
+    );
+  }, [htmlPage, info]);
+
+  if (htmlPage?.contentType === "HTML" && sandboxedHtmlContent) {
+    return (
+      <div className="min-h-dvh bg-white">
+        <iframe
+          ref={htmlFrameRef}
+          title={info?.title || "二维码 HTML 页面"}
+          srcDoc={sandboxedHtmlContent}
+          sandbox={QR_HTML_SANDBOX}
+          referrerPolicy="no-referrer"
+          onLoad={postHtmlPageContext}
+          className="block min-h-dvh w-full border-0 bg-white"
+        />
+      </div>
+    );
+  }
 
   return (
     <MainLayout>
@@ -209,6 +279,7 @@ export default function QrAccess() {
 
                 <div className="flex flex-wrap gap-2">
                   <Tag color="blue">短码：{info?.shortCode || shortCode}</Tag>
+                  <Tag color={info?.contentType === "HTML" ? "cyan" : "blue"}>{info?.contentType === "HTML" ? "HTML 页面" : "链接跳转"}</Tag>
                   {info?.loginRequired ? <Tag color="gold">需要登录</Tag> : <Tag color="green">无需登录</Tag>}
                   {info?.accessCodeRequired ? <Tag color="orange">需要访问验证码</Tag> : <Tag color="green">无需验证码</Tag>}
                   {info?.expiresAt ? <Tag>到期：{formatDateTime(info.expiresAt)}</Tag> : <Tag>长期有效</Tag>}
@@ -234,7 +305,7 @@ export default function QrAccess() {
                       onPressEnter={() => shortCode && void handleAccess(shortCode)}
                     />
                     <Button type="primary" loading={redirecting} disabled={!canSubmitAccessCode} onClick={() => shortCode && void handleAccess(shortCode)}>
-                      验证并跳转
+                      验证并打开
                     </Button>
                   </div>
                 ) : null}
@@ -247,7 +318,7 @@ export default function QrAccess() {
                   </Link>
                 ) : null}
 
-                {redirecting && !info?.accessCodeRequired ? <Alert type="success" showIcon message="正在跳转，请稍候..." /> : null}
+                {redirecting && !info?.accessCodeRequired ? <Alert type="success" showIcon message="正在打开，请稍候..." /> : null}
               </div>
             )}
           </div>

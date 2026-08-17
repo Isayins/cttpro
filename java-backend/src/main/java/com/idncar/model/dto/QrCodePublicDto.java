@@ -13,6 +13,7 @@ public class QrCodePublicDto {
     private String title;
     private String description;
     private String shortCode;
+    private String contentType;
     private Boolean loginRequired;
     private Boolean accessCodeRequired;
     private Boolean available;
@@ -25,6 +26,7 @@ public class QrCodePublicDto {
         dto.setTitle(entity.getTitle());
         dto.setDescription(entity.getDescription());
         dto.setShortCode(entity.getShortCode());
+        dto.setContentType(entity.getContentType());
         dto.setLoginRequired(Boolean.TRUE.equals(entity.getLoginRequired()));
         dto.setAccessCodeRequired(Boolean.TRUE.equals(entity.getAccessCodeRequired()));
         dto.setAvailable(available);
