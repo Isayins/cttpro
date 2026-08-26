@@ -7,6 +7,7 @@ import { getErrorMessage } from "../lib/errorMessage";
 import { toolsApi } from "../services/api/tools";
 import { ToolPanelHeader, ToolsPageHeader } from "./tools/ToolsHeader";
 import { ToolsSidebar } from "./tools/ToolsSidebar";
+import { WheelToolPanel } from "./tools/WheelToolPanel";
 import type {
   CodecMode,
   CronMode,
@@ -35,6 +36,8 @@ import {
   textTransformOptions,
   unescapeHtml,
   weekOptions,
+  parseWheelOptions,
+  secureRandomIndex,
 } from "./tools/toolUtils";
 import { useBase64Tool } from "./tools/useBase64Tool";
 import { useCurlCodeTool } from "./tools/useCurlCodeTool";
@@ -282,6 +285,13 @@ export default function Tools() {
   const [javaFileName, setJavaFileName] = useState("");
   const [javaDecompiling, setJavaDecompiling] = useState(false);
 
+  const [wheelInput, setWheelInput] = useState("选项 A\n选项 B\n选项 C\n选项 D");
+  const [wheelRotation, setWheelRotation] = useState(0);
+  const [wheelSelected, setWheelSelected] = useState("");
+  const [wheelSpinning, setWheelSpinning] = useState(false);
+  const [wheelError, setWheelError] = useState<string | null>(null);
+  const wheelTimerRef = useRef<number | null>(null);
+
   const copyText = async (
     value: string,
     setCopied: (value: boolean) => void,
@@ -306,6 +316,12 @@ export default function Tools() {
       }
     };
   }, [qrDecodePreviewUrl]);
+
+  useEffect(() => () => {
+    if (wheelTimerRef.current !== null) {
+      window.clearTimeout(wheelTimerRef.current);
+    }
+  }, []);
 
   const resetCopiedStates = () => {
     [
@@ -464,6 +480,11 @@ export default function Tools() {
         setJavaDecompileOutput(item.output ?? "");
         setJavaFileName(item.fileName ?? "");
         setJavaDecompileError(null);
+        break;
+      case "wheel":
+        setWheelInput(item.input);
+        setWheelSelected(item.output ?? "");
+        setWheelError(null);
         break;
     }
 
@@ -951,6 +972,37 @@ export default function Tools() {
     }
   };
 
+  const handleWheelSpin = () => {
+    setWheelError(null);
+    try {
+      const options = parseWheelOptions(wheelInput);
+      const selectedIndex = secureRandomIndex(options.length);
+      const segmentAngle = 360 / options.length;
+      const currentNormalized = ((wheelRotation % 360) + 360) % 360;
+      const targetNormalized = (360 - (selectedIndex + 0.5) * segmentAngle) % 360;
+      const nextRotation = wheelRotation + 360 * 6 + ((targetNormalized - currentNormalized + 360) % 360);
+
+      setWheelInput(options.join("\n"));
+      setWheelSelected("");
+      setWheelSpinning(true);
+      setWheelRotation(nextRotation);
+      wheelTimerRef.current = window.setTimeout(() => {
+        const result = options[selectedIndex];
+        setWheelSpinning(false);
+        setWheelSelected(result);
+        wheelTimerRef.current = null;
+        pushHistory({
+          tool: "wheel",
+          action: "随机转盘",
+          input: options.join("\n"),
+          output: result,
+        });
+      }, 4800);
+    } catch (error) {
+      setWheelError(getErrorMessage(error, "转盘旋转失败"));
+    }
+  };
+
   const renderToolContent = () => {
     if (activeTool === "json") {
       return (
@@ -1383,6 +1435,30 @@ export default function Tools() {
             setQrDecoding(false);
           }}
           onCopy={() => void copyText(qrDecodeOutput, setQrDecodeCopied)}
+        />
+      );
+    }
+
+    if (activeTool === "wheel") {
+      return (
+        <WheelToolPanel
+          input={wheelInput}
+          rotation={wheelRotation}
+          selected={wheelSelected}
+          spinning={wheelSpinning}
+          error={wheelError}
+          onInputChange={(value) => {
+            setWheelInput(value);
+            setWheelSelected("");
+            setWheelError(null);
+          }}
+          onSpin={handleWheelSpin}
+          onClear={() => {
+            setWheelInput("");
+            setWheelSelected("");
+            setWheelRotation(0);
+            setWheelError(null);
+          }}
         />
       );
     }

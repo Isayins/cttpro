@@ -4,7 +4,7 @@ import type { CurlCodeMode, CsvDelimiter, HashAlgorithm, RgbColor, TextTransform
 export const TOOL_HISTORY_STORAGE_KEY = "idncar.tools.history";
 export const TOOL_HISTORY_LIMIT = 36;
 export const TOOL_HISTORY_TEXT_LIMIT = 4000;
-const PERSISTED_HISTORY_TOOLS = new Set<ToolType>(["color", "cron", "uuid"]);
+const PERSISTED_HISTORY_TOOLS = new Set<ToolType>(["color", "cron", "uuid", "wheel"]);
 const TOOL_TYPES = new Set<string>(toolTypes);
 
 export const weekOptions = [
@@ -993,6 +993,24 @@ function randomIndex(max: number) {
     crypto.getRandomValues(bytes);
   } while (bytes[0] >= limit);
   return bytes[0] % max;
+}
+
+export function parseWheelOptions(input: string) {
+  const options = input
+    .split(/\r?\n/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (options.length < 2) {
+    throw new Error("请至少输入两个选项，每行一个");
+  }
+  if (options.length > 50) {
+    throw new Error("选项不能超过 50 个");
+  }
+  return options;
+}
+
+export function secureRandomIndex(max: number) {
+  return randomIndex(max);
 }
 
 function shuffleText(value: string) {

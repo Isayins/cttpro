@@ -18,8 +18,10 @@ import {
   normalizeRegexFlags,
   parseColor,
   parseUnixTimestamp,
+  parseWheelOptions,
   readToolHistory,
   rgbToHex,
+  secureRandomIndex,
   TOOL_HISTORY_STORAGE_KEY,
   transformText,
   trimHistoryText,
@@ -49,6 +51,23 @@ afterEach(() => {
 });
 
 describe("tool utils", () => {
+  it("parses wheel options and requires at least two entries", () => {
+    expect(parseWheelOptions(" A \n\nB\n")).toEqual(["A", "B"]);
+    expect(() => parseWheelOptions("only one")).toThrow("至少输入两个选项");
+    expect(() => parseWheelOptions(Array.from({ length: 51 }, (_, index) => String(index)).join("\n"))).toThrow("不能超过 50 个");
+  });
+  it("rejects out-of-range random values before selecting a wheel index", () => {
+    const values = [0xffff_ffff, 5];
+    vi.stubGlobal("crypto", {
+      getRandomValues: (target: Uint32Array) => {
+        target[0] = values.shift() ?? 0;
+        return target;
+      },
+    });
+
+    expect(secureRandomIndex(10)).toBe(5);
+    expect(values).toHaveLength(0);
+  });
   it("round-trips unicode text through Base64 helpers", () => {
     const input = "hello 中文";
 

@@ -24,6 +24,7 @@ export const toolTypes = [
   "qrcode",
   "qrdecode",
   "javadecompile",
+  "wheel",
 ] as const;
 
 export type ToolType = (typeof toolTypes)[number];

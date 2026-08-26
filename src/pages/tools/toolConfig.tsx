@@ -14,6 +14,7 @@ import {
   LockOutlined,
   OrderedListOutlined,
   QrcodeOutlined,
+  SyncOutlined,
   SafetyCertificateOutlined,
   SearchOutlined,
   TableOutlined,
@@ -56,4 +57,5 @@ export const toolConfig: Record<ToolType, ToolConfigItem> = {
   qrcode: { name: "二维码生成", description: "根据文本或链接生成二维码", category: "codec", icon: QrcodeOutlined, color: "#7c3aed", bgColor: "bg-violet-100" },
   qrdecode: { name: "二维码解析", description: "上传图片解析二维码内容", category: "codec", icon: QrcodeOutlined, color: "#0d9488", bgColor: "bg-teal-100" },
   javadecompile: { name: "Java 字节码查看", description: "使用 javap 查看 class 文件结构和指令", category: "debug", icon: FileTextOutlined, color: "#ea580c", bgColor: "bg-orange-100" },
+  wheel: { name: "随机转盘", description: "手动输入选项并旋转抽取结果", category: "text", icon: SyncOutlined, color: "#db2777", bgColor: "bg-pink-100" },
 };
