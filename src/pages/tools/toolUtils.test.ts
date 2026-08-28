@@ -108,9 +108,16 @@ describe("tool utils", () => {
 
   it("persists and validates a wheel session", () => {
     const storage = stubToolHistoryStorage();
-    writeWheelSession({ options: ["A", "B"], results: ["A"], targetCount: 10, rotation: 720, selected: "A" });
+    writeWheelSession({
+      options: ["A", "B"],
+      results: ["A"],
+      targetCount: 10,
+      rotation: 720,
+      selected: "A",
+      rounds: [{ id: "round-1", createdAt: "2026-07-06T00:00:00.000Z", options: ["A", "B"], results: ["B"], targetCount: 1 }],
+    });
     expect(storage.has(WHEEL_SESSION_STORAGE_KEY)).toBe(true);
-    expect(readWheelSession()).toMatchObject({ options: ["A", "B"], results: ["A"], targetCount: 10 });
+    expect(readWheelSession()).toMatchObject({ options: ["A", "B"], results: ["A"], targetCount: 10, rounds: [{ id: "round-1", results: ["B"] }] });
     clearWheelSession();
     expect(readWheelSession()).toBeNull();
 
@@ -120,6 +127,16 @@ describe("tool utils", () => {
       targetCount: 10,
       rotation: 0,
       selected: "A",
+    }));
+    expect(readWheelSession()).toBeNull();
+
+    storage.set(WHEEL_SESSION_STORAGE_KEY, JSON.stringify({
+      options: ["A", "B"],
+      results: [],
+      targetCount: 10,
+      rotation: 0,
+      selected: "",
+      rounds: [{ id: "bad-round", createdAt: "2026-07-06T00:00:00.000Z", options: ["A", "B"], results: ["C"], targetCount: 1 }],
     }));
     expect(readWheelSession()).toBeNull();
   });

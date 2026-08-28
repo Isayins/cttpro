@@ -1,5 +1,6 @@
-import { CopyOutlined, DeleteOutlined, DownloadOutlined, PlayCircleOutlined, ReloadOutlined, WarningOutlined } from "@ant-design/icons";
+import { CopyOutlined, DeleteOutlined, DownloadOutlined, PlayCircleOutlined, ReloadOutlined, UndoOutlined, WarningOutlined } from "@ant-design/icons";
 import { Alert, Button, Input, InputNumber, Progress, Tag } from "antd";
+import type { WheelRoundRecord } from "./types";
 import { buildWheelStatistics, findWheelDuplicateOptions } from "./toolUtils";
 
 type WheelToolPanelProps = {
@@ -10,19 +11,21 @@ type WheelToolPanelProps = {
   error: string | null;
   results: string[];
   targetCount: number;
+  rounds: WheelRoundRecord[];
   summaryCopied: boolean;
   onInputChange: (value: string) => void;
   onTargetCountChange: (value: number) => void;
   onSpin: () => void;
   onClear: () => void;
   onResetResults: () => void;
+  onUndoLast: () => void;
   onCopySummary: () => void;
   onExport: () => void;
 };
 
 const colors = ["#2563eb", "#0d9488", "#db2777", "#ea580c", "#7c3aed", "#16a34a", "#ca8a04", "#0891b2"];
 
-export function WheelToolPanel({ input, rotation, selected, spinning, error, results, targetCount, summaryCopied, onInputChange, onTargetCountChange, onSpin, onClear, onResetResults, onCopySummary, onExport }: WheelToolPanelProps) {
+export function WheelToolPanel({ input, rotation, selected, spinning, error, results, targetCount, rounds, summaryCopied, onInputChange, onTargetCountChange, onSpin, onClear, onResetResults, onUndoLast, onCopySummary, onExport }: WheelToolPanelProps) {
   const options = input.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
   const duplicateOptions = findWheelDuplicateOptions(options);
   const locked = spinning || results.length > 0;
@@ -78,6 +81,7 @@ export function WheelToolPanel({ input, rotation, selected, spinning, error, res
           <div className="flex flex-wrap gap-2">
             <Button type="primary" size="large" icon={<PlayCircleOutlined />} onClick={onSpin} loading={spinning} disabled={spinning || completed || options.length < 2 || duplicateOptions.length > 0}>旋转转盘</Button>
             <Button size="large" icon={<ReloadOutlined />} onClick={() => onInputChange(options.join("\n"))} disabled={locked || options.length === 0}>整理选项</Button>
+            <Button size="large" icon={<UndoOutlined />} onClick={onUndoLast} disabled={spinning || results.length === 0}>撤销上次</Button>
             <Button size="large" onClick={onResetResults} disabled={spinning || results.length === 0}>重新统计</Button>
             <Button size="large" aria-label="清空" title="清空" icon={<DeleteOutlined />} onClick={onClear} disabled={spinning} />
           </div>
@@ -109,6 +113,27 @@ export function WheelToolPanel({ input, rotation, selected, spinning, error, res
           </div>
         ) : <div className="rounded-lg bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">旋转结果会依次记录在这里</div>}
       </section>
+      {rounds.length > 0 ? (
+        <section className="border-t border-slate-200 pt-6">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">历史轮次</h2>
+              <div className="mt-1 text-sm text-slate-500">已保存最近 {rounds.length} 轮</div>
+            </div>
+          </div>
+          <div className="max-h-64 space-y-2 overflow-y-auto">
+            {rounds.map((round) => (
+              <div key={round.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2.5 text-sm">
+                <div className="min-w-0">
+                  <div className="font-medium text-slate-800">{new Date(round.createdAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>
+                  <div className="mt-1 truncate text-slate-500" title={round.options.join("、")}>{round.options.length} 个选项 · {round.results.length} / {round.targetCount} 次 · {round.results.slice(0, 3).join("、")}{round.results.length > 3 ? " …" : ""}</div>
+                </div>
+                <Tag color={round.results.length >= round.targetCount ? "success" : "default"} className="m-0">{round.results.length >= round.targetCount ? "已完成" : "已保存"}</Tag>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

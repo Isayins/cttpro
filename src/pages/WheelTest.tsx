@@ -4,6 +4,7 @@ import { Card, CardContent } from "../components/ui";
 import { getErrorMessage } from "../lib/errorMessage";
 import { WheelToolPanel } from "./tools/WheelToolPanel";
 import { buildWheelCsv, buildWheelSummary, clearWheelSession, downloadTextFile, findWheelDuplicateOptions, parseWheelOptions, readWheelSession, secureRandomFraction, secureRandomIndex, writeWheelSession } from "./tools/toolUtils";
+import type { WheelRoundRecord } from "./tools/types";
 
 export default function WheelTest() {
   const [session] = useState(() => readWheelSession());
@@ -14,6 +15,7 @@ export default function WheelTest() {
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<string[]>(() => session?.results ?? []);
   const [targetCount, setTargetCount] = useState(() => session?.targetCount ?? 10);
+  const [rounds, setRounds] = useState<WheelRoundRecord[]>(() => session?.rounds ?? []);
   const [summaryCopied, setSummaryCopied] = useState(false);
   const timerRef = useRef<number | null>(null);
 
@@ -26,11 +28,11 @@ export default function WheelTest() {
   useEffect(() => {
     const options = input.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
     if (options.length >= 2 && options.length <= 50 && findWheelDuplicateOptions(options).length === 0) {
-      writeWheelSession({ options, results, targetCount, rotation, selected });
+      writeWheelSession({ options, results, targetCount, rotation, selected, rounds });
     } else {
       clearWheelSession();
     }
-  }, [input, results, targetCount, rotation, selected]);
+  }, [input, results, rounds, targetCount, rotation, selected]);
 
   const spin = () => {
     if (spinning || results.length >= targetCount) {
@@ -79,6 +81,7 @@ export default function WheelTest() {
               error={error}
               results={results}
               targetCount={targetCount}
+              rounds={rounds}
               summaryCopied={summaryCopied}
               onInputChange={(value) => {
                 setInput(value);
@@ -101,8 +104,28 @@ export default function WheelTest() {
                 downloadTextFile(buildWheelCsv(options, results, targetCount), `转盘统计-${new Date().toISOString().slice(0, 10)}.csv`, "text/csv;charset=utf-8");
               }}
               onResetResults={() => {
+                if (results.length > 0) {
+                  const options = input.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+                  const round: WheelRoundRecord = {
+                    id: `${Date.now()}-${rounds.length}`,
+                    createdAt: new Date().toISOString(),
+                    options,
+                    results,
+                    targetCount,
+                  };
+                  setRounds((previous) => [round, ...previous].slice(0, 20));
+                }
                 setResults([]);
                 setSelected("");
+                setSummaryCopied(false);
+              }}
+              onUndoLast={() => {
+                if (results.length === 0) {
+                  return;
+                }
+                const previousResults = results.slice(0, -1);
+                setResults(previousResults);
+                setSelected(previousResults.at(-1) ?? "");
                 setSummaryCopied(false);
               }}
               onClear={() => {
@@ -111,6 +134,7 @@ export default function WheelTest() {
                 setRotation(0);
                 setError(null);
                 setResults([]);
+                setRounds([]);
                 setSummaryCopied(false);
                 clearWheelSession();
               }}

@@ -1,5 +1,5 @@
 import { toolTypes } from "./types";
-import type { CurlCodeMode, CsvDelimiter, HashAlgorithm, RgbColor, TextTransformMode, TimestampUnit, ToolHistoryItem, ToolType } from "./types";
+import type { CurlCodeMode, CsvDelimiter, HashAlgorithm, RgbColor, TextTransformMode, TimestampUnit, ToolHistoryItem, ToolType, WheelRoundRecord } from "./types";
 
 export const TOOL_HISTORY_STORAGE_KEY = "idncar.tools.history";
 export const TOOL_HISTORY_LIMIT = 36;
@@ -14,6 +14,7 @@ export type WheelSession = {
   targetCount: number;
   rotation: number;
   selected: string;
+  rounds?: WheelRoundRecord[];
 };
 
 export type WheelStatistic = {
@@ -155,6 +156,20 @@ export function readWheelSession(): WheelSession | null {
     const targetCount = value.targetCount;
     const options = Array.isArray(value.options) ? value.options.map((option) => typeof option === "string" ? option.trim() : option) : [];
     const results = Array.isArray(value.results) ? value.results : [];
+    const rounds = Array.isArray(value.rounds) ? value.rounds : [];
+    const validRounds = rounds.every((round) => {
+      if (!round || typeof round !== "object") return false;
+      const item = round as Partial<WheelRoundRecord>;
+      const roundTargetCount = item.targetCount;
+      const roundOptions = Array.isArray(item.options) ? item.options.map((option) => typeof option === "string" ? option.trim() : option) : [];
+      const roundResults = Array.isArray(item.results) ? item.results : [];
+      return typeof item.id === "string" && typeof item.createdAt === "string" &&
+        typeof roundTargetCount === "number" && Number.isInteger(roundTargetCount) && roundTargetCount >= 1 && roundTargetCount <= 100 &&
+        roundOptions.length >= 2 && roundOptions.length <= 50 &&
+        roundOptions.every((option) => typeof option === "string" && Boolean(option)) &&
+        findWheelDuplicateOptions(roundOptions.filter((option): option is string => typeof option === "string" )).length === 0 &&
+        roundResults.length <= roundTargetCount && roundResults.every((result) => typeof result === "string" && roundOptions.includes(result));
+    });
     const duplicateOptions = findWheelDuplicateOptions(options.filter((option): option is string => typeof option === "string"));
     if (
       !Array.isArray(value.options) ||
@@ -166,6 +181,8 @@ export function readWheelSession(): WheelSession | null {
       results.length > 100 ||
       results.length > (typeof targetCount === "number" ? targetCount : 0) ||
       results.some((result) => typeof result !== "string" || !options.includes(result)) ||
+      rounds.length > 20 ||
+      !validRounds ||
       typeof targetCount !== "number" ||
       !Number.isInteger(targetCount) ||
       targetCount < 1 ||
@@ -183,6 +200,7 @@ export function readWheelSession(): WheelSession | null {
       targetCount,
       rotation: value.rotation,
       selected: value.selected,
+      rounds: rounds as WheelRoundRecord[],
     };
   } catch {
     return null;

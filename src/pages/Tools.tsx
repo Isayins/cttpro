@@ -16,6 +16,7 @@ import type {
   TextTransformMode,
   ToolHistoryItem,
   ToolType,
+  WheelRoundRecord,
 } from "./tools/types";
 import {
   buildColorOutput,
@@ -204,6 +205,7 @@ export default function Tools() {
   const [wheelError, setWheelError] = useState<string | null>(null);
   const [wheelResults, setWheelResults] = useState<string[]>(() => wheelSession?.results ?? []);
   const [wheelTargetCount, setWheelTargetCount] = useState(() => wheelSession?.targetCount ?? 10);
+  const [wheelRounds, setWheelRounds] = useState<WheelRoundRecord[]>(() => wheelSession?.rounds ?? []);
   const [wheelSummaryCopied, setWheelSummaryCopied] = useState(false);
   const wheelTimerRef = useRef<number | null>(null);
 
@@ -241,11 +243,11 @@ export default function Tools() {
   useEffect(() => {
     const options = wheelInput.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
     if (options.length >= 2 && options.length <= 50 && findWheelDuplicateOptions(options).length === 0) {
-      writeWheelSession({ options, results: wheelResults, targetCount: wheelTargetCount, rotation: wheelRotation, selected: wheelSelected });
+      writeWheelSession({ options, results: wheelResults, targetCount: wheelTargetCount, rotation: wheelRotation, selected: wheelSelected, rounds: wheelRounds });
     } else {
       clearWheelSession();
     }
-  }, [wheelInput, wheelResults, wheelTargetCount, wheelRotation, wheelSelected]);
+  }, [wheelInput, wheelResults, wheelRounds, wheelTargetCount, wheelRotation, wheelSelected]);
 
   const resetCopiedStates = () => {
     [
@@ -411,6 +413,7 @@ export default function Tools() {
         setWheelResults(item.wheelResults ?? (item.output ? [item.output] : []));
         setWheelTargetCount(item.wheelTargetCount ?? 10);
         setWheelRotation(item.wheelRotation ?? 0);
+        setWheelRounds([]);
         setWheelSummaryCopied(false);
         setWheelError(null);
         break;
@@ -1387,6 +1390,7 @@ export default function Tools() {
           error={wheelError}
           results={wheelResults}
           targetCount={wheelTargetCount}
+          rounds={wheelRounds}
           summaryCopied={wheelSummaryCopied}
           onInputChange={(value) => {
             setWheelInput(value);
@@ -1401,8 +1405,28 @@ export default function Tools() {
             downloadTextFile(buildWheelCsv(options, wheelResults, wheelTargetCount), `转盘统计-${new Date().toISOString().slice(0, 10)}.csv`, "text/csv;charset=utf-8");
           }}
           onResetResults={() => {
+            if (wheelResults.length > 0) {
+              const options = wheelInput.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+              const round: WheelRoundRecord = {
+                id: `${Date.now()}-${wheelRounds.length}`,
+                createdAt: new Date().toISOString(),
+                options,
+                results: wheelResults,
+                targetCount: wheelTargetCount,
+              };
+              setWheelRounds((previous) => [round, ...previous].slice(0, 20));
+            }
             setWheelResults([]);
             setWheelSelected("");
+            setWheelSummaryCopied(false);
+          }}
+          onUndoLast={() => {
+            if (wheelResults.length === 0) {
+              return;
+            }
+            const previousResults = wheelResults.slice(0, -1);
+            setWheelResults(previousResults);
+            setWheelSelected(previousResults.at(-1) ?? "");
             setWheelSummaryCopied(false);
           }}
           onClear={() => {
@@ -1411,6 +1435,7 @@ export default function Tools() {
             setWheelRotation(0);
             setWheelError(null);
             setWheelResults([]);
+            setWheelRounds([]);
             setWheelSummaryCopied(false);
             clearWheelSession();
           }}

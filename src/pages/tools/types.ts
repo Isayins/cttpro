@@ -95,6 +95,14 @@ export type ToolHistoryItem = {
   createdAt: string;
 };
 
+export type WheelRoundRecord = {
+  id: string;
+  createdAt: string;
+  options: string[];
+  results: string[];
+  targetCount: number;
+};
+
 export type ToolIconProps = {
   style?: CSSProperties;
   className?: string;
