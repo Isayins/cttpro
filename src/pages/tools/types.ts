@@ -88,6 +88,10 @@ export type ToolHistoryItem = {
   cronHour?: number;
   cronWeekday?: number;
   cronMonthDay?: number;
+  wheelOptions?: string[];
+  wheelResults?: string[];
+  wheelTargetCount?: number;
+  wheelRotation?: number;
   createdAt: string;
 };
 

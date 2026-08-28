@@ -8,6 +8,9 @@ import {
   buildQueryOutput,
   buildRegexOutput,
   buildTypeScriptTypesFromJson,
+  buildWheelCsv,
+  buildWheelStatistics,
+  buildWheelSummary,
   createUuidV4,
   decodeBase64,
   decodeBase64Url,
@@ -19,9 +22,15 @@ import {
   parseColor,
   parseUnixTimestamp,
   parseWheelOptions,
+  findWheelDuplicateOptions,
+  readWheelSession,
   readToolHistory,
   rgbToHex,
   secureRandomIndex,
+  secureRandomFraction,
+  clearWheelSession,
+  writeWheelSession,
+  WHEEL_SESSION_STORAGE_KEY,
   TOOL_HISTORY_STORAGE_KEY,
   transformText,
   trimHistoryText,
@@ -40,6 +49,7 @@ function stubToolHistoryStorage(initialValue?: string) {
     localStorage: {
       getItem: (key: string) => storage.get(key) ?? null,
       setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
     },
   });
 
@@ -55,6 +65,8 @@ describe("tool utils", () => {
     expect(parseWheelOptions(" A \n\nB\n")).toEqual(["A", "B"]);
     expect(() => parseWheelOptions("only one")).toThrow("至少输入两个选项");
     expect(() => parseWheelOptions(Array.from({ length: 51 }, (_, index) => String(index)).join("\n"))).toThrow("不能超过 50 个");
+    expect(findWheelDuplicateOptions(["A", "B", "A", "B", "C"])).toEqual(["A", "B"]);
+    expect(() => parseWheelOptions("A\nB\nA")).toThrow("选项不能重复：A");
   });
   it("rejects out-of-range random values before selecting a wheel index", () => {
     const values = [0xffff_ffff, 5];
@@ -67,6 +79,49 @@ describe("tool utils", () => {
 
     expect(secureRandomIndex(10)).toBe(5);
     expect(values).toHaveLength(0);
+  });
+  it("creates a secure fractional position inside a wheel segment", () => {
+    const values = [0, 0xffff_ffff];
+    vi.stubGlobal("crypto", {
+      getRandomValues: (target: Uint32Array) => {
+        target[0] = values.shift() ?? 0;
+        return target;
+      },
+    });
+
+    expect(secureRandomFraction()).toBe(0);
+    expect(secureRandomFraction()).toBeLessThan(1);
+    expect(values).toHaveLength(0);
+  });
+  it("keeps zero-hit options and builds an exportable wheel report", () => {
+    const options = ["A", "B", "C"];
+    const results = ["B", "B"];
+    expect(buildWheelStatistics(options, results)).toEqual([
+      { option: "A", count: 0, percentage: 0 },
+      { option: "B", count: 2, percentage: 100 },
+      { option: "C", count: 0, percentage: 0 },
+    ]);
+    expect(buildWheelSummary(options, results, 10)).toContain("A：0 次（0.0%）");
+    expect(buildWheelCsv(options, results, 10)).toContain("\"旋转序号\",\"结果\"");
+    expect(buildWheelCsv(options, results, 10)).toContain("\"B\",\"2\",\"100.0%\"");
+  });
+
+  it("persists and validates a wheel session", () => {
+    const storage = stubToolHistoryStorage();
+    writeWheelSession({ options: ["A", "B"], results: ["A"], targetCount: 10, rotation: 720, selected: "A" });
+    expect(storage.has(WHEEL_SESSION_STORAGE_KEY)).toBe(true);
+    expect(readWheelSession()).toMatchObject({ options: ["A", "B"], results: ["A"], targetCount: 10 });
+    clearWheelSession();
+    expect(readWheelSession()).toBeNull();
+
+    storage.set(WHEEL_SESSION_STORAGE_KEY, JSON.stringify({
+      options: ["A", "A"],
+      results: ["A"],
+      targetCount: 10,
+      rotation: 0,
+      selected: "A",
+    }));
+    expect(readWheelSession()).toBeNull();
   });
   it("round-trips unicode text through Base64 helpers", () => {
     const input = "hello 中文";

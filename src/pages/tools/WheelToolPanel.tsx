@@ -1,5 +1,6 @@
-import { DeleteOutlined, PlayCircleOutlined, ReloadOutlined, WarningOutlined } from "@ant-design/icons";
-import { Alert, Button, Input } from "antd";
+import { CopyOutlined, DeleteOutlined, DownloadOutlined, PlayCircleOutlined, ReloadOutlined, WarningOutlined } from "@ant-design/icons";
+import { Alert, Button, Input, InputNumber, Progress, Tag } from "antd";
+import { buildWheelStatistics, findWheelDuplicateOptions } from "./toolUtils";
 
 type WheelToolPanelProps = {
   input: string;
@@ -7,15 +8,26 @@ type WheelToolPanelProps = {
   selected: string;
   spinning: boolean;
   error: string | null;
+  results: string[];
+  targetCount: number;
+  summaryCopied: boolean;
   onInputChange: (value: string) => void;
+  onTargetCountChange: (value: number) => void;
   onSpin: () => void;
   onClear: () => void;
+  onResetResults: () => void;
+  onCopySummary: () => void;
+  onExport: () => void;
 };
 
 const colors = ["#2563eb", "#0d9488", "#db2777", "#ea580c", "#7c3aed", "#16a34a", "#ca8a04", "#0891b2"];
 
-export function WheelToolPanel({ input, rotation, selected, spinning, error, onInputChange, onSpin, onClear }: WheelToolPanelProps) {
+export function WheelToolPanel({ input, rotation, selected, spinning, error, results, targetCount, summaryCopied, onInputChange, onTargetCountChange, onSpin, onClear, onResetResults, onCopySummary, onExport }: WheelToolPanelProps) {
   const options = input.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+  const duplicateOptions = findWheelDuplicateOptions(options);
+  const locked = spinning || results.length > 0;
+  const completed = results.length >= targetCount;
+  const statistics = buildWheelStatistics(options, results);
   const angle = options.length > 0 ? 360 / options.length : 360;
   const gradient = options.length > 0
     ? `conic-gradient(${options.map((_, index) => `${colors[index % colors.length]} ${index * angle}deg ${(index + 1) * angle}deg`).join(", ")})`
@@ -24,6 +36,7 @@ export function WheelToolPanel({ input, rotation, selected, spinning, error, onI
   return (
     <div className="space-y-6">
       {error ? <Alert type="error" showIcon icon={<WarningOutlined />} message="转盘无法旋转" description={error} /> : null}
+      {duplicateOptions.length > 0 && !error ? <Alert type="warning" showIcon message="选项存在重复" description={`请修改或删除重复项：${duplicateOptions.join("、")}`} /> : null}
       <div className="grid gap-8 lg:grid-cols-[minmax(260px,360px)_minmax(0,1fr)] lg:items-center">
         <div className="mx-auto w-full max-w-[360px]">
           <div className="relative aspect-square">
@@ -55,16 +68,47 @@ export function WheelToolPanel({ input, rotation, selected, spinning, error, onI
         <div className="space-y-4">
           <div>
             <label htmlFor="wheel-options" className="mb-2 block text-sm font-medium text-slate-700">选项（每行一个，2 至 50 个）</label>
-            <Input.TextArea id="wheel-options" value={input} onChange={(event) => onInputChange(event.target.value)} rows={12} placeholder="例如：\n方案 A\n方案 B\n方案 C" disabled={spinning} />
+            <Input.TextArea id="wheel-options" value={input} onChange={(event) => onInputChange(event.target.value)} rows={10} placeholder="例如：\n方案 A\n方案 B\n方案 C" disabled={locked} />
+          </div>
+          <div className="flex items-center gap-3">
+            <label htmlFor="wheel-target-count" className="text-sm font-medium text-slate-700">统计次数</label>
+            <InputNumber id="wheel-target-count" min={1} max={100} value={targetCount} disabled={locked} onChange={(value) => onTargetCountChange(Number(value ?? 10))} />
+            {completed ? <Tag color="success" className="m-0">统计完成</Tag> : null}
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button type="primary" size="large" icon={<PlayCircleOutlined />} onClick={onSpin} loading={spinning} disabled={options.length < 2}>旋转转盘</Button>
-            <Button size="large" icon={<ReloadOutlined />} onClick={() => onInputChange(options.join("\n"))} disabled={spinning || options.length === 0}>整理选项</Button>
+            <Button type="primary" size="large" icon={<PlayCircleOutlined />} onClick={onSpin} loading={spinning} disabled={spinning || completed || options.length < 2 || duplicateOptions.length > 0}>旋转转盘</Button>
+            <Button size="large" icon={<ReloadOutlined />} onClick={() => onInputChange(options.join("\n"))} disabled={locked || options.length === 0}>整理选项</Button>
+            <Button size="large" onClick={onResetResults} disabled={spinning || results.length === 0}>重新统计</Button>
             <Button size="large" aria-label="清空" title="清空" icon={<DeleteOutlined />} onClick={onClear} disabled={spinning} />
           </div>
           <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm text-slate-600">已加载 {options.length} 个选项。每次旋转开始前使用浏览器安全随机数抽取索引，动画只呈现该索引对应的落点。</div>
         </div>
       </div>
+      <section className="border-t border-slate-200 pt-6">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">本轮统计</h2>
+            <div className="mt-1 text-sm text-slate-500">已完成 {results.length} / {targetCount} 次</div>
+          </div>
+          <div className="flex w-full max-w-xs items-center gap-2"><Progress className="min-w-0 flex-1" percent={Math.min(100, Math.round(results.length / targetCount * 100))} showInfo={false} /><Button size="small" icon={<CopyOutlined />} onClick={onCopySummary} disabled={results.length === 0}>{summaryCopied ? "已复制" : "复制摘要"}</Button><Button size="small" icon={<DownloadOutlined />} onClick={onExport} disabled={results.length === 0}>导出 CSV</Button></div>
+        </div>
+        {results.length > 0 ? (
+          <div className="grid gap-5 lg:grid-cols-2">
+            <div className="max-h-80 overflow-auto rounded-lg border border-slate-100">
+              <table className="w-full min-w-[320px] text-left text-sm">
+                <thead className="sticky top-0 z-[1] border-b border-slate-200 bg-white text-slate-500"><tr><th className="px-3 py-2 font-medium">选项</th><th className="px-3 py-2 font-medium">次数</th><th className="px-3 py-2 font-medium">占比</th></tr></thead>
+                <tbody>{statistics.map(({ option, count, percentage }) => <tr key={option} className="border-b border-slate-100 last:border-b-0"><td className="max-w-[220px] truncate px-3 py-2.5 font-medium text-slate-800" title={option}>{option}</td><td className="px-3 py-2.5 text-slate-600">{count}</td><td className="px-3 py-2.5 text-slate-600">{percentage.toFixed(1)}%</td></tr>)}</tbody>
+              </table>
+            </div>
+            <div>
+              <div className="mb-2 text-sm font-medium text-slate-700">旋转记录</div>
+              <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg bg-slate-50 p-3">
+                {results.map((result, index) => <div key={`${index}-${result}`} className="flex gap-3 text-sm"><span className="w-8 shrink-0 text-right text-slate-400">{index + 1}.</span><span className="font-medium text-slate-700">{result}</span></div>)}
+              </div>
+            </div>
+          </div>
+        ) : <div className="rounded-lg bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">旋转结果会依次记录在这里</div>}
+      </section>
     </div>
   );
 }

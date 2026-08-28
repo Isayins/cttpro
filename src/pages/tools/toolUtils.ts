@@ -4,8 +4,23 @@ import type { CurlCodeMode, CsvDelimiter, HashAlgorithm, RgbColor, TextTransform
 export const TOOL_HISTORY_STORAGE_KEY = "idncar.tools.history";
 export const TOOL_HISTORY_LIMIT = 36;
 export const TOOL_HISTORY_TEXT_LIMIT = 4000;
+export const WHEEL_SESSION_STORAGE_KEY = "idncar.tools.wheel.session";
 const PERSISTED_HISTORY_TOOLS = new Set<ToolType>(["color", "cron", "uuid", "wheel"]);
 const TOOL_TYPES = new Set<string>(toolTypes);
+
+export type WheelSession = {
+  options: string[];
+  results: string[];
+  targetCount: number;
+  rotation: number;
+  selected: string;
+};
+
+export type WheelStatistic = {
+  option: string;
+  count: number;
+  percentage: number;
+};
 
 export const weekOptions = [
   { label: "周日", value: 0 },
@@ -58,6 +73,132 @@ export function clampNumber(value: number, min: number, max: number) {
     return min;
   }
   return Math.min(max, Math.max(min, Math.floor(value)));
+}
+
+export function buildWheelStatistics(options: string[], results: string[]): WheelStatistic[] {
+  const counts = new Map<string, number>();
+  options.forEach((option) => counts.set(option, counts.get(option) ?? 0));
+  results.forEach((result) => counts.set(result, (counts.get(result) ?? 0) + 1));
+  return Array.from(counts, ([option, count]) => ({
+    option,
+    count,
+    percentage: results.length > 0 ? (count / results.length) * 100 : 0,
+  }));
+}
+
+export function findWheelDuplicateOptions(options: string[]) {
+  const seen = new Set<string>();
+  const duplicates: string[] = [];
+  options.forEach((option) => {
+    if (seen.has(option)) {
+      if (!duplicates.includes(option)) {
+        duplicates.push(option);
+      }
+      return;
+    }
+    seen.add(option);
+  });
+  return duplicates;
+}
+
+function escapeCsvCell(value: string | number) {
+  return `"${String(value).replace(/"/g, '""')}"`;
+}
+
+export function buildWheelCsv(options: string[], results: string[], targetCount: number) {
+  const lines = [
+    ["统计次数", results.length, "目标次数", targetCount],
+    [],
+    ["选项", "次数", "占比"],
+    ...buildWheelStatistics(options, results).map((item) => [item.option, item.count, `${item.percentage.toFixed(1)}%`]),
+    [],
+    ["旋转序号", "结果"],
+    ...results.map((result, index) => [index + 1, result]),
+  ];
+  return `\uFEFF${lines.map((line) => line.map((cell) => escapeCsvCell(cell ?? "")).join(",")).join("\r\n")}`;
+}
+
+export function buildWheelSummary(options: string[], results: string[], targetCount: number) {
+  const statistics = buildWheelStatistics(options, results);
+  return [
+    `统计次数：${results.length} / ${targetCount}`,
+    "",
+    "选项统计：",
+    ...statistics.map((item) => `${item.option}：${item.count} 次（${item.percentage.toFixed(1)}%）`),
+    "",
+    "旋转记录：",
+    ...results.map((result, index) => `${index + 1}. ${result}`),
+  ].join("\n");
+}
+
+export function downloadTextFile(content: string, fileName: string, mimeType: string) {
+  if (typeof document === "undefined") {
+    return;
+  }
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob([content], { type: mimeType }));
+  link.download = fileName;
+  link.click();
+  window.setTimeout(() => URL.revokeObjectURL(link.href), 0);
+}
+
+export function readWheelSession(): WheelSession | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  try {
+    const raw = window.localStorage.getItem(WHEEL_SESSION_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+    const value = JSON.parse(raw) as Partial<WheelSession>;
+    const targetCount = value.targetCount;
+    const options = Array.isArray(value.options) ? value.options.map((option) => typeof option === "string" ? option.trim() : option) : [];
+    const results = Array.isArray(value.results) ? value.results : [];
+    const duplicateOptions = findWheelDuplicateOptions(options.filter((option): option is string => typeof option === "string"));
+    if (
+      !Array.isArray(value.options) ||
+      options.length < 2 ||
+      options.length > 50 ||
+      options.some((option) => typeof option !== "string" || !option) ||
+      duplicateOptions.length > 0 ||
+      !Array.isArray(value.results) ||
+      results.length > 100 ||
+      results.length > (typeof targetCount === "number" ? targetCount : 0) ||
+      results.some((result) => typeof result !== "string" || !options.includes(result)) ||
+      typeof targetCount !== "number" ||
+      !Number.isInteger(targetCount) ||
+      targetCount < 1 ||
+      targetCount > 100 ||
+      typeof value.rotation !== "number" ||
+      !Number.isFinite(value.rotation) ||
+      typeof value.selected !== "string" ||
+      (value.selected !== "" && !options.includes(value.selected))
+    ) {
+      return null;
+    }
+    return {
+      options: options as string[],
+      results: results as string[],
+      targetCount,
+      rotation: value.rotation,
+      selected: value.selected,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function writeWheelSession(session: WheelSession) {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(WHEEL_SESSION_STORAGE_KEY, JSON.stringify(session));
+  }
+}
+
+export function clearWheelSession() {
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem(WHEEL_SESSION_STORAGE_KEY);
+  }
 }
 
 export function encodeBase64(value: string) {
@@ -1006,11 +1147,24 @@ export function parseWheelOptions(input: string) {
   if (options.length > 50) {
     throw new Error("选项不能超过 50 个");
   }
+  const duplicates = findWheelDuplicateOptions(options);
+  if (duplicates.length > 0) {
+    throw new Error(`选项不能重复：${duplicates.join("、")}`);
+  }
   return options;
 }
 
 export function secureRandomIndex(max: number) {
   return randomIndex(max);
+}
+
+export function secureRandomFraction() {
+  if (typeof crypto === "undefined" || typeof crypto.getRandomValues !== "function") {
+    throw new Error("当前浏览器不支持安全随机数生成");
+  }
+  const values = new Uint32Array(1);
+  crypto.getRandomValues(values);
+  return values[0] / 0x1_0000_0000;
 }
 
 function shuffleText(value: string) {
@@ -1094,7 +1248,9 @@ function normalizeStoredHistoryItem(value: unknown): ToolHistoryItem | null {
     typeof item.input !== "string" ||
     typeof item.createdAt !== "string" ||
     (item.output !== undefined && typeof item.output !== "string") ||
-    (item.secondaryInput !== undefined && typeof item.secondaryInput !== "string")
+    (item.secondaryInput !== undefined && typeof item.secondaryInput !== "string") ||
+    (item.wheelOptions !== undefined && (!Array.isArray(item.wheelOptions) || item.wheelOptions.some((value) => typeof value !== "string"))) ||
+    (item.wheelResults !== undefined && (!Array.isArray(item.wheelResults) || item.wheelResults.some((value) => typeof value !== "string")))
   ) {
     return null;
   }
@@ -1107,6 +1263,8 @@ function normalizeStoredHistoryItem(value: unknown): ToolHistoryItem | null {
     "cronHour",
     "cronWeekday",
     "cronMonthDay",
+    "wheelTargetCount",
+    "wheelRotation",
   ];
   if (
     numericFields.some(

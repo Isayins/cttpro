@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState, type ChangeEvent } from "react";
+import { Suspense, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { message } from "antd";
 
 import { Card, CardContent } from "../components/ui";
@@ -20,13 +20,18 @@ import type {
 import {
   buildColorOutput,
   buildCsvJsonOutput,
+  buildWheelCsv,
+  buildWheelSummary,
   buildLineDiff,
   clampNumber,
   createUuidV4,
+  clearWheelSession,
   decodeBase64Url,
+  downloadTextFile,
   digestText,
   escapeHtml,
   formatJsonBlock,
+  findWheelDuplicateOptions,
   formatJwtUnixClaim,
   generatePassword,
   getHistoryPreview,
@@ -37,7 +42,10 @@ import {
   unescapeHtml,
   weekOptions,
   parseWheelOptions,
+  readWheelSession,
+  secureRandomFraction,
   secureRandomIndex,
+  writeWheelSession,
 } from "./tools/toolUtils";
 import { useBase64Tool } from "./tools/useBase64Tool";
 import { useCurlCodeTool } from "./tools/useCurlCodeTool";
@@ -50,129 +58,32 @@ import { useTimestampTool } from "./tools/useTimestampTool";
 import { useToolHistory } from "./tools/useToolHistory";
 import { useUrlCodecTool } from "./tools/useUrlCodecTool";
 
-const Base64ToolPanel = lazy(() =>
-  import("./tools/Base64ToolPanel").then((module) => ({
-    default: module.Base64ToolPanel,
-  })),
-);
-const ColorToolPanel = lazy(() =>
-  import("./tools/ColorToolPanel").then((module) => ({
-    default: module.ColorToolPanel,
-  })),
-);
-const CronToolPanel = lazy(() =>
-  import("./tools/CronToolPanel").then((module) => ({
-    default: module.CronToolPanel,
-  })),
-);
-const CsvJsonToolPanel = lazy(() =>
-  import("./tools/CsvJsonToolPanel").then((module) => ({
-    default: module.CsvJsonToolPanel,
-  })),
-);
-const CurlCodeToolPanel = lazy(() =>
-  import("./tools/CurlCodeToolPanel").then((module) => ({
-    default: module.CurlCodeToolPanel,
-  })),
-);
-const DiagnosticsToolPanel = lazy(() =>
-  import("./tools/DiagnosticsToolPanel").then((module) => ({
-    default: module.DiagnosticsToolPanel,
-  })),
-);
-const HashToolPanel = lazy(() =>
-  import("./tools/HashToolPanel").then((module) => ({
-    default: module.HashToolPanel,
-  })),
-);
-const HtmlEntityToolPanel = lazy(() =>
-  import("./tools/HtmlEntityToolPanel").then((module) => ({
-    default: module.HtmlEntityToolPanel,
-  })),
-);
-const JavaDecompileToolPanel = lazy(() =>
-  import("./tools/JavaDecompileToolPanel").then((module) => ({
-    default: module.JavaDecompileToolPanel,
-  })),
-);
-const JsonFormatToolPanel = lazy(() =>
-  import("./tools/JsonFormatToolPanel").then((module) => ({
-    default: module.JsonFormatToolPanel,
-  })),
-);
-const JsonTypesToolPanel = lazy(() =>
-  import("./tools/JsonTypesToolPanel").then((module) => ({
-    default: module.JsonTypesToolPanel,
-  })),
-);
-const JwtToolPanel = lazy(() =>
-  import("./tools/JwtToolPanel").then((module) => ({
-    default: module.JwtToolPanel,
-  })),
-);
-const PasswordToolPanel = lazy(() =>
-  import("./tools/PasswordToolPanel").then((module) => ({
-    default: module.PasswordToolPanel,
-  })),
-);
-const QueryParamsToolPanel = lazy(() =>
-  import("./tools/QueryParamsToolPanel").then((module) => ({
-    default: module.QueryParamsToolPanel,
-  })),
-);
-const QrcodeToolPanel = lazy(() =>
-  import("./tools/QrcodeToolPanel").then((module) => ({
-    default: module.QrcodeToolPanel,
-  })),
-);
-const QrDecodeToolPanel = lazy(() =>
-  import("./tools/QrDecodeToolPanel").then((module) => ({
-    default: module.QrDecodeToolPanel,
-  })),
-);
-const RegexToolPanel = lazy(() =>
-  import("./tools/RegexToolPanel").then((module) => ({
-    default: module.RegexToolPanel,
-  })),
-);
-const SubConvertToolPanel = lazy(() =>
-  import("./tools/SubConvertToolPanel").then((module) => ({
-    default: module.SubConvertToolPanel,
-  })),
-);
-const TextDiffToolPanel = lazy(() =>
-  import("./tools/TextDiffToolPanel").then((module) => ({
-    default: module.TextDiffToolPanel,
-  })),
-);
-const TextTransformToolPanel = lazy(() =>
-  import("./tools/TextTransformToolPanel").then((module) => ({
-    default: module.TextTransformToolPanel,
-  })),
-);
-const TimestampToolPanel = lazy(() =>
-  import("./tools/TimestampToolPanel").then((module) => ({
-    default: module.TimestampToolPanel,
-  })),
-);
-const UrlCodecToolPanel = lazy(() =>
-  import("./tools/UrlCodecToolPanel").then((module) => ({
-    default: module.UrlCodecToolPanel,
-  })),
-);
-const UuidToolPanel = lazy(() =>
-  import("./tools/UuidToolPanel").then((module) => ({
-    default: module.UuidToolPanel,
-  })),
-);
-
-function ToolPanelLoadingFallback() {
-  return (
-    <div className="flex min-h-[240px] items-center justify-center rounded-lg border border-slate-100 bg-slate-50 text-sm text-slate-500">
-      工具加载中...
-    </div>
-  );
-}
+import {
+  Base64ToolPanel,
+  ColorToolPanel,
+  CronToolPanel,
+  CsvJsonToolPanel,
+  CurlCodeToolPanel,
+  DiagnosticsToolPanel,
+  HashToolPanel,
+  HtmlEntityToolPanel,
+  JavaDecompileToolPanel,
+  JsonFormatToolPanel,
+  JsonTypesToolPanel,
+  JwtToolPanel,
+  PasswordToolPanel,
+  QrDecodeToolPanel,
+  QrcodeToolPanel,
+  QueryParamsToolPanel,
+  RegexToolPanel,
+  SubConvertToolPanel,
+  TextDiffToolPanel,
+  TextTransformToolPanel,
+  TimestampToolPanel,
+  ToolPanelLoadingFallback,
+  UrlCodecToolPanel,
+  UuidToolPanel,
+} from "./tools/lazyPanels";
 
 export default function Tools() {
   const [activeTool, setActiveTool] = useState<ToolType>("json");
@@ -285,11 +196,15 @@ export default function Tools() {
   const [javaFileName, setJavaFileName] = useState("");
   const [javaDecompiling, setJavaDecompiling] = useState(false);
 
-  const [wheelInput, setWheelInput] = useState("选项 A\n选项 B\n选项 C\n选项 D");
-  const [wheelRotation, setWheelRotation] = useState(0);
-  const [wheelSelected, setWheelSelected] = useState("");
+  const [wheelSession] = useState(() => readWheelSession());
+  const [wheelInput, setWheelInput] = useState(() => wheelSession?.options.join("\n") ?? "选项 A\n选项 B\n选项 C\n选项 D");
+  const [wheelRotation, setWheelRotation] = useState(() => wheelSession?.rotation ?? 0);
+  const [wheelSelected, setWheelSelected] = useState(() => wheelSession?.selected ?? "");
   const [wheelSpinning, setWheelSpinning] = useState(false);
   const [wheelError, setWheelError] = useState<string | null>(null);
+  const [wheelResults, setWheelResults] = useState<string[]>(() => wheelSession?.results ?? []);
+  const [wheelTargetCount, setWheelTargetCount] = useState(() => wheelSession?.targetCount ?? 10);
+  const [wheelSummaryCopied, setWheelSummaryCopied] = useState(false);
   const wheelTimerRef = useRef<number | null>(null);
 
   const copyText = async (
@@ -322,6 +237,15 @@ export default function Tools() {
       window.clearTimeout(wheelTimerRef.current);
     }
   }, []);
+
+  useEffect(() => {
+    const options = wheelInput.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+    if (options.length >= 2 && options.length <= 50 && findWheelDuplicateOptions(options).length === 0) {
+      writeWheelSession({ options, results: wheelResults, targetCount: wheelTargetCount, rotation: wheelRotation, selected: wheelSelected });
+    } else {
+      clearWheelSession();
+    }
+  }, [wheelInput, wheelResults, wheelTargetCount, wheelRotation, wheelSelected]);
 
   const resetCopiedStates = () => {
     [
@@ -482,8 +406,12 @@ export default function Tools() {
         setJavaDecompileError(null);
         break;
       case "wheel":
-        setWheelInput(item.input);
-        setWheelSelected(item.output ?? "");
+        setWheelInput(item.wheelOptions?.join("\n") ?? item.input);
+        setWheelSelected(item.output ?? item.wheelResults?.at(-1) ?? "");
+        setWheelResults(item.wheelResults ?? (item.output ? [item.output] : []));
+        setWheelTargetCount(item.wheelTargetCount ?? 10);
+        setWheelRotation(item.wheelRotation ?? 0);
+        setWheelSummaryCopied(false);
         setWheelError(null);
         break;
     }
@@ -973,13 +901,17 @@ export default function Tools() {
   };
 
   const handleWheelSpin = () => {
+    if (wheelSpinning || wheelResults.length >= wheelTargetCount) {
+      return;
+    }
     setWheelError(null);
     try {
       const options = parseWheelOptions(wheelInput);
       const selectedIndex = secureRandomIndex(options.length);
+      const landingOffset = 0.08 + secureRandomFraction() * 0.84;
       const segmentAngle = 360 / options.length;
       const currentNormalized = ((wheelRotation % 360) + 360) % 360;
-      const targetNormalized = (360 - (selectedIndex + 0.5) * segmentAngle) % 360;
+      const targetNormalized = (360 - (selectedIndex + landingOffset) * segmentAngle) % 360;
       const nextRotation = wheelRotation + 360 * 6 + ((targetNormalized - currentNormalized + 360) % 360);
 
       setWheelInput(options.join("\n"));
@@ -988,14 +920,20 @@ export default function Tools() {
       setWheelRotation(nextRotation);
       wheelTimerRef.current = window.setTimeout(() => {
         const result = options[selectedIndex];
+        const nextResults = [...wheelResults, result];
         setWheelSpinning(false);
         setWheelSelected(result);
+        setWheelResults(nextResults);
         wheelTimerRef.current = null;
         pushHistory({
           tool: "wheel",
           action: "随机转盘",
           input: options.join("\n"),
           output: result,
+          wheelOptions: options,
+          wheelResults: nextResults,
+          wheelTargetCount,
+          wheelRotation: nextRotation,
         });
       }, 4800);
     } catch (error) {
@@ -1447,17 +1385,34 @@ export default function Tools() {
           selected={wheelSelected}
           spinning={wheelSpinning}
           error={wheelError}
+          results={wheelResults}
+          targetCount={wheelTargetCount}
+          summaryCopied={wheelSummaryCopied}
           onInputChange={(value) => {
             setWheelInput(value);
             setWheelSelected("");
             setWheelError(null);
           }}
+          onTargetCountChange={setWheelTargetCount}
           onSpin={handleWheelSpin}
+          onCopySummary={() => void copyText(buildWheelSummary(wheelInput.split(/\r?\n/).map((value) => value.trim()).filter(Boolean), wheelResults, wheelTargetCount), setWheelSummaryCopied)}
+          onExport={() => {
+            const options = wheelInput.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+            downloadTextFile(buildWheelCsv(options, wheelResults, wheelTargetCount), `转盘统计-${new Date().toISOString().slice(0, 10)}.csv`, "text/csv;charset=utf-8");
+          }}
+          onResetResults={() => {
+            setWheelResults([]);
+            setWheelSelected("");
+            setWheelSummaryCopied(false);
+          }}
           onClear={() => {
             setWheelInput("");
             setWheelSelected("");
             setWheelRotation(0);
             setWheelError(null);
+            setWheelResults([]);
+            setWheelSummaryCopied(false);
+            clearWheelSession();
           }}
         />
       );
@@ -1489,7 +1444,7 @@ export default function Tools() {
   };
 
   return (
-    <MainLayout contentWidth="wide">
+    <MainLayout backdrop="liquid" contentWidth="wide">
       <div className="py-8">
         <div className="space-y-6">
           <ToolsPageHeader
