@@ -6,6 +6,7 @@ export const routePaths = {
   login: "/login",
   forbidden: "/403",
   wheel: "/wheel",
+  rps: "/rps",
   lc: "/lc",
   about: "/about",
   downloads: "/downloads",
@@ -38,6 +39,7 @@ export const publicRoutePaths = [
   routePaths.login,
   routePaths.forbidden,
   routePaths.wheel,
+  routePaths.rps,
 ] as const;
 
 export const protectedRoutePaths = [

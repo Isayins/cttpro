@@ -75,6 +75,12 @@ describe("route access metadata", () => {
     expect(adminRouteSet.has(routePaths.wheel)).toBe(false);
   });
 
+  it("keeps the rock paper scissors table available without login", () => {
+    expect(publicRouteSet.has(routePaths.rps)).toBe(true);
+    expect(protectedRouteSet.has(routePaths.rps)).toBe(false);
+    expect(adminRouteSet.has(routePaths.rps)).toBe(false);
+  });
+
   it("keeps visible nav permissions aligned with route groups", () => {
     for (const item of [...primaryNavItems, ...authenticatedNavItems, ...adminNavItems]) {
       expectNavItemMatchesRouteAccess(item);
