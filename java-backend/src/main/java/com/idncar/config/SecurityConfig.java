@@ -63,6 +63,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/code/fetch", "/api/code/fetch/").permitAll()
                 .requestMatchers("/api/mail/get/**").permitAll()
                 .requestMatchers("/api/qr-codes/public/**").permitAll()
+                .requestMatchers("/api/rps/**").permitAll()
                 .requestMatchers(
                         "/api/payments/alipay/notify",
                         "/api/payments/alipay/notify/",
