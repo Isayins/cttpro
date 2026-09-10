@@ -389,7 +389,7 @@ function PlayerPanel({ player, slot, draftName, choice, phase, accent, onNameCha
           <div className="rps-choice-grid">
             {(Object.keys(rpsChoiceMeta) as RpsChoice[]).map((item) => (
               <button
-                className={`rps-choice ${choice === item ? "rps-choice--selected" : ""}`}
+                className={`rps-choice ${phase === "revealed" && choice === item ? "rps-choice--revealed" : ""}`}
                 key={item}
                 type="button"
                 disabled={phase !== "choosing" || choice !== null}
@@ -401,7 +401,11 @@ function PlayerPanel({ player, slot, draftName, choice, phase, accent, onNameCha
               </button>
             ))}
           </div>
-          {choice ? <div className="rps-choice__locked"><CheckOutlined /> 已锁定，等待揭晓</div> : null}
+          {phase === "revealed" && choice ? (
+            <div className="rps-choice__locked"><CheckOutlined /> 本局出拳</div>
+          ) : choice ? (
+            <div className="rps-choice__locked"><CheckOutlined /> 已锁定，等待揭晓</div>
+          ) : null}
         </>
       )}
     </article>

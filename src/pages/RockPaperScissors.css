@@ -402,14 +402,14 @@
   opacity: 0.55;
 }
 
-.rps-choice--selected {
+.rps-choice--revealed {
   border-color: var(--rps-orange) !important;
   color: var(--rps-text);
   background: rgba(243, 166, 90, 0.15) !important;
   box-shadow: 0 0 0 3px rgba(243, 166, 90, 0.1);
 }
 
-.rps-player--two .rps-choice--selected {
+.rps-player--two .rps-choice--revealed {
   border-color: var(--rps-mint) !important;
   background: rgba(115, 212, 192, 0.14) !important;
   box-shadow: 0 0 0 3px rgba(115, 212, 192, 0.1);
@@ -852,4 +852,3 @@
     transition: none;
   }
 }
-
