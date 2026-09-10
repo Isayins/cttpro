@@ -25,7 +25,7 @@ const QrManage = lazy(() => import("../pages/QrManage"));
 const MailCode = lazy(() => import("../pages/MailCode"));
 const PublicMailCode = lazy(() => import("../pages/PublicMailCode"));
 const NotFound = lazy(() => import("../pages/NotFound"));
-const WheelTest = import.meta.env.DEV ? lazy(() => import("../pages/WheelTest")) : null;
+const Wheel = lazy(() => import("../pages/WheelTest"));
 
 function requireAuth(children: ReactNode, adminOnly = false) {
   return <ProtectedRoute adminOnly={adminOnly}>{children}</ProtectedRoute>;
@@ -100,7 +100,8 @@ export default function RouterConfig() {
   return (
     <Suspense fallback={<RouteLoadingFallback />}>
       <Routes>
-        {WheelTest ? <Route path="/wheel-test" element={<WheelTest />} /> : null}
+        <Route path={routePaths.wheel} element={<Wheel />} />
+        {import.meta.env.DEV ? <Route path="/wheel-test" element={<Wheel />} /> : null}
         {publicRoutes.map(renderRoute)}
         {protectedRoutes.map((route) => renderProtectedRoute(route))}
         {adminRoutes.map((route) => renderProtectedRoute(route, true))}

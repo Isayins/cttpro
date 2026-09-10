@@ -69,6 +69,12 @@ describe("route access metadata", () => {
     expect(adminRouteSet.has(routePaths.products)).toBe(false);
   });
 
+  it("keeps the wheel available without login", () => {
+    expect(publicRouteSet.has(routePaths.wheel)).toBe(true);
+    expect(protectedRouteSet.has(routePaths.wheel)).toBe(false);
+    expect(adminRouteSet.has(routePaths.wheel)).toBe(false);
+  });
+
   it("keeps visible nav permissions aligned with route groups", () => {
     for (const item of [...primaryNavItems, ...authenticatedNavItems, ...adminNavItems]) {
       expectNavItemMatchesRouteAccess(item);

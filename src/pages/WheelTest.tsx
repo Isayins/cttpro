@@ -68,7 +68,7 @@ export default function WheelTest() {
     <main className="min-h-screen bg-slate-100 px-4 py-8 md:px-8">
       <div className="mx-auto max-w-5xl">
         <div className="mb-5">
-          <div className="text-sm font-medium text-pink-600">本地测试</div>
+          <div className="text-sm font-medium text-pink-600">无需登录 · 浏览器本地使用</div>
           <h1 className="mt-1 text-3xl font-semibold text-slate-950">随机转盘</h1>
         </div>
         <Card className="rounded-lg bg-white shadow-sm">

@@ -5,6 +5,7 @@ export const routePaths = {
   qrAccess: "/q/:shortCode",
   login: "/login",
   forbidden: "/403",
+  wheel: "/wheel",
   lc: "/lc",
   about: "/about",
   downloads: "/downloads",
@@ -36,6 +37,7 @@ export const publicRoutePaths = [
   routePaths.qrAccess,
   routePaths.login,
   routePaths.forbidden,
+  routePaths.wheel,
 ] as const;
 
 export const protectedRoutePaths = [
