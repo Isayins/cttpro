@@ -1,4 +1,4 @@
-import { apiRequest, type ApiRequestError } from "./api/client";
+import { apiRequest, type ApiRequestError, type RequestOptions } from "./api/client";
 
 export type RpsChoice = "rock" | "paper" | "scissors";
 export type RpsSeat = "one" | "two";
@@ -138,7 +138,7 @@ function requirePlayerToken(value: RpsTableResponse) {
   return value.playerToken;
 }
 
-function request<T>(path: string, options: RequestInit = {}) {
+function request<T>(path: string, options: RequestOptions = {}) {
   return apiRequest<T>(path, {
     authMode: "none",
     ...options,
@@ -152,7 +152,7 @@ export function isRpsSessionError(error: unknown): error is ApiRequestError {
 export async function createRpsTable(name: string): Promise<{ session: RpsSession; table: RpsTable }> {
   const response = await request<RpsTableResponse>("/api/rps/tables", {
     method: "POST",
-    body: JSON.stringify({ name }),
+    body: { name },
     headers: { "Content-Type": "application/json" },
   });
   const playerToken = requirePlayerToken(response);
@@ -165,7 +165,7 @@ export async function createRpsTable(name: string): Promise<{ session: RpsSessio
 export async function joinRpsTable(roomCode: string, name: string): Promise<{ session: RpsSession; table: RpsTable }> {
   const response = await request<RpsTableResponse>(`/api/rps/tables/${encodeURIComponent(roomCode)}/join`, {
     method: "POST",
-    body: JSON.stringify({ name }),
+    body: { name },
     headers: { "Content-Type": "application/json" },
   });
   const playerToken = requirePlayerToken(response);
@@ -185,7 +185,7 @@ export async function fetchRpsTable(session: RpsSession): Promise<RpsTable> {
 export async function submitRpsChoice(session: RpsSession, choice: RpsChoice): Promise<RpsTable> {
   const response = await request<RpsTableResponse>(`/api/rps/tables/${encodeURIComponent(session.roomCode)}/choice`, {
     method: "POST",
-    body: JSON.stringify({ playerToken: session.playerToken, choice }),
+    body: { playerToken: session.playerToken, choice },
     headers: { "Content-Type": "application/json" },
   });
   return mapTable(response);
@@ -194,7 +194,7 @@ export async function submitRpsChoice(session: RpsSession, choice: RpsChoice): P
 export async function startNextRpsRound(session: RpsSession): Promise<RpsTable> {
   const response = await request<RpsTableResponse>(`/api/rps/tables/${encodeURIComponent(session.roomCode)}/next-round`, {
     method: "POST",
-    body: JSON.stringify({ playerToken: session.playerToken }),
+    body: { playerToken: session.playerToken },
     headers: { "Content-Type": "application/json" },
   });
   return mapTable(response);
