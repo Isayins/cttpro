@@ -13,12 +13,15 @@ import { getErrorMessage } from "../lib/errorMessage";
 import { routePaths } from "../router/routeAccess";
 import {
   createRpsTable,
+  fetchRpsTables,
   fetchRpsTable,
   isRpsSessionError,
   joinRpsTable,
+  reviewRpsJoinRequest,
   startNextRpsRound,
   submitRpsChoice,
   type RpsChoice,
+  type RpsAccessMode,
   type RpsPhase,
   type RpsPlayer,
   type RpsSession,
@@ -28,6 +31,7 @@ import "./RockPaperScissors.css";
 
 const RPS_SESSION_STORAGE_KEY = "idncar.rps.online-session";
 const RPS_POLL_INTERVAL_MS = 700;
+const RPS_LOBBY_POLL_INTERVAL_MS = 2500;
 
 function readRpsSession(): RpsSession | null {
   try {
@@ -82,11 +86,16 @@ export default function RockPaperScissors() {
   const [session, setSession] = useState<RpsSession | null>(() => readRpsSession());
   const [table, setTable] = useState<RpsTable | null>(null);
   const [createName, setCreateName] = useState("");
+  const [createAccessMode, setCreateAccessMode] = useState<RpsAccessMode>("PUBLIC");
+  const [createPassword, setCreatePassword] = useState("");
   const [joinName, setJoinName] = useState("");
   const [joinCode, setJoinCode] = useState(() => getInitialRoomCode());
+  const [joinPassword, setJoinPassword] = useState("");
+  const [lobbyTables, setLobbyTables] = useState<Awaited<ReturnType<typeof fetchRpsTables>>>([]);
+  const [loadingLobby, setLoadingLobby] = useState(true);
   const [loadingTable, setLoadingTable] = useState(Boolean(session));
   const [tableRetryKey, setTableRetryKey] = useState(0);
-  const [action, setAction] = useState<"create" | "join" | "choice" | "next" | null>(null);
+  const [action, setAction] = useState<"create" | "join" | "choice" | "next" | "approve" | "reject" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [clock, setClock] = useState(() => Date.now());
@@ -150,6 +159,40 @@ export default function RockPaperScissors() {
   }, [playerToken, roomCode, tableRetryKey]);
 
   useEffect(() => {
+    if (session) {
+      setLoadingLobby(false);
+      return;
+    }
+
+    let active = true;
+    const refreshLobby = async () => {
+      try {
+        const nextTables = await fetchRpsTables();
+        if (active) {
+          setLobbyTables(nextTables);
+        }
+      } catch {
+        // The lobby can keep its last successful list while the service reconnects.
+      } finally {
+        if (active) {
+          setLoadingLobby(false);
+        }
+      }
+    };
+
+    setLoadingLobby(true);
+    void refreshLobby();
+    const timerId = window.setInterval(() => {
+      void refreshLobby();
+    }, RPS_LOBBY_POLL_INTERVAL_MS);
+
+    return () => {
+      active = false;
+      window.clearInterval(timerId);
+    };
+  }, [session]);
+
+  useEffect(() => {
     if (table?.phase !== "COUNTDOWN") {
       return;
     }
@@ -165,12 +208,13 @@ export default function RockPaperScissors() {
     setAction("create");
     setError(null);
     try {
-      const result = await createRpsTable(createName);
+      const result = await createRpsTable(createName, createAccessMode, createPassword);
       writeRpsSession(result.session);
       setSession(result.session);
       setTable(result.table);
       updateRoomUrl(result.session.roomCode);
       setCreateName("");
+      setCreatePassword("");
     } catch (caughtError) {
       setError(getErrorMessage(caughtError, "创建猜拳桌失败"));
     } finally {
@@ -178,8 +222,8 @@ export default function RockPaperScissors() {
     }
   }
 
-  async function handleJoin() {
-    const normalizedCode = joinCode.trim().toUpperCase();
+  async function handleJoin(codeOverride?: string) {
+    const normalizedCode = (codeOverride ?? joinCode).trim().toUpperCase();
     if (action) {
       return;
     }
@@ -190,13 +234,14 @@ export default function RockPaperScissors() {
     setAction("join");
     setError(null);
     try {
-      const result = await joinRpsTable(normalizedCode, joinName);
+      const result = await joinRpsTable(normalizedCode, joinName, joinPassword);
       writeRpsSession(result.session);
       setSession(result.session);
       setTable(result.table);
       setJoinCode(result.session.roomCode);
       updateRoomUrl(result.session.roomCode);
       setJoinName("");
+      setJoinPassword("");
     } catch (caughtError) {
       setError(getErrorMessage(caughtError, "加入猜拳桌失败"));
     } finally {
@@ -233,6 +278,21 @@ export default function RockPaperScissors() {
       setTable(await startNextRpsRound(session));
     } catch (caughtError) {
       setError(getErrorMessage(caughtError, "开始下一局失败"));
+    } finally {
+      setAction(null);
+    }
+  }
+
+  async function handleReviewRequest(requestToken: string, approved: boolean) {
+    if (!session || action || table?.seat !== "one") {
+      return;
+    }
+    setAction(approved ? "approve" : "reject");
+    setError(null);
+    try {
+      setTable(await reviewRpsJoinRequest(session, requestToken, approved));
+    } catch (caughtError) {
+      setError(getErrorMessage(caughtError, approved ? "批准加入申请失败" : "拒绝加入申请失败"));
     } finally {
       setAction(null);
     }
@@ -307,6 +367,32 @@ export default function RockPaperScissors() {
                   maxLength={12}
                   placeholder="例如：小明"
                 />
+                <label className="rps-lobby-card__label" htmlFor="rps-create-access-mode">房间类型</label>
+                <select
+                  id="rps-create-access-mode"
+                  className="rps-player__input rps-access-select"
+                  value={createAccessMode}
+                  onChange={(event) => setCreateAccessMode(event.target.value as RpsAccessMode)}
+                >
+                  <option value="PUBLIC">公开房 · 直接加入</option>
+                  <option value="FRIENDS">好友房 · 房主审批</option>
+                  <option value="ENCRYPTED">加密房 · 密码 + 审批</option>
+                </select>
+                {createAccessMode === "ENCRYPTED" ? (
+                  <>
+                    <label className="rps-lobby-card__label" htmlFor="rps-create-password">房间密码</label>
+                    <input
+                      id="rps-create-password"
+                      className="rps-player__input"
+                      type="password"
+                      value={createPassword}
+                      onChange={(event) => setCreatePassword(event.target.value)}
+                      minLength={4}
+                      maxLength={64}
+                      placeholder="至少 4 个字符"
+                    />
+                  </>
+                ) : null}
                 <button className="rps-lobby-card__button rps-lobby-card__button--create" type="button" onClick={() => void handleCreate()} disabled={Boolean(action)}>
                   {action === "create" ? "正在创建..." : "创建猜拳桌"}
                 </button>
@@ -337,13 +423,61 @@ export default function RockPaperScissors() {
                   placeholder="例如：7K9P2M"
                   autoCapitalize="characters"
                 />
+                <label className="rps-lobby-card__label" htmlFor="rps-join-password">房间密码（加密房填写）</label>
+                <input
+                  id="rps-join-password"
+                  className="rps-player__input"
+                  type="password"
+                  value={joinPassword}
+                  onChange={(event) => setJoinPassword(event.target.value)}
+                  maxLength={64}
+                  placeholder="公开房和好友房无需填写"
+                />
                 <button className="rps-lobby-card__button rps-lobby-card__button--join" type="button" onClick={() => void handleJoin()} disabled={Boolean(action)}>
                   {action === "join" ? "正在加入..." : "加入猜拳桌"}
                 </button>
               </section>
             </div>
+            <section className="rps-lobby__rooms" aria-label="已创建的猜拳桌">
+              <div className="rps-lobby__rooms-heading">
+                <div>
+                  <p className="rps-side-card__eyebrow">OPEN TABLES</p>
+                  <h3>已创建的桌子</h3>
+                </div>
+                <span>{loadingLobby ? "刷新中..." : `${lobbyTables.length} 张可加入`}</span>
+              </div>
+              {lobbyTables.length === 0 ? (
+                <div className="rps-lobby__rooms-empty">暂时没有空桌，创建一张桌子等朋友加入。</div>
+              ) : (
+                <div className="rps-room-list">
+                  {lobbyTables.map((lobbyTable) => (
+                    <article className="rps-room-row" key={lobbyTable.code}>
+                      <div className="rps-room-row__main">
+                        <strong>{lobbyTable.code}</strong>
+                        <span>{lobbyTable.ownerName} 的桌子</span>
+                      </div>
+                      <div className="rps-room-row__meta">
+                        <span className={`rps-access-badge rps-access-badge--${lobbyTable.accessMode.toLowerCase()}`}>
+                          {accessModeLabel(lobbyTable.accessMode)}
+                        </span>
+                        <span>{lobbyTable.joinedPlayers}/2</span>
+                        {lobbyTable.hasPendingRequests ? <span>有申请</span> : null}
+                      </div>
+                      <button
+                        className="rps-room-row__button"
+                        type="button"
+                        onClick={() => void handleJoin(lobbyTable.code)}
+                        disabled={Boolean(action)}
+                      >
+                        {action === "join" ? "加入中..." : lobbyTable.accessMode === "PUBLIC" ? "直接加入" : "申请加入"}
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
             {error ? <div className="rps-inline-error" role="alert">{error}</div> : null}
-            <div className="rps-lobby__note">房间有效期为 2 小时。出拳只会保存在服务端，揭晓前不会发给对方设备。</div>
+            <div className="rps-lobby__note">房间有效期为 2 小时。好友房需要房主同意；加密房还需要先输入密码。出拳在揭晓前不会发给对方设备。</div>
           </section>
         </div>
       </div>
@@ -373,6 +507,48 @@ export default function RockPaperScissors() {
                 </button>
               </div>
             ) : null}
+          </section>
+        </div>
+      </div>
+    );
+  }
+
+  if (table.seat === "pending" || table.accessStatus === "PENDING") {
+    return (
+      <div className="rps-page">
+        <div className="rps-page__inner">
+          <TopBar />
+          <section className="rps-access-state" aria-live="polite">
+            <div className="rps-access-state__mark">…</div>
+            <p className="rps-side-card__eyebrow">JOIN REQUEST SENT</p>
+            <h2>申请已提交</h2>
+            <p>房主同意后，你会自动进入二号位。这个页面会自动刷新申请状态。</p>
+            <div className="rps-access-state__room">房间码 {table.code}</div>
+            <button className="rps-reset" type="button" onClick={handleLeave}>
+              <ArrowLeftOutlined />
+              返回大厅
+            </button>
+          </section>
+        </div>
+      </div>
+    );
+  }
+
+  if (table.seat === "rejected" || table.accessStatus === "REJECTED") {
+    return (
+      <div className="rps-page">
+        <div className="rps-page__inner">
+          <TopBar />
+          <section className="rps-access-state rps-access-state--rejected" aria-live="polite">
+            <div className="rps-access-state__mark">×</div>
+            <p className="rps-side-card__eyebrow">REQUEST DECLINED</p>
+            <h2>房主暂未同意加入</h2>
+            <p>你可以返回大厅，选择其他桌子或重新发起申请。</p>
+            <div className="rps-access-state__room">房间码 {table.code}</div>
+            <button className="rps-reset" type="button" onClick={handleLeave}>
+              <ArrowLeftOutlined />
+              返回大厅
+            </button>
           </section>
         </div>
       </div>
@@ -422,7 +598,7 @@ export default function RockPaperScissors() {
           <section className="rps-table" aria-label="猜拳桌">
             <div className="rps-table__topline">
               <span><strong>对局状态</strong> · {statusLabel}</span>
-              <span>{joinedCount}/2 已入座</span>
+              <span>{accessModeLabel(table.accessMode)} · {joinedCount}/2 已入座</span>
             </div>
 
             <div className="rps-table__stage">
@@ -467,6 +643,44 @@ export default function RockPaperScissors() {
           </section>
 
           <aside className="rps-side">
+            {table.seat === "one" && table.pendingJoinRequests.length > 0 ? (
+              <section className="rps-side-card rps-requests-card">
+                <p className="rps-side-card__eyebrow">JOIN REQUESTS</p>
+                <h2>加入申请</h2>
+                <div className="rps-request-list">
+                  {table.pendingJoinRequests.map((request) => (
+                    <div className="rps-request-row" key={request.requestToken}>
+                      <div>
+                        <strong>{request.name}</strong>
+                        <span>申请进入二号位</span>
+                      </div>
+                      <div className="rps-request-row__actions">
+                        <button
+                          type="button"
+                          className="rps-request-button rps-request-button--approve"
+                          onClick={() => void handleReviewRequest(request.requestToken, true)}
+                          disabled={Boolean(action)}
+                          title="批准加入"
+                          aria-label={`批准${request.name}加入`}
+                        >
+                          <CheckOutlined />
+                        </button>
+                        <button
+                          type="button"
+                          className="rps-request-button rps-request-button--reject"
+                          onClick={() => void handleReviewRequest(request.requestToken, false)}
+                          disabled={Boolean(action)}
+                          title="拒绝加入"
+                          aria-label={`拒绝${request.name}加入`}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
             <section className="rps-side-card">
               <p className="rps-side-card__eyebrow">LIVE SCORE</p>
               <h2>当前比分</h2>
@@ -551,6 +765,17 @@ function phaseLabel(phase: RpsPhase) {
       return "即将揭晓";
     case "REVEALED":
       return "本局结果";
+  }
+}
+
+function accessModeLabel(accessMode: RpsAccessMode) {
+  switch (accessMode) {
+    case "FRIENDS":
+      return "好友房 · 审批";
+    case "ENCRYPTED":
+      return "加密房 · 审批";
+    default:
+      return "公开房";
   }
 }
 

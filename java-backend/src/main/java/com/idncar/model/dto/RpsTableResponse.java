@@ -13,6 +13,11 @@ public record RpsTableResponse(
         RpsPlayerDto playerOne,
         RpsPlayerDto playerTwo,
         RpsScoreDto score,
-        List<RpsRoundSummaryDto> history
+        List<RpsRoundSummaryDto> history,
+        String ownerName,
+        String accessMode,
+        String accessStatus,
+        List<RpsJoinRequestDto> pendingJoinRequests,
+        long createdAtEpochMs
 ) {
 }

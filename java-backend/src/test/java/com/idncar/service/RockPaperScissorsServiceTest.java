@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.idncar.exception.ApiException;
 import com.idncar.model.dto.CreateRpsTableRequest;
 import com.idncar.model.dto.JoinRpsTableRequest;
+import com.idncar.model.dto.RpsLobbyTableDto;
 import com.idncar.model.dto.RpsTableResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -69,6 +70,65 @@ class RockPaperScissorsServiceTest {
         assertThatThrownBy(() -> service.submitChoice(created.code(), created.playerToken(), "lizard"))
                 .isInstanceOf(ApiException.class)
                 .hasMessage("出拳选择无效");
+    }
+
+    @Test
+    void listsOnlyOpenTablesInTheLobby() {
+        RpsTableResponse created = service.createTable(new CreateRpsTableRequest("小明", "PUBLIC", null));
+
+        assertThat(service.listTables())
+                .extracting(RpsLobbyTableDto::code)
+                .contains(created.code());
+
+        service.joinTable(created.code(), new JoinRpsTableRequest("小红"));
+
+        assertThat(service.listTables())
+                .extracting(RpsLobbyTableDto::code)
+                .doesNotContain(created.code());
+    }
+
+    @Test
+    void friendTableRequiresOwnerApprovalBeforeTakingSeat() {
+        RpsTableResponse created = service.createTable(new CreateRpsTableRequest("小明", "FRIENDS", null));
+        RpsTableResponse pending = service.joinTable(created.code(), new JoinRpsTableRequest("小红"));
+
+        assertThat(pending.seat()).isEqualTo("pending");
+        assertThat(pending.accessStatus()).isEqualTo("PENDING");
+        assertThat(pending.playerTwo().joined()).isFalse();
+        assertThat(service.getTable(created.code(), created.playerToken()).pendingJoinRequests()).hasSize(1);
+
+        RpsTableResponse approved = service.reviewJoinRequest(
+                created.code(),
+                created.playerToken(),
+                pending.playerToken(),
+                true
+        );
+
+        assertThat(approved.playerTwo().joined()).isTrue();
+        assertThat(service.getTable(created.code(), pending.playerToken()).seat()).isEqualTo("two");
+    }
+
+    @Test
+    void encryptedTableChecksPasswordBeforeCreatingApprovalRequest() {
+        RpsTableResponse created = service.createTable(new CreateRpsTableRequest("小明", "ENCRYPTED", "secret"));
+
+        assertThatThrownBy(() -> service.joinTable(created.code(), new JoinRpsTableRequest("小红", "wrong", null)))
+                .isInstanceOf(ApiException.class)
+                .hasMessage("房间密码错误");
+
+        RpsTableResponse pending = service.joinTable(created.code(), new JoinRpsTableRequest("小红", "secret", null));
+        assertThat(pending.seat()).isEqualTo("pending");
+        assertThat(pending.accessStatus()).isEqualTo("PENDING");
+    }
+
+    @Test
+    void onlyOwnerCanReviewJoinRequests() {
+        RpsTableResponse created = service.createTable(new CreateRpsTableRequest("小明", "FRIENDS", null));
+        RpsTableResponse pending = service.joinTable(created.code(), new JoinRpsTableRequest("小红"));
+
+        assertThatThrownBy(() -> service.reviewJoinRequest(created.code(), pending.playerToken(), pending.playerToken(), true))
+                .isInstanceOf(ApiException.class)
+                .hasMessage("只有房主可以处理加入申请");
     }
 
     @Test

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createRpsTable } from "./rpsService";
+import { createRpsTable, fetchRpsTables } from "./rpsService";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -45,6 +45,31 @@ describe("rock paper scissors API", () => {
     await createRpsTable("aa");
 
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
-    expect(init.body).toBe(JSON.stringify({ name: "aa" }));
+    expect(init.body).toBe(JSON.stringify({ name: "aa", accessMode: "PUBLIC" }));
+  });
+
+  it("loads the open-table lobby list", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify([
+      {
+        code: "ABC234",
+        ownerName: "小明",
+        accessMode: "FRIENDS",
+        phase: "WAITING",
+        joinedPlayers: 1,
+        hasPendingRequests: true,
+        createdAtEpochMs: 1,
+      },
+    ]), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchRpsTables()).resolves.toEqual([
+      expect.objectContaining({
+        code: "ABC234",
+        ownerName: "小明",
+        accessMode: "FRIENDS",
+        joinedPlayers: 1,
+        hasPendingRequests: true,
+      }),
+    ]);
   });
 });

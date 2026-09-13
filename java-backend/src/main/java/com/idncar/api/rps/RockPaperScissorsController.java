@@ -3,6 +3,7 @@ package com.idncar.api.rps;
 import com.idncar.model.dto.CreateRpsTableRequest;
 import com.idncar.model.dto.JoinRpsTableRequest;
 import com.idncar.model.dto.RpsActionRequest;
+import com.idncar.model.dto.RpsLobbyTableDto;
 import com.idncar.model.dto.RpsTableResponse;
 import com.idncar.model.dto.SubmitRpsChoiceRequest;
 import com.idncar.service.RockPaperScissorsService;
@@ -16,6 +17,8 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/rps")
 public class RockPaperScissorsController {
@@ -28,10 +31,29 @@ public class RockPaperScissorsController {
         return ResponseEntity.ok(rockPaperScissorsService.createTable(request));
     }
 
+    @GetMapping("/tables")
+    public ResponseEntity<List<RpsLobbyTableDto>> listTables() {
+        return ResponseEntity.ok(rockPaperScissorsService.listTables());
+    }
+
     @PostMapping("/tables/{code}/join")
     public ResponseEntity<RpsTableResponse> joinTable(@PathVariable String code,
                                                        @RequestBody(required = false) JoinRpsTableRequest request) {
         return ResponseEntity.ok(rockPaperScissorsService.joinTable(code, request));
+    }
+
+    @PostMapping("/tables/{code}/requests/{requestToken}/approve")
+    public ResponseEntity<RpsTableResponse> approveJoinRequest(@PathVariable String code,
+                                                                @PathVariable String requestToken,
+                                                                @RequestBody RpsActionRequest request) {
+        return ResponseEntity.ok(rockPaperScissorsService.reviewJoinRequest(code, request.playerToken(), requestToken, true));
+    }
+
+    @PostMapping("/tables/{code}/requests/{requestToken}/reject")
+    public ResponseEntity<RpsTableResponse> rejectJoinRequest(@PathVariable String code,
+                                                               @PathVariable String requestToken,
+                                                               @RequestBody RpsActionRequest request) {
+        return ResponseEntity.ok(rockPaperScissorsService.reviewJoinRequest(code, request.playerToken(), requestToken, false));
     }
 
     @GetMapping("/tables/{code}")
