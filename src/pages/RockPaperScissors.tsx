@@ -612,7 +612,10 @@ export default function RockPaperScissors() {
 
               <div className="rps-duel" aria-live="polite">
                 <div className="rps-duel__label">ROUND {table.round}</div>
-                <div className={`rps-countdown ${table.phase === "WAITING" || table.phase === "CHOOSING" ? "rps-countdown--waiting" : ""} ${table.phase === "REVEALED" ? "rps-countdown--revealed" : ""} ${table.phase === "COUNTDOWN" ? "rps-countdown--pulse" : ""}`}>
+                <div
+                  key={table.phase === "COUNTDOWN" ? `${table.round}-${countdown}` : table.phase}
+                  className={`rps-countdown ${table.phase === "WAITING" || table.phase === "CHOOSING" ? "rps-countdown--waiting" : ""} ${table.phase === "REVEALED" ? "rps-countdown--revealed" : ""} ${table.phase === "COUNTDOWN" ? "rps-countdown--pulse" : ""}`}
+                >
                   {table.phase === "WAITING" ? "WAIT" : table.phase === "CHOOSING" ? "VS" : table.phase === "COUNTDOWN" ? countdown : "DONE"}
                 </div>
                 <div className="rps-duel__vs">VS</div>
@@ -885,7 +888,7 @@ function ScoreRow({ player, name, score }: ScoreRowProps) {
         {name}
         <span className="rps-score-row__role">{player === "one" ? "橙方" : "青方"}</span>
       </div>
-      <span className="rps-score-row__score">{score}</span>
+      <span className="rps-score-row__score" key={`${player}-${score}`}>{score}</span>
     </div>
   );
 }

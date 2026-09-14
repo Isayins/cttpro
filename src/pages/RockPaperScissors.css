@@ -8,6 +8,7 @@
   --rps-orange: #f3a65a;
   --rps-mint: #73d4c0;
   --rps-violet: #a894f7;
+  --rps-ease: cubic-bezier(0.22, 1, 0.36, 1);
   min-height: 100vh;
   overflow: hidden;
   padding: 28px clamp(16px, 4vw, 64px) 56px;
@@ -119,6 +120,7 @@
   justify-content: space-between;
   gap: 24px;
   margin-bottom: 26px;
+  animation: rps-fade-up 560ms var(--rps-ease) both;
 }
 
 .rps-eyebrow {
@@ -158,6 +160,7 @@
   background: rgba(115, 212, 192, 0.07);
   font-size: 12px;
   white-space: nowrap;
+  animation: rps-fade-up 560ms 100ms var(--rps-ease) both;
 }
 
 .rps-hero__signal strong {
@@ -180,6 +183,7 @@
   border-radius: 26px;
   background: var(--rps-surface);
   box-shadow: 0 28px 80px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  animation: rps-fade-up 620ms var(--rps-ease) both;
 }
 
 .rps-table::before {
@@ -240,6 +244,7 @@
   border: 1px solid var(--rps-line);
   border-radius: 20px;
   background: rgba(19, 31, 43, 0.88);
+  animation: rps-player-enter 520ms 80ms var(--rps-ease) both;
 }
 
 .rps-player--one {
@@ -250,6 +255,7 @@
 .rps-player--two {
   border-color: rgba(115, 212, 192, 0.38);
   box-shadow: inset 0 2px 0 rgba(115, 212, 192, 0.14);
+  animation-delay: 150ms;
 }
 
 .rps-player__header,
@@ -429,6 +435,7 @@
   background: #0f1923;
   cursor: pointer;
   transition: border-color 160ms ease, background 160ms ease, color 160ms ease, transform 160ms ease;
+  will-change: transform;
 }
 
 .rps-choice:not(:disabled):hover {
@@ -436,6 +443,10 @@
   color: var(--rps-text);
   background: #1b2a39;
   transform: translateY(-2px);
+}
+
+.rps-choice:not(:disabled):active {
+  transform: translateY(0) scale(0.97);
 }
 
 .rps-choice:disabled {
@@ -448,6 +459,7 @@
   color: var(--rps-text);
   background: rgba(243, 166, 90, 0.15) !important;
   box-shadow: 0 0 0 3px rgba(243, 166, 90, 0.1);
+  animation: rps-choice-reveal 560ms var(--rps-ease) both;
 }
 
 .rps-player--two .rps-choice--revealed {
@@ -459,6 +471,10 @@
 .rps-choice__icon {
   font-size: 22px;
   line-height: 1;
+}
+
+.rps-choice--revealed .rps-choice__icon {
+  animation: rps-choice-icon-pop 620ms 80ms var(--rps-ease) both;
 }
 
 .rps-choice__name {
@@ -505,6 +521,8 @@
 }
 
 .rps-countdown {
+  position: relative;
+  isolation: isolate;
   display: grid;
   width: 122px;
   height: 122px;
@@ -517,6 +535,7 @@
   font-size: 48px;
   font-weight: 700;
   line-height: 1;
+  will-change: transform, opacity;
 }
 
 .rps-countdown--waiting {
@@ -537,20 +556,45 @@
 }
 
 .rps-countdown--pulse {
-  animation: rps-countdown-pulse 900ms ease-out;
+  animation: rps-countdown-pulse 900ms var(--rps-ease) both;
+}
+
+.rps-countdown--pulse::after {
+  position: absolute;
+  inset: -10px;
+  border: 1px solid rgba(243, 166, 90, 0.34);
+  border-radius: 50%;
+  content: "";
+  pointer-events: none;
+  animation: rps-countdown-ring 900ms var(--rps-ease) both;
 }
 
 @keyframes rps-countdown-pulse {
   0% {
-    transform: scale(0.86);
-    opacity: 0.65;
+    transform: scale(0.88);
+    opacity: 0.7;
   }
-  65% {
-    transform: scale(1.05);
+  42% {
+    transform: scale(1.06);
     opacity: 1;
+  }
+  72% {
+    transform: scale(0.99);
   }
   100% {
     transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes rps-countdown-ring {
+  0% {
+    transform: scale(0.82);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.32);
+    opacity: 0;
   }
 }
 
@@ -568,6 +612,11 @@
   color: var(--rps-muted);
   font-size: 13px;
   line-height: 1.5;
+}
+
+.rps-result--win,
+.rps-result--draw {
+  animation: rps-result-in 500ms 100ms var(--rps-ease) both;
 }
 
 .rps-result strong {
@@ -696,9 +745,12 @@
 }
 
 .rps-score-row__score {
+  display: inline-block;
   color: var(--rps-orange);
   font-size: 25px;
   font-weight: 700;
+  transform-origin: center;
+  animation: rps-score-pop 460ms var(--rps-ease) both;
 }
 
 .rps-score-row--two .rps-score-row__score {
@@ -741,6 +793,7 @@
   gap: 10px;
   color: var(--rps-muted);
   font-size: 12px;
+  animation: rps-fade-up 360ms 80ms var(--rps-ease) both;
 }
 
 .rps-history__result {
@@ -843,6 +896,7 @@
   border-radius: 22px;
   background: var(--rps-surface);
   box-shadow: 0 28px 80px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  animation: rps-fade-up 620ms 80ms var(--rps-ease) both;
 }
 
 .rps-lobby__heading {
@@ -888,6 +942,12 @@
   border: 1px solid var(--rps-line);
   border-radius: 16px;
   background: #0e1721;
+  transition: transform 220ms var(--rps-ease), border-color 220ms var(--rps-ease), background 220ms var(--rps-ease);
+}
+
+.rps-lobby-card:hover {
+  transform: translateY(-2px);
+  background: #101b26;
 }
 
 .rps-lobby-card--create {
@@ -1044,6 +1104,30 @@
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.025);
+  transition: transform 180ms var(--rps-ease), border-color 180ms var(--rps-ease), background 180ms var(--rps-ease);
+  animation: rps-room-in 420ms var(--rps-ease) both;
+}
+
+.rps-room-row:hover {
+  border-color: rgba(115, 212, 192, 0.24);
+  background: rgba(115, 212, 192, 0.05);
+  transform: translateY(-1px);
+}
+
+.rps-room-row:nth-child(2) {
+  animation-delay: 50ms;
+}
+
+.rps-room-row:nth-child(3) {
+  animation-delay: 100ms;
+}
+
+.rps-room-row:nth-child(4) {
+  animation-delay: 150ms;
+}
+
+.rps-room-row:nth-child(5) {
+  animation-delay: 200ms;
 }
 
 .rps-room-row__main {
@@ -1127,6 +1211,7 @@
   color: var(--rps-muted);
   background: var(--rps-surface);
   text-align: center;
+  animation: rps-fade-up 560ms var(--rps-ease) both;
 }
 
 .rps-access-state--rejected {
@@ -1191,6 +1276,7 @@
   gap: 10px;
   padding: 10px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  animation: rps-fade-up 360ms var(--rps-ease) both;
 }
 
 .rps-request-row:last-child {
@@ -1231,6 +1317,15 @@
   border-radius: 7px;
   cursor: pointer;
   font-size: 15px;
+  transition: transform 160ms var(--rps-ease), border-color 160ms var(--rps-ease), background 160ms var(--rps-ease);
+}
+
+.rps-request-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.rps-request-button:active:not(:disabled) {
+  transform: scale(0.94);
 }
 
 .rps-request-button:disabled {
@@ -1336,6 +1431,89 @@
 @keyframes rps-loading-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes rps-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes rps-player-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes rps-choice-reveal {
+  0% {
+    opacity: 0.45;
+    transform: scale(0.88);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes rps-choice-icon-pop {
+  0% {
+    transform: scale(0.7) rotate(-8deg);
+  }
+  65% {
+    transform: scale(1.16) rotate(3deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+  }
+}
+
+@keyframes rps-result-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes rps-score-pop {
+  0% {
+    transform: scale(0.76);
+  }
+  65% {
+    transform: scale(1.16);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes rps-room-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -1454,8 +1632,34 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .rps-hero,
+  .rps-hero__signal,
+  .rps-lobby,
+  .rps-table,
+  .rps-player,
+  .rps-choice--revealed,
+  .rps-choice--revealed .rps-choice__icon,
+  .rps-result--win,
+  .rps-result--draw,
+  .rps-score-row__score,
+  .rps-history__row,
+  .rps-room-row,
+  .rps-access-state,
+  .rps-request-row,
+  .rps-countdown--pulse,
+  .rps-countdown--pulse::after {
+    animation: none;
+  }
+
+  .rps-countdown--pulse::after {
+    display: none;
+  }
+
   .rps-countdown--pulse,
   .rps-choice,
+  .rps-lobby-card,
+  .rps-room-row,
+  .rps-request-button,
   .rps-player__join,
   .rps-next-round,
   .rps-reset {
