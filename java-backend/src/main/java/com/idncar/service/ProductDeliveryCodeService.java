@@ -31,7 +31,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.time.Year;
@@ -78,6 +81,9 @@ public class ProductDeliveryCodeService {
 
     @Autowired
     private MailSendLogMapper mailSendLogMapper;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @Autowired
     private UserAccessService userAccessService;
@@ -272,6 +278,7 @@ public class ProductDeliveryCodeService {
             if (mailError != null) {
                 throw ApiException.badGateway(mailError);
             }
+            clearResolvedDeliveryConfigurationError(order);
             return;
         }
 
@@ -288,6 +295,22 @@ public class ProductDeliveryCodeService {
             throw ApiException.badRequest("该订单CDK状态不支持重新发货");
         }
         sendAndMarkDeliveryCodeSent(product, order.getOutTradeNo(), deliveryCode, buyerEmail);
+        clearResolvedDeliveryConfigurationError(order);
+    }
+
+    private void clearResolvedDeliveryConfigurationError(PaymentOrder order) {
+        if (order.getId() == null
+                || !ProductDeliveryContentPolicy.MISSING_DELIVERY_CONTENT.equals(order.getLastError())) {
+            return;
+        }
+        int cleared = paymentOrderMapper.update(null, new UpdateWrapper<PaymentOrder>()
+                .set("last_error", null)
+                .eq("id", order.getId())
+                .eq("out_trade_no", order.getOutTradeNo())
+                .eq("last_error", ProductDeliveryContentPolicy.MISSING_DELIVERY_CONTENT));
+        if (cleared > 0) {
+            order.setLastError(null);
+        }
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -463,6 +486,15 @@ public class ProductDeliveryCodeService {
     private String sendDeliveryEmail(Product product, String orderNo, ProductDeliveryCode deliveryCode, String buyerEmail) {
         boolean cdkDelivery = deliveryCode != null;
         String subject = buildDeliveryEmailSubject(product);
+        String configurationError = ProductDeliveryContentPolicy.configurationError(product);
+        if (configurationError != null) {
+            // Keep the failed attempt visible even when a transactional resend rejects the request.
+            TransactionTemplate logTransaction = new TransactionTemplate(transactionManager);
+            logTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+            logTransaction.executeWithoutResult(status -> mailSendLogMapper.insert(buildMailSendLog(
+                    product, orderNo, deliveryCode, buyerEmail, subject, MAIL_STATUS_FAILED, configurationError)));
+            return configurationError;
+        }
         JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
         if (mailSender == null) {
             String error = cdkDelivery
@@ -513,23 +545,28 @@ public class ProductDeliveryCodeService {
     private void recordMailSendLog(Product product, String orderNo, ProductDeliveryCode deliveryCode,
                                    String buyerEmail, String subject, String status, String errorMessage) {
         try {
-            MailSendLog mailLog = new MailSendLog();
-            mailLog.setMailType(deliveryCode == null ? "PRODUCT_DELIVERY" : "CDK_DELIVERY");
-            mailLog.setTriggerType("DELIVERY");
-            mailLog.setOrderNo(limitText(normalizeNullableText(orderNo), 64));
-            mailLog.setProductId(product == null ? null : product.getId());
-            mailLog.setProductTitle(limitText(product == null ? null : product.getTitle(), 160));
-            mailLog.setDeliveryCodeId(deliveryCode == null ? null : deliveryCode.getId());
-            mailLog.setRecipientEmail(limitText(normalizeNullableText(buyerEmail), 120));
-            mailLog.setSubject(limitText(normalizeNullableText(subject), 200));
-            mailLog.setStatus(status);
-            mailLog.setErrorMessage(limitText(normalizeNullableText(errorMessage), 600));
-            mailLog.setCreateTime(new Date());
-            mailSendLogMapper.insert(mailLog);
+            mailSendLogMapper.insert(buildMailSendLog(product, orderNo, deliveryCode, buyerEmail, subject, status, errorMessage));
         } catch (Exception exception) {
             log.warn("Failed to record delivery email log: orderNo={}, email={}, error={}",
                     orderNo, buyerEmail, exception.getMessage());
         }
+    }
+
+    private MailSendLog buildMailSendLog(Product product, String orderNo, ProductDeliveryCode deliveryCode,
+                                         String buyerEmail, String subject, String status, String errorMessage) {
+        MailSendLog mailLog = new MailSendLog();
+        mailLog.setMailType(deliveryCode == null ? "PRODUCT_DELIVERY" : "CDK_DELIVERY");
+        mailLog.setTriggerType("DELIVERY");
+        mailLog.setOrderNo(limitText(normalizeNullableText(orderNo), 64));
+        mailLog.setProductId(product == null ? null : product.getId());
+        mailLog.setProductTitle(limitText(product == null ? null : product.getTitle(), 160));
+        mailLog.setDeliveryCodeId(deliveryCode == null ? null : deliveryCode.getId());
+        mailLog.setRecipientEmail(limitText(normalizeNullableText(buyerEmail), 120));
+        mailLog.setSubject(limitText(normalizeNullableText(subject), 200));
+        mailLog.setStatus(status);
+        mailLog.setErrorMessage(limitText(normalizeNullableText(errorMessage), 600));
+        mailLog.setCreateTime(new Date());
+        return mailLog;
     }
 
     private String resolveMailFromAddress() {
@@ -550,8 +587,7 @@ public class ProductDeliveryCodeService {
         boolean cdkDelivery = deliveryCode != null;
         String instructions = htmlLines(cdkDelivery
                 ? firstText(product.getDeliveryInstructions(), "暂无使用教程，请联系管理员补充。")
-                : firstText(product.getDeliveryInstructions(), product.getDescription(), product.getSubtitle(),
-                        "商品已经领取成功。如需进一步获取交付内容，请携带订单号联系管理员。"));
+                : product.getDeliveryInstructions());
         String preheader = cdkDelivery
                 ? "您的 IDNCAR 虚拟商品已发货，CDK 已在邮件中。"
                 : "您的 IDNCAR 商品已经领取成功，交付内容已在邮件中。";

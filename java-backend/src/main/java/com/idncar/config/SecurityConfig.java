@@ -92,6 +92,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").authenticated()
                 .requestMatchers("/api/admin/**").authenticated()
                 .requestMatchers("/api/community/**").authenticated()
+                .requestMatchers("/api/notifications/**").authenticated()
                 .requestMatchers(HttpMethod.GET,
                         "/api/forum/sign-in/status",
                         "/api/forum/sign-in/status/",

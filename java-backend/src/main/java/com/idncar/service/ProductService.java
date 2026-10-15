@@ -65,7 +65,7 @@ public class ProductService {
                         .orderByAsc("sort_order")
                         .orderByDesc("update_time"))
                 .stream()
-                .collect(Collectors.collectingAndThen(Collectors.toList(), this::toAdminProductDtos));
+                .collect(Collectors.collectingAndThen(Collectors.toList(), this::toPublicProductDtos));
     }
 
     public ProductDto getPublishedProduct(Long productId) {
@@ -73,7 +73,7 @@ public class ProductService {
         if (product == null || !"PUBLISHED".equalsIgnoreCase(product.getStatus())) {
             throw ApiException.notFound("商品不存在或已下架");
         }
-        return toAdminProductDto(product);
+        return toPublicProductDtos(List.of(product)).get(0);
     }
 
     public List<ProductDto> getAdminProducts(Long adminUserId) {
@@ -171,6 +171,10 @@ public class ProductService {
         if (product.getStock() == null || product.getStock() <= 0) {
             throw ApiException.badRequest("商品库存不足");
         }
+        String configurationError = ProductDeliveryContentPolicy.configurationError(product);
+        if (configurationError != null) {
+            throw ApiException.badRequest(configurationError);
+        }
         return product;
     }
 
@@ -199,6 +203,12 @@ public class ProductService {
                 productImageSubDir,
                 "商品"
         );
+    }
+
+    private List<ProductDto> toPublicProductDtos(List<Product> products) {
+        List<ProductDto> records = toAdminProductDtos(products);
+        records.forEach(record -> record.setDeliveryInstructions(null));
+        return records;
     }
 
     private ProductDto toAdminProductDto(Product product) {
@@ -337,6 +347,12 @@ public class ProductService {
         product.setDeliveryInstructions(limitText(normalizeNullableText(request.getDeliveryInstructions()), 5000));
         product.setStatus(normalizeStatus(request.getStatus()));
         product.setSortOrder(request.getSortOrder() == null ? 0 : Math.max(0, request.getSortOrder()));
+        if ("PUBLISHED".equals(product.getStatus())) {
+            String configurationError = ProductDeliveryContentPolicy.configurationError(product);
+            if (configurationError != null) {
+                throw ApiException.badRequest(configurationError);
+            }
+        }
     }
 
     private BigDecimal normalizePrice(BigDecimal price) {

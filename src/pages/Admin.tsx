@@ -5592,6 +5592,9 @@ export default function Admin() {
                                 const isCdkEmail =
                                   getFieldValue("deliveryType") ===
                                   "CDK_EMAIL";
+                                const requiresDeliveryContent =
+                                  !isCdkEmail &&
+                                  getFieldValue("status") === "PUBLISHED";
                                 return (
                                   <Form.Item
                                     name="deliveryInstructions"
@@ -5600,10 +5603,18 @@ export default function Admin() {
                                         ? "邮件教程"
                                         : "邮件交付内容"
                                     }
+                                    dependencies={["deliveryType", "status"]}
+                                    rules={[
+                                      {
+                                        required: requiresDeliveryContent,
+                                        whitespace: requiresDeliveryContent,
+                                        message: "上架前请填写实际邮件交付内容",
+                                      },
+                                    ]}
                                     extra={
                                       isCdkEmail
                                         ? "将和分配的CDK一起发送到订单收货邮箱"
-                                        : "普通商品领取或支付成功后，该内容会自动发送到订单收货邮箱"
+                                        : "上架前请填写实际交付内容，每笔订单均会发送相同内容。每单独立的邮箱或取码链接请选择“邮箱链接 / CDK邮件发货”，并从邮箱接码导入库存。"
                                     }
                                   >
                                     <Input.TextArea

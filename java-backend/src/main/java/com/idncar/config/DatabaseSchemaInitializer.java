@@ -1,10 +1,9 @@
 package com.idncar.config;
 
 import com.idncar.util.HotmailCredentialCrypto;
+import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.ApplicationArguments;
-import org.springframework.boot.ApplicationRunner;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -13,7 +12,7 @@ import java.util.Map;
 
 @Component
 @ConditionalOnProperty(name = "app.schema.auto-init-enabled", havingValue = "true")
-public class DatabaseSchemaInitializer implements ApplicationRunner {
+public class DatabaseSchemaInitializer implements SmartInitializingSingleton {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -22,7 +21,8 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
     private HotmailCredentialCrypto hotmailCredentialCrypto;
 
     @Override
-    public void run(ApplicationArguments args) {
+    public void afterSingletonsInstantiated() {
+        // Complete schema upgrades before context refresh activates scheduled database queries.
         ensureUserColumns();
         ensureLoginRecordsTable();
         ensureLoginRecordColumns();

@@ -37,7 +37,7 @@ class ProductDeliveryCodeServiceTest {
         Product product = new Product();
         product.setId(1L);
         product.setTitle("学习资料");
-        product.setDescription("资料下载地址：https://example.com/download");
+        product.setDeliveryInstructions("资料下载地址：https://example.com/download");
         product.setDeliveryType("NONE");
 
         PaymentOrder order = new PaymentOrder();
@@ -93,6 +93,7 @@ class ProductDeliveryCodeServiceTest {
         product.setId(1L);
         product.setTitle("普通商品");
         product.setDeliveryType("NONE");
+        product.setDeliveryInstructions("请使用商品提供的下载地址获取资料");
 
         PaymentOrder order = new PaymentOrder();
         order.setResourceId(1L);
